@@ -19,6 +19,7 @@ These values cannot be safely invented. Development placeholders deliberately ma
 | Map provider commercial configuration if non-native maps are chosen       | Product/legal           | Map tiles/navigation       | Native deep link/current location              |
 | Push credentials (APNs/FCM/Expo)                                          | Mobile owner            | Push delivery              | In-app outbox; push disabled                   |
 | Production monitoring/alert provider credentials                          | SRE                     | Production on-call         | Structured logs only                           |
+| Malware scanner endpoint, authentication secret, and processing region    | Security/platform       | Production uploads         | Quarantine remains fail-closed                 |
 | Reviewer customer/provider accounts and approved seeded journey           | Release/operations      | Store review               | No fabricated accounts                         |
 | Arabic/English/Urdu/Hindi professional copy review                        | Localization owner      | Public launch              | Engineering translations                       |
 | Provider verification policy and regulated-category evidence list         | Operations/legal        | Provider approval          | Manual review, no auto-verify                  |

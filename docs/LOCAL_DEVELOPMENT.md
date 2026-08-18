@@ -1,6 +1,6 @@
 # Local development
 
-Prerequisites: Node 24 LTS, Corepack/pnpm 11.19.0, Docker Desktop, Supabase CLI 2.114.0, and Android Studio/Xcode only for native device work.
+Prerequisites: Node 24 LTS, Corepack/pnpm 11.19.0, Docker Desktop, Supabase CLI 2.114.0, and Android Studio/Xcode only for native device work. k6 and Maestro are external validation CLIs and are never shipped with the application.
 
 ```bash
 corepack enable
@@ -18,7 +18,7 @@ After migrations, run `supabase db reset`, `supabase test db`, regenerate types 
 
 ## Local demo accounts
 
-`supabase db reset` loads deterministic data from `supabase/seed.demo.sql`; that file is local-only and must never be applied to production. Seeded accounts use non-recoverable random passwords and the `.invalid` domain. For interactive local sign-in, issue a local email OTP or set a temporary password through Supabase Studio:
+`supabase db reset` loads deterministic data from `supabase/seed.demo.sql`; that file is local-only and must never be applied to production. Seeded accounts use the `.invalid` domain. All passwords are non-recoverable random values except the operations admin, which has the explicitly local-only Playwright password `LocalE2E-Only!2026`. Never reuse that fixture outside the local reset database. For other interactive local sign-in, issue a local email OTP or set a temporary password through Supabase Studio:
 
 | Role                                | Email                                |
 | ----------------------------------- | ------------------------------------ |
@@ -31,4 +31,4 @@ After migrations, run `supabase db reset`, `supabase test db`, regenerate types 
 | Support agent                       | `support.demo@example.invalid`       |
 | Verification reviewer               | `reviewer.demo@example.invalid`      |
 
-The seed includes a sealed-offer request, active job with pending change order, completed/rated job, conversation, offline payment record, support case, dispute/financial hold, and in-app notifications. Set `TRANSLATION_PROVIDER=deterministic` only for local translation-contract testing; its output is visibly marked as test content.
+The seed includes a sealed-offer request, active job with pending change order, pending cancellation, completed/rated job, conversation, offline payment record, support case, dispute/financial hold, and in-app notifications. Set `TRANSLATION_PROVIDER=deterministic` only for local translation-contract testing; its output is visibly marked as test content.
