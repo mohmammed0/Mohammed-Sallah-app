@@ -7,6 +7,9 @@ flowchart LR
   Profile --> Address
   Profile --> ProviderProfile
   Profile --> ServiceRequest
+  Profile --> AiSession
+  AiSession --> AiMessage
+  AiSession --> AiDiagnostic
   Catalog --> ServiceRequest
   ServiceRequest --> Match
   Match --> Offer
@@ -14,6 +17,7 @@ flowchart LR
   Job --> Conversation
   Job --> ChangeOrder
   Job --> CompletionProof
+  Job --> LocationSharingSession
   Job --> Payment
   Payment --> Settlement
   Job --> Dispute
@@ -43,3 +47,7 @@ sequenceDiagram
 ```
 
 Exact address records are separate from approximate PostGIS points. Providers match on rounded/approximate geography and cannot read address rows until selected. Offers are row-sealed; customer-safe provider facts come from a whitelisted RPC.
+
+`file_uploads` is the authoritative media lifecycle record. Completion proofs, message attachments, request media, provider documents, and support evidence bind only to a clean upload. The storage path is an internal implementation detail; consumers receive manifests containing upload IDs and ask the signed-media broker for time-limited access.
+
+Refund accounting stores every refund in minor units and derives `partially_refunded` versus `refunded` from cumulative confirmed amounts. Dispute/cancellation commands lock the job and financial rows, enforce expected versions and idempotency payload equality, record workflow history, and defer externally confirmed money movement to a service-role reconciliation command.
