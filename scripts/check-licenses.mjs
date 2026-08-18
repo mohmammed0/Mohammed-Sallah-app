@@ -39,16 +39,6 @@ const exactExceptions = new Map([
       'lightningcss-darwin-x64',
     ]),
   ],
-  [
-    'Apache-2.0 AND LGPL-3.0-or-later',
-    new Set([
-      '@img/sharp-win32-x64',
-      '@img/sharp-linux-x64',
-      '@img/sharp-linuxmusl-x64',
-      '@img/sharp-darwin-arm64',
-      '@img/sharp-darwin-x64',
-    ]),
-  ],
 ]);
 function hasPermissiveChoice(expression) {
   return expression

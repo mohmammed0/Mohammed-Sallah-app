@@ -11,7 +11,7 @@
 - [ ] Customer/provider acceptance scenarios A–G rerun in review environment
 - [ ] Reviewer accounts and synthetic journey prepared securely
 - [ ] Screenshots/metadata contain no PII, placeholders, or fake integration claims
-- [ ] SBOM/license/security/secret/dependency reports reviewed; Sharp/libvips distribution notice approved
+- [ ] SBOM/license/security/secret/dependency reports reviewed; excluded optional packages confirmed absent
 - [ ] Backup restore drill, incident/on-call/support escalation and rollback exercised
 - [ ] Data export/deletion and public deletion page verified end-to-end
 - [ ] Release commit/tag/artifacts recorded; phased rollout and stop criteria approved

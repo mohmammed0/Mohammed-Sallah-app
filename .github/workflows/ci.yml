@@ -101,7 +101,7 @@ jobs:
       - run: supabase db reset
       - run: supabase test db
       - name: Verify generated types current
-        run: supabase gen types typescript --local > /tmp/database.types.ts && pnpm exec prettier --write /tmp/database.types.ts && diff -u packages/database/src/database.types.ts /tmp/database.types.ts
+        run: supabase gen types typescript --local > /tmp/database.types.ts && pnpm exec prettier --config .prettierrc.json --write /tmp/database.types.ts && diff -u packages/database/src/database.types.ts /tmp/database.types.ts
       - run: deno fmt --check --config supabase/functions/deno.json supabase/functions
       - run: deno lint --config supabase/functions/deno.json supabase/functions
       - run: deno check --config supabase/functions/deno.json supabase/functions/ai-diagnostic/index.ts supabase/functions/transcribe/index.ts supabase/functions/notification-worker/index.ts supabase/functions/translate-provider-brief/index.ts

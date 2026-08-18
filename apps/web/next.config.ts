@@ -17,6 +17,9 @@ const csp = [
 const config: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  images: {
+    unoptimized: true,
+  },
   transpilePackages: ['@sallah/config', '@sallah/domain', '@sallah/i18n'],
   async headers() {
     return [

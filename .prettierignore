@@ -5,5 +5,6 @@ dist
 coverage
 pnpm-lock.yaml
 supabase/.temp
+apps/web/next-env.d.ts
 
 supabase/functions

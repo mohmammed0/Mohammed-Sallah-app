@@ -137,18 +137,19 @@
       "use": "optional external load runner only; not a dependency, binary, library, or copied source"
     }
   ],
+  "excludedOptionalDependencies": [
+    {
+      "packages": ["sharp", "@img/sharp-*"],
+      "license": "Apache-2.0 AND LGPL-3.0-or-later",
+      "reason": "Next image optimization is disabled; pnpm skips these optional packages so libvips is not installed or shipped"
+    }
+  ],
   "reviewedExceptions": [
     {
       "packages": ["lightningcss", "platform binaries"],
       "version": "1.33.0",
       "license": "MPL-2.0",
       "reason": "Next build tool; unmodified upstream files, not application source"
-    },
-    {
-      "packages": ["@img/sharp-*"],
-      "version": "0.35.3",
-      "license": "Apache-2.0 AND LGPL-3.0-or-later",
-      "reason": "Next image runtime/libvips; preserve notices and obtain distribution review"
     },
     {
       "packages": ["caniuse-lite", "spdx-exceptions"],
