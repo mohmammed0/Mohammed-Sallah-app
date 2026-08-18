@@ -5,7 +5,8 @@ import { Alert, ScrollView, Text, TextInput, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { z } from 'zod';
-import { Button, Card, Screen, styles } from '@/components/ui';
+import { formatStatusLabel } from '@sallah/i18n';
+import { Button, Card, LoadingSkeleton, Screen, styles } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { secureUpload } from '@/lib/secure-upload';
 import { useLocale } from '@/providers/locale-provider';
@@ -32,10 +33,11 @@ const citySchema = z.object({
 
 export default function ProviderOnboarding() {
   const { locale, t } = useLocale();
-  const [categoryId, setCategoryId] = useState('');
-  const [cityId, setCityId] = useState('');
+  const [categoryIds, setCategoryIds] = useState<string[]>([]);
+  const [cityIds, setCityIds] = useState<string[]>([]);
+  const [weekdays, setWeekdays] = useState<number[]>([0, 1, 2, 3, 4]);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [document, setDocument] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [documents, setDocuments] = useState<ImagePicker.ImagePickerAsset[]>([]);
   const { control, handleSubmit, formState, setError } = useForm<OnboardingForm>({
     defaultValues: {
       kind: 'individual',
@@ -69,6 +71,17 @@ export default function ProviderOnboarding() {
       };
     },
   });
+  const status = useQuery({
+    queryKey: ['provider-onboarding-status'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('provider_profiles')
+        .select('verification_status,updated_at')
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
   async function chooseLocation() {
     const permission = await Location.requestForegroundPermissionsAsync();
     if (!permission.granted) {
@@ -85,60 +98,84 @@ export default function ProviderOnboarding() {
       mediaTypes: ['images'],
       quality: 0.82,
       exif: false,
+      allowsMultipleSelection: true,
+      selectionLimit: 5,
     });
-    if (result.canceled || !result.assets[0]) return;
-    const asset = result.assets[0];
+    if (result.canceled || !result.assets.length) return;
     if (
-      (asset.fileSize ?? 0) > 20 * 1024 * 1024 ||
-      !(asset.mimeType ?? 'image/jpeg').match(/^image\/(jpeg|png)$/)
+      result.assets.some(
+        (asset) =>
+          (asset.fileSize ?? 0) > 20 * 1024 * 1024 ||
+          !(asset.mimeType ?? 'image/jpeg').match(/^image\/(jpeg|png)$/),
+      )
     ) {
       setError('root', { message: t('providerDocumentRequired') });
       return;
     }
-    setDocument(asset);
+    setDocuments(result.assets);
   }
   const submit = useMutation({
-    mutationFn: async (raw: OnboardingForm) => {
+    mutationFn: async ({ raw, shouldSubmit }: { raw: OnboardingForm; shouldSubmit: boolean }) => {
       const input = onboardingSchema.parse(raw);
-      if (!categoryId || !cityId || !location || !document)
+      if (
+        !categoryIds.length ||
+        !cityIds.length ||
+        !location ||
+        (shouldSubmit && !documents.length)
+      )
         throw new Error('MISSING_REQUIRED_FIELDS');
-      const response = await fetch(document.uri);
-      if (!response.ok) throw new Error('DOCUMENT_READ_FAILED');
-      const bytes = new Uint8Array(await response.arrayBuffer());
-      const extension = document.mimeType === 'image/png' ? 'png' : 'jpg';
-      const upload = await secureUpload({
-        bytes,
-        filename: `${globalThis.crypto.randomUUID()}.${extension}`,
-        mimeType: document.mimeType ?? 'image/jpeg',
-        purpose: 'provider_document',
-      });
+      const uploadedDocuments = await Promise.all(
+        documents.map(async (document) => {
+          const response = await fetch(document.uri);
+          if (!response.ok) throw new Error('DOCUMENT_READ_FAILED');
+          const bytes = new Uint8Array(await response.arrayBuffer());
+          const extension = document.mimeType === 'image/png' ? 'png' : 'jpg';
+          return await secureUpload({
+            bytes,
+            filename: `${globalThis.crypto.randomUUID()}.${extension}`,
+            mimeType: document.mimeType ?? 'image/jpeg',
+            purpose: 'provider_document',
+          });
+        }),
+      );
       const { data, error } = await supabase.rpc('upsert_provider_onboarding', {
         payload: {
           ...input,
-          categoryId,
-          cityId,
-          location,
+          categoryIds,
+          serviceAreas: cityIds.map((cityId) => ({
+            cityId,
+            location,
+            radiusKm: input.serviceRadiusKm,
+          })),
+          availability: weekdays.map((weekday) => ({
+            weekday,
+            start: '08:00',
+            end: '18:00',
+          })),
           locale,
-          documents: [
-            {
-              documentType:
-                input.kind === 'company' ? 'commercial_registration' : 'identity_or_license',
-              storagePath: upload.storagePath,
-              contentHash: upload.contentHash,
-              mimeType: upload.mimeType,
-              sizeBytes: upload.sizeBytes,
-            },
-          ],
+          submit: shouldSubmit,
+          documents: uploadedDocuments.map((upload, index) => ({
+            documentType:
+              input.kind === 'company' && index === 0
+                ? 'commercial_registration'
+                : 'identity_or_license',
+            storagePath: upload.storagePath,
+            contentHash: upload.contentHash,
+            mimeType: upload.mimeType,
+            sizeBytes: upload.sizeBytes,
+          })),
         },
       });
       if (error) throw error;
       return z.object({ providerId: z.uuid(), status: z.string() }).parse(data);
     },
-    onSuccess: (result) =>
+    onSuccess: (result) => {
+      void status.refetch();
       Alert.alert(
         t('providerSubmissionTitle'),
-        t('providerSubmissionStatus', { status: result.status }),
-      ),
+        t('providerSubmissionStatus', { status: formatStatusLabel(result.status, locale) }),
+      );
+    },
     onError: () =>
       setError('root', {
         message: t('providerSubmissionFailed'),
@@ -148,8 +185,14 @@ export default function ProviderOnboarding() {
     <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
       <Screen>
         <Text style={styles.title}>{t('providerOnboarding')}</Text>
+        {(catalog.isPending || status.isPending) && <LoadingSkeleton label={t('loading')} />}
         <Card>
           <Text style={styles.lead}>{t('providerDocumentsNotice')}</Text>
+          <Text style={styles.badge}>
+            {t('providerCurrentStatus', {
+              status: formatStatusLabel(status.data?.verification_status ?? 'new', locale),
+            })}
+          </Text>
         </Card>
         <Text style={styles.lead}>{t('accountType')}</Text>
         <Controller
@@ -229,9 +272,15 @@ export default function ProviderOnboarding() {
           {catalog.data?.categories.map((category) => (
             <Button
               key={category.id}
-              kind={categoryId === category.id ? 'primary' : 'secondary'}
+              kind={categoryIds.includes(category.id) ? 'primary' : 'secondary'}
               label={category.service_category_translations[0]?.name ?? category.slug}
-              onPress={() => setCategoryId(category.id)}
+              onPress={() =>
+                setCategoryIds((current) =>
+                  current.includes(category.id)
+                    ? current.filter((id) => id !== category.id)
+                    : [...current, category.id],
+                )
+              }
             />
           ))}
         </View>
@@ -240,9 +289,32 @@ export default function ProviderOnboarding() {
           {catalog.data?.cities.map((city) => (
             <Button
               key={city.id}
-              kind={cityId === city.id ? 'primary' : 'secondary'}
+              kind={cityIds.includes(city.id) ? 'primary' : 'secondary'}
               label={locale === 'ar' ? city.name_ar : city.name_en}
-              onPress={() => setCityId(city.id)}
+              onPress={() =>
+                setCityIds((current) =>
+                  current.includes(city.id)
+                    ? current.filter((id) => id !== city.id)
+                    : [...current, city.id],
+                )
+              }
+            />
+          ))}
+        </View>
+        <Text style={styles.lead}>{t('availability')}</Text>
+        <View style={styles.row}>
+          {[0, 1, 2, 3, 4, 5, 6].map((weekday) => (
+            <Button
+              key={weekday}
+              kind={weekdays.includes(weekday) ? 'primary' : 'secondary'}
+              label={t('weekdayNumber', { day: weekday })}
+              onPress={() =>
+                setWeekdays((current) =>
+                  current.includes(weekday)
+                    ? current.filter((day) => day !== weekday)
+                    : [...current, weekday],
+                )
+              }
             />
           ))}
         </View>
@@ -253,17 +325,37 @@ export default function ProviderOnboarding() {
         />
         <Button
           kind="secondary"
-          label={document ? t('documentSelectedChange') : t('attachVerificationDocument')}
+          label={
+            documents.length
+              ? t('documentsSelected', { count: documents.length })
+              : t('attachVerificationDocument')
+          }
           onPress={() => void chooseDocument()}
         />
         {formState.errors.root?.message && (
           <Text style={styles.error}>{formState.errors.root.message}</Text>
         )}
-        <Button
-          disabled={submit.isPending}
-          label={t('submitForHumanReview')}
-          onPress={() => void handleSubmit((value) => submit.mutate(value))()}
-        />
+        <View style={styles.row}>
+          <Button
+            kind="secondary"
+            disabled={submit.isPending}
+            label={t('saveDraft')}
+            onPress={() =>
+              void handleSubmit((value) => submit.mutate({ raw: value, shouldSubmit: false }))()
+            }
+          />
+          <Button
+            disabled={submit.isPending}
+            label={
+              status.data?.verification_status === 'more_information_required'
+                ? t('resubmitForReview')
+                : t('submitForHumanReview')
+            }
+            onPress={() =>
+              void handleSubmit((value) => submit.mutate({ raw: value, shouldSubmit: true }))()
+            }
+          />
+        </View>
       </Screen>
     </ScrollView>
   );

@@ -1,20 +1,20 @@
 import Link from 'next/link';
-import { requireAdmin } from '@/lib/auth';
+import { requireAdmin, type AdminPermission } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
-const links = [
-  ['/admin', 'الرئيسية'],
-  ['/admin/customers', 'العملاء'],
-  ['/admin/providers', 'التحقق'],
-  ['/admin/catalog', 'الكتالوج'],
-  ['/admin/requests', 'الطلبات'],
-  ['/admin/jobs', 'الأعمال'],
-  ['/admin/support', 'الدعم'],
-  ['/admin/finance', 'المالية'],
-  ['/admin/audit', 'التدقيق'],
+const links: ReadonlyArray<readonly [string, string, AdminPermission]> = [
+  ['/admin', 'الرئيسية', 'dashboard.aggregate.read'],
+  ['/admin/customers', 'العملاء', 'customer.pii.read'],
+  ['/admin/providers', 'التحقق', 'provider.document.read'],
+  ['/admin/catalog', 'الكتالوج', 'operations.mutate'],
+  ['/admin/requests', 'الطلبات', 'support.case.read'],
+  ['/admin/jobs', 'الأعمال', 'support.case.read'],
+  ['/admin/support', 'الدعم', 'support.case.read'],
+  ['/admin/finance', 'المالية', 'finance.read'],
+  ['/admin/audit', 'التدقيق', 'operations.mutate'],
 ] as const;
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { roles } = await requireAdmin();
+  const { roles, permissions } = await requireAdmin(['dashboard.aggregate.read']);
   return (
     <div className="admin-shell">
       <header className="admin-top">
@@ -26,11 +26,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <span>{roles.join(' · ')}</span>
           </div>
           <nav className="admin-nav" aria-label="عمليات المنصة">
-            {links.map(([href, label]) => (
-              <Link key={href} href={href}>
-                {label}
-              </Link>
-            ))}
+            {links
+              .filter(([, , permission]) => permissions.has(permission))
+              .map(([href, label]) => (
+                <Link key={href} href={href}>
+                  {label}
+                </Link>
+              ))}
           </nav>
         </div>
       </header>

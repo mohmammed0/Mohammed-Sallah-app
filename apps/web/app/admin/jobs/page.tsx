@@ -1,12 +1,6 @@
 import { requireAdmin } from '@/lib/auth';
 export default async function JobsPage() {
-  const { client } = await requireAdmin([
-    'operations_admin',
-    'support_agent',
-    'finance_reviewer',
-    'analyst',
-    'super_admin',
-  ]);
+  const { client } = await requireAdmin(['support.case.read']);
   const { data, error } = await client
     .from('jobs')
     .select(

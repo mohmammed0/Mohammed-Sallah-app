@@ -2,7 +2,8 @@ import { Controller, useForm } from 'react-hook-form';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ScrollView, Text, TextInput } from 'react-native';
 import { z } from 'zod';
-import { Button, Card, Screen, styles } from '@/components/ui';
+import { formatStatusLabel } from '@sallah/i18n';
+import { Button, Card, LoadingSkeleton, Screen, styles } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/providers/locale-provider';
 
@@ -103,9 +104,10 @@ export default function Support() {
           onPress={() => void handleSubmit((value) => createCase.mutate(value))()}
         />
         <Text style={styles.title}>{t('previousCases')}</Text>
+        {cases.isPending && <LoadingSkeleton label={t('loading')} />}
         {cases.data?.map((item) => (
           <Card key={item.id}>
-            <Text style={styles.badge}>{item.status}</Text>
+            <Text style={styles.badge}>{formatStatusLabel(item.status, locale)}</Text>
             <Text>{item.subject}</Text>
             <Text style={styles.lead}>
               {new Date(item.created_at).toLocaleString(locale === 'ar' ? 'ar-SA' : locale)}

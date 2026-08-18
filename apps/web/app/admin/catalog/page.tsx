@@ -2,7 +2,7 @@ import { requireAdmin } from '@/lib/auth';
 import { setCategoryState } from '../actions';
 
 export default async function CatalogPage() {
-  const { client, roles } = await requireAdmin();
+  const { client, roles } = await requireAdmin(['operations.mutate']);
   const { data, error } = await client
     .from('service_categories')
     .select(

@@ -35,6 +35,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       package: process.env.SALLAH_ANDROID_PACKAGE ?? branding.androidPackage,
       adaptiveIcon: { backgroundColor: branding.colors.sand },
       blockedPermissions: ['android.permission.ACCESS_BACKGROUND_LOCATION'],
+      ...(process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
+        ? { config: { googleMaps: { apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY } } }
+        : {}),
     },
     plugins: [
       'expo-router',

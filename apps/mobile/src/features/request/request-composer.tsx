@@ -14,8 +14,15 @@ import { DeterministicAiProvider, aiDiagnosticSchema, type AiDiagnostic } from '
 import { z } from 'zod';
 import { Button, Card, Screen, styles } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
-import { secureUpload } from '@/lib/secure-upload';
+import { secureUpload, type CleanUpload } from '@/lib/secure-upload';
 import { useLocale } from '@/providers/locale-provider';
+import {
+  appendConversationTurn,
+  canPublishRequest,
+  conversationOriginalText,
+  type ConversationMessage,
+} from './conversation-state';
+import { ConversationTimeline } from './conversation-timeline';
 
 const MAX_MEDIA_BYTES = 10 * 1024 * 1024;
 const MAX_RECORDING_MS = 120_000;
@@ -29,10 +36,14 @@ const functionResultSchema = z.object({ data: z.unknown(), error: z.unknown().nu
 export function RequestComposer() {
   const { locale, t } = useLocale();
   const [description, setDescription] = useState('');
+  const [conversation, setConversation] = useState<ConversationMessage[]>([]);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [summary, setSummary] = useState('');
   const [diagnostic, setDiagnostic] = useState<AiDiagnostic | null>(null);
   const [image, setImage] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [imageUpload, setImageUpload] = useState<CleanUpload | null>(null);
+  const [voiceUpload, setVoiceUpload] = useState<CleanUpload | null>(null);
   const [coordinates, setCoordinates] = useState<{ latitude: number; longitude: number } | null>(
     null,
   );
@@ -82,13 +93,7 @@ export function RequestComposer() {
       );
   }, [catalog.data, categorySlug, cityCode]);
   const canPublish = useMemo(
-    () =>
-      title.trim().length >= 3 &&
-      summary.trim().length >= 10 &&
-      coordinates !== null &&
-      categorySlug.length > 0 &&
-      cityCode.length > 0 &&
-      approved,
+    () => canPublishRequest({ title, summary, coordinates, categorySlug, cityCode, approved }),
     [title, summary, coordinates, categorySlug, cityCode, approved],
   );
   useEffect(() => {
@@ -127,6 +132,7 @@ export function RequestComposer() {
       return;
     }
     setImage(asset);
+    setImageUpload(null);
     invalidateApproval();
   }
   async function locate() {
@@ -175,34 +181,71 @@ export function RequestComposer() {
       setDescription((current) =>
         current ? `${current}\n${transcript.data.transcript}` : transcript.data.transcript,
       );
+      setVoiceUpload(upload);
       invalidateApproval();
     } catch {
       setError(t('transcriptionFailed'));
     }
   }
-  async function analyze() {
-    if (description.trim().length < 10) {
+  async function analyze(summaryRequested = false) {
+    const userText = description.trim() || (summaryRequested ? t('summaryRequestMessage') : '');
+    if (userText.length < 10) {
       setError(t('descriptionTooShort'));
       return;
     }
     setBusy(true);
     setError('');
     const fallback = new DeterministicAiProvider();
+    const nextConversation = [...conversation, { role: 'user' as const, text: userText }];
     try {
+      let cleanImage = imageUpload;
+      if (image && !cleanImage) {
+        const extension =
+          image.mimeType === 'image/png' ? 'png' : image.mimeType === 'image/webp' ? 'webp' : 'jpg';
+        cleanImage = await uploadPrivate(
+          image.uri,
+          `${globalThis.crypto.randomUUID()}.${extension}`,
+          image.mimeType ?? 'image/jpeg',
+          'request_media',
+        );
+        setImageUpload(cleanImage);
+      }
+      const mediaUploadIds = [cleanImage?.uploadId, voiceUpload?.uploadId].filter(
+        (value): value is string => Boolean(value),
+      );
       const raw: unknown = await supabase.functions.invoke<unknown>('ai-diagnostic', {
-        body: { messages: [{ role: 'user', text: description }], locale },
+        body: {
+          sessionId: sessionId ?? undefined,
+          clientMessageId: globalThis.crypto.randomUUID(),
+          messages: nextConversation,
+          locale,
+          categoryHints: catalog.data?.categories.map((item) => item.slug) ?? [],
+          confirmedCategorySlug: categorySlug || null,
+          summaryRequested,
+          inputKind: voiceUpload ? 'voice' : cleanImage ? 'image' : 'text',
+          mediaUploadIds,
+        },
       });
       const invoked = functionResultSchema.parse(raw);
       const result = invoked.error
         ? await fallback.diagnose({
             locale,
-            messages: [{ role: 'user', text: description }],
+            messages: nextConversation,
             categoryHints: catalog.data?.categories.map((item) => item.slug) ?? [],
+            confirmedCategorySlug: categorySlug || null,
+            summaryRequested,
           })
         : aiDiagnosticSchema.parse(invoked.data);
       setDiagnostic(result);
-      setTitle(result.customerSummary.slice(0, 120));
-      setSummary(result.customerSummary);
+      if (result.metadata.sessionId) setSessionId(result.metadata.sessionId);
+      const assistantText = result.followUpQuestions[0] ?? result.confirmationQuestion;
+      setConversation(appendConversationTurn(conversation, userText, assistantText));
+      setDescription('');
+      setVoiceUpload(null);
+      if (result.customerSummary) {
+        setTitle(result.customerSummary.slice(0, 120));
+        setSummary(result.customerSummary);
+      }
       setUrgency(result.urgencySuggestion);
       if (
         result.suggestedCategorySlug &&
@@ -212,12 +255,20 @@ export function RequestComposer() {
     } catch {
       const result = await fallback.diagnose({
         locale,
-        messages: [{ role: 'user', text: description }],
+        messages: nextConversation,
         categoryHints: catalog.data?.categories.map((item) => item.slug) ?? [],
+        confirmedCategorySlug: categorySlug || null,
+        summaryRequested,
       });
       setDiagnostic(result);
-      setTitle(result.customerSummary.slice(0, 120));
-      setSummary(result.customerSummary);
+      const assistantText = result.followUpQuestions[0] ?? result.confirmationQuestion;
+      setConversation(appendConversationTurn(conversation, userText, assistantText));
+      setDescription('');
+      setVoiceUpload(null);
+      if (result.customerSummary) {
+        setTitle(result.customerSummary.slice(0, 120));
+        setSummary(result.customerSummary);
+      }
       setError(t('aiUnavailableDraftCreated'));
     } finally {
       invalidateApproval();
@@ -233,12 +284,14 @@ export function RequestComposer() {
       if (image) {
         const extension =
           image.mimeType === 'image/png' ? 'png' : image.mimeType === 'image/webp' ? 'webp' : 'jpg';
-        const upload = await uploadPrivate(
-          image.uri,
-          `${globalThis.crypto.randomUUID()}.${extension}`,
-          image.mimeType ?? 'image/jpeg',
-          'request_media',
-        );
+        const upload =
+          imageUpload ??
+          (await uploadPrivate(
+            image.uri,
+            `${globalThis.crypto.randomUUID()}.${extension}`,
+            image.mimeType ?? 'image/jpeg',
+            'request_media',
+          ));
         media.push({
           storage_path: upload.storagePath,
           mime_type: upload.mimeType,
@@ -255,7 +308,10 @@ export function RequestComposer() {
       const { data, error: rpcError } = await supabase.rpc('publish_service_request', {
         payload: {
           title: title.trim(),
-          original_text: description,
+          original_text: conversationOriginalText([
+            ...conversation,
+            ...(description.trim() ? [{ role: 'user' as const, text: description.trim() }] : []),
+          ]),
           structured_description: summary,
           urgency,
           locale,
@@ -267,14 +323,25 @@ export function RequestComposer() {
           media,
           customer_approved: true,
           ai_diagnostic: diagnostic,
+          ai_session_id: sessionId,
           idempotency_key: globalThis.crypto.randomUUID(),
         },
       });
       if (rpcError) throw rpcError;
-      Alert.alert(
-        t('requestPublishedTitle'),
-        t('requestNumber', { id: z.string().uuid().parse(data) }),
-      );
+      const requestId = z.string().uuid().parse(data);
+      if (sessionId) {
+        const linked = await (
+          supabase.rpc as unknown as (
+            name: string,
+            args: Record<string, unknown>,
+          ) => Promise<{ error: unknown }>
+        )('link_ai_session_to_request', {
+          p_session_id: sessionId,
+          p_request_id: requestId,
+        });
+        if (linked.error) setError(t('aiHistoryLinkFailed'));
+      }
+      Alert.alert(t('requestPublishedTitle'), t('requestNumber', { id: requestId }));
     } catch {
       setError(t('publishOrUploadFailed'));
     } finally {
@@ -286,6 +353,11 @@ export function RequestComposer() {
       <Screen>
         <Text style={styles.title}>{t('describeProblem')}</Text>
         <Text style={styles.lead}>{t('aiDisclaimer')}</Text>
+        <ConversationTimeline
+          messages={conversation}
+          userLabel={t('you')}
+          assistantLabel={t('assistant')}
+        />
         <TextInput
           style={[styles.input, { minHeight: 130, textAlignVertical: 'top' }]}
           multiline
@@ -295,7 +367,11 @@ export function RequestComposer() {
             setDescription(value);
             invalidateApproval();
           }}
-          placeholder={t('problemDescriptionPlaceholder')}
+          placeholder={
+            conversation.length
+              ? t('answerFollowUpPlaceholder')
+              : t('problemDescriptionPlaceholder')
+          }
         />
         <View style={styles.row}>
           <Button
@@ -330,7 +406,7 @@ export function RequestComposer() {
         <Button
           disabled={busy}
           label={busy ? t('analyzing') : t('analyzeCreateDraft')}
-          onPress={() => void analyze()}
+          onPress={() => void analyze(false)}
         />
         {diagnostic && (
           <Card>
@@ -343,13 +419,20 @@ export function RequestComposer() {
               {t('confidenceSummary', {
                 confidence: Math.round(diagnostic.confidence * 100),
               })}{' '}
-              · {diagnostic.metadata.fallback ? 'Fallback' : 'AI'}
+              · {diagnostic.metadata.fallback ? t('aiFallbackLabel') : t('aiProviderLabel')}
             </Text>
             {diagnostic.followUpQuestions.map((question) => (
               <Text key={question} style={styles.lead}>
                 • {question}
               </Text>
             ))}
+            {!diagnostic.enoughInformation && (
+              <Button
+                kind="secondary"
+                label={t('createSummaryNow')}
+                onPress={() => void analyze(true)}
+              />
+            )}
           </Card>
         )}
         <TextInput

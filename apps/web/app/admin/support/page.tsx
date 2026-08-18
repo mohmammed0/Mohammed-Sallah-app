@@ -5,12 +5,7 @@ import { decideCancellation, resolveDispute } from '../actions';
 const t = (key: Parameters<typeof translate>[1]) => translate('ar', key);
 
 export default async function SupportPage() {
-  const { client, roles } = await requireAdmin([
-    'operations_admin',
-    'support_agent',
-    'finance_reviewer',
-    'super_admin',
-  ]);
+  const { client, roles } = await requireAdmin(['support.case.read']);
   const canFinance = roles.some((role) => role === 'finance_reviewer' || role === 'super_admin');
   const [cases, cancellations, disputes] = await Promise.all([
     client
@@ -131,6 +126,15 @@ export default async function SupportPage() {
                     )}
                     {canFinance && <option value="refund_customer">{t('refundCustomer')}</option>}
                     {canFinance && <option value="split">{t('splitResolution')}</option>}
+                  </select>
+                </label>
+                <label>
+                  {t('jobOutcome')}
+                  <select name="jobOutcome" required>
+                    <option value="resume">{t('resumeJob')}</option>
+                    <option value="complete">{t('completeJob')}</option>
+                    <option value="cancel">{t('cancelJob')}</option>
+                    <option value="close_no_further_work">{t('closeNoFurtherWork')}</option>
                   </select>
                 </label>
                 <label>

@@ -9,12 +9,7 @@ export default async function CustomersPage({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
-  const { client, roles } = await requireAdmin([
-    'operations_admin',
-    'support_agent',
-    'analyst',
-    'super_admin',
-  ]);
+  const { client, roles } = await requireAdmin(['customer.pii.read']);
   const rawQuery = (await searchParams).q ?? '';
   const query = searchSchema.parse(rawQuery);
   const safeQuery = query
@@ -24,7 +19,7 @@ export default async function CustomersPage({
   let customersQuery = client
     .from('profiles')
     .select(
-      'id,display_name,phone,preferred_locale,status,created_at,user_roles!inner(role),service_requests(count),support_cases(count),account_deletion_requests(status,requested_at)',
+      'id,display_name,phone,preferred_locale,status,created_at,user_roles!inner(role),service_requests(count),support_cases(count),account_deletion_requests(status,requested_at,retention_snapshot,failure_category)',
     )
     .eq('user_roles.role', 'customer')
     .order('created_at', { ascending: false })
@@ -71,6 +66,14 @@ export default async function CustomersPage({
               const deletion = customer.account_deletion_requests
                 .slice()
                 .sort((a, b) => b.requested_at.localeCompare(a.requested_at))[0];
+              const blockerCount = Object.entries(
+                (deletion?.retention_snapshot as Record<string, unknown> | null) ?? {},
+              ).filter(
+                ([key, value]) =>
+                  !['policyVersion', 'ledgerRetentionYears'].includes(key) &&
+                  typeof value === 'number' &&
+                  value > 0,
+              ).length;
               return (
                 <tr key={customer.id}>
                   <td>
@@ -87,7 +90,14 @@ export default async function CustomersPage({
                     {customer.service_requests[0]?.count ?? 0} طلب ·{' '}
                     {customer.support_cases[0]?.count ?? 0} دعم
                   </td>
-                  <td>{deletion?.status ?? 'لا يوجد طلب مفتوح'}</td>
+                  <td>
+                    {deletion?.status ?? 'لا يوجد طلب مفتوح'}
+                    {deletion && (
+                      <small className="muted">
+                        {blockerCount} عوائق · {deletion.failure_category ?? 'لا يوجد فشل'}
+                      </small>
+                    )}
+                  </td>
                   <td>
                     {canWrite &&
                     (customer.status === 'active' || customer.status === 'suspended') ? (

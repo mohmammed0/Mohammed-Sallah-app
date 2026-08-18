@@ -2,7 +2,7 @@ import { requireAdmin } from '@/lib/auth';
 import { reviewProvider } from '../actions';
 
 export default async function ProvidersPage() {
-  const { client, roles } = await requireAdmin();
+  const { client, roles } = await requireAdmin(['provider.document.read']);
   const { data, error } = await client
     .from('provider_profiles')
     .select(

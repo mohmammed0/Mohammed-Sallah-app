@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Alert, Switch, Text, View } from 'react-native';
+import { Alert, Switch, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
+import { formatStatusLabel } from '@sallah/i18n';
 import { Button, Card, Screen, styles } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/providers/locale-provider';
+import { useSessionContext } from '@/providers/session-provider';
 
 interface NotificationPreferences {
   in_app: boolean;
@@ -23,6 +25,24 @@ export default function Account() {
   const [status, setStatus] = useState('');
   const [notifications, setNotifications] = useState(defaultNotifications);
   const [userId, setUserId] = useState<string | null>(null);
+  const [reauthPassword, setReauthPassword] = useState('');
+  const [deletionSummary, setDeletionSummary] = useState<Record<string, unknown> | null>(null);
+  const { context, signOutAll } = useSessionContext();
+  async function loadDeletionSummary() {
+    const result = await (
+      supabase.rpc as unknown as (
+        functionName: string,
+      ) => Promise<{ data: unknown; error: unknown }>
+    )('get_account_deletion_summary');
+    if (
+      !result.error &&
+      result.data &&
+      typeof result.data === 'object' &&
+      Object.keys(result.data).length > 0
+    ) {
+      setDeletionSummary(result.data as Record<string, unknown>);
+    }
+  }
   useEffect(() => {
     void supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) return;
@@ -33,6 +53,7 @@ export default function Account() {
         .eq('user_id', data.user.id)
         .maybeSingle();
       if (result.data) setNotifications(result.data);
+      await loadDeletionSummary();
     });
   }, []);
   async function updateNotifications(
@@ -64,7 +85,19 @@ export default function Account() {
     setStatus(error ? t('localeLocalOnly') : t('localeSynced'));
   }
   async function command(name: 'request_data_export' | 'request_account_deletion') {
-    const { error } = await supabase.rpc(name, {});
+    if (reauthPassword.length < 8) {
+      setStatus(t('reauthPasswordRequired'));
+      return;
+    }
+    const verification = await supabase.functions.invoke('reauthenticate', {
+      body: { method: 'password', password: reauthPassword },
+    });
+    setReauthPassword('');
+    if (verification.error) {
+      setStatus(t('reauthFailed'));
+      return;
+    }
+    const { error } = await supabase.rpc(name);
     setStatus(
       error
         ? t('privacyRequestFailed')
@@ -72,14 +105,26 @@ export default function Account() {
           ? t('exportRequested')
           : t('deletionRequested'),
     );
+    if (!error && name === 'request_account_deletion') {
+      await loadDeletionSummary();
+    }
   }
   async function logout() {
-    await supabase.auth.signOut({ scope: 'global' });
+    await signOutAll();
     router.replace('/');
   }
   return (
     <Screen>
       <Text style={styles.title}>{t('accountPrivacyTitle')}</Text>
+      {context && !context.allowed && (
+        <Card>
+          <Text accessibilityLiveRegion="polite" style={styles.error}>
+            {t('accountRestricted', {
+              status: formatStatusLabel(context.accountStatus ?? 'unknown', locale),
+            })}
+          </Text>
+        </Card>
+      )}
       <Card>
         <Text style={styles.badge}>{t('language')}</Text>
         <View style={styles.row}>
@@ -92,6 +137,18 @@ export default function Account() {
             />
           ))}
         </View>
+      </Card>
+      <Card>
+        <Text style={styles.badge}>{t('reauthTitle')}</Text>
+        <Text style={styles.lead}>{t('reauthLead')}</Text>
+        <TextInput
+          accessibilityLabel={t('password')}
+          style={styles.input}
+          value={reauthPassword}
+          onChangeText={setReauthPassword}
+          secureTextEntry
+          autoComplete="current-password"
+        />
       </Card>
       <Card>
         <Text style={styles.badge}>{t('notificationPreferences')}</Text>
@@ -133,6 +190,32 @@ export default function Account() {
         }
       />
       <Button kind="secondary" label={t('logoutAllDevices')} onPress={() => void logout()} />
+      {deletionSummary && (
+        <Card>
+          <Text style={styles.badge}>{t('deletionStatusSummary')}</Text>
+          <Text style={styles.lead}>
+            {formatStatusLabel(
+              typeof deletionSummary.status === 'string' ? deletionSummary.status : 'unknown',
+              locale,
+            )}
+          </Text>
+          <Text style={styles.lead}>
+            {t('deletionBlockersSummary', {
+              count: Object.values(
+                (deletionSummary.blockers as Record<string, unknown> | undefined) ?? {},
+              ).filter((value) => typeof value === 'number' && value > 0).length,
+            })}
+          </Text>
+          {typeof deletionSummary.failureCategory === 'string' && (
+            <Text style={styles.error}>{String(deletionSummary.failureCategory)}</Text>
+          )}
+          <Button
+            kind="secondary"
+            label={t('refreshDeletionStatus')}
+            onPress={() => void loadDeletionSummary()}
+          />
+        </Card>
+      )}
       {status.length > 0 && (
         <Text accessibilityLiveRegion="polite" style={styles.lead}>
           {status}

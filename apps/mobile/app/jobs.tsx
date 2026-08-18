@@ -1,16 +1,19 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'expo-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Alert, Linking, Platform, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, Image, Linking, Platform, ScrollView, Text, TextInput, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { z } from 'zod';
 import { MarketplaceApi } from '@sallah/api';
-import { formatSar, type TranslationKey } from '@sallah/i18n';
-import { Button, Card, Screen, styles } from '@/components/ui';
+import { formatSar, formatStatusLabel, type TranslationKey } from '@sallah/i18n';
+import { Button, Card, LoadingSkeleton, Screen, styles } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { secureUpload } from '@/lib/secure-upload';
 import { useLocale } from '@/providers/locale-provider';
+import { reduceLocationSharing, type LocationSharingState } from '@/features/jobs/location-sharing';
+import { JobTrackingMap } from '@/features/jobs/job-tracking-map';
+import { allCompletionEvidenceViewed } from '@/features/jobs/completion-evidence';
 
 const changeOrderSchema = z.object({
   id: z.uuid(),
@@ -28,8 +31,16 @@ const jobSchema = z.object({
   approved_total_minor: z.number().int(),
   version: z.number().int(),
   created_at: z.string(),
+  payments: z
+    .array(
+      z.object({
+        amount_minor: z.number().int(),
+        refunded_minor: z.number().int().default(0),
+        status: z.string(),
+      }),
+    )
+    .default([]),
   conversations: z.array(z.object({ id: z.uuid() })),
-  addresses: z.object({ formatted_address: z.string() }).nullable(),
   job_location_updates: z
     .array(z.object({ captured_at: z.string(), expires_at: z.string() }))
     .default([]),
@@ -92,6 +103,41 @@ export default function Jobs() {
   const [review, setReview] = useState('');
   const [changeDescription, setChangeDescription] = useState('');
   const [changeAmount, setChangeAmount] = useState('');
+  const [locationStates, setLocationStates] = useState<Record<string, LocationSharingState>>({});
+  const [locations, setLocations] = useState<
+    Record<
+      string,
+      {
+        formattedAddress: string;
+        latitude: number;
+        longitude: number;
+        providerLocation?: { latitude: number; longitude: number; capturedAt: string } | null;
+      }
+    >
+  >({});
+  const [proofs, setProofs] = useState<
+    Record<
+      string,
+      Array<{
+        id: string;
+        uploadId: string;
+        mimeType: string;
+        description: string | null;
+      }>
+    >
+  >({});
+  const [proofUrls, setProofUrls] = useState<Record<string, string>>({});
+  const [proofViewed, setProofViewed] = useState<Record<string, boolean>>({});
+  const activeLocationShares = useRef<
+    Record<
+      string,
+      {
+        sessionId: string;
+        subscription: Location.LocationSubscription;
+        timer: ReturnType<typeof setTimeout>;
+      }
+    >
+  >({});
   const query = useQuery({
     queryKey: ['jobs'],
     queryFn: async () => {
@@ -100,7 +146,7 @@ export default function Jobs() {
       const { data, error } = await supabase
         .from('jobs')
         .select(
-          'id,customer_id,provider_id,status,approved_total_minor,version,created_at,conversations(id),addresses(formatted_address),job_location_updates(captured_at,expires_at),change_orders(id,reason,description,revised_total_minor,status,expires_at),cancellation_requests(id,status,reason,created_at),disputes(id,status,reason,created_at,resolved_at)',
+          'id,customer_id,provider_id,status,approved_total_minor,version,created_at,payments(amount_minor,refunded_minor,status),conversations(id),job_location_updates(captured_at,expires_at),change_orders(id,reason,description,revised_total_minor,status,expires_at),cancellation_requests(id,status,reason,created_at),disputes(id,status,reason,created_at,resolved_at)',
         )
         .order('created_at', { ascending: false })
         .limit(50);
@@ -162,18 +208,101 @@ export default function Jobs() {
   async function shareCurrentLocation(job: Job) {
     const permission = await Location.requestForegroundPermissionsAsync();
     if (!permission.granted) throw new Error('LOCATION_PERMISSION_REQUIRED');
-    const position = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.Balanced,
-    });
-    const { error } = await supabase.rpc('record_job_location', {
+    setLocationStates((states) => ({
+      ...states,
+      [job.id]: reduceLocationSharing(states[job.id] ?? { state: 'idle' }, { type: 'REQUEST' }),
+    }));
+    const start = await (
+      supabase.rpc as unknown as (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ data: unknown; error: unknown }>
+    )('start_job_location_sharing', {
       p_job_id: job.id,
-      p_latitude: position.coords.latitude,
-      p_longitude: position.coords.longitude,
-      p_accuracy_m: position.coords.accuracy ?? 0,
+      p_duration_minutes: 30,
       p_consent: true,
     });
-    if (error) throw error;
+    const parsedStart = z
+      .object({ sessionId: z.uuid(), expiresAt: z.string() })
+      .safeParse(start.data);
+    if (start.error || !parsedStart.success) throw new Error('LOCATION_SESSION_START_FAILED');
+    setLocationStates((states) => ({
+      ...states,
+      [job.id]: reduceLocationSharing(states[job.id] ?? { state: 'requesting' }, {
+        type: 'STARTED',
+        ...parsedStart.data,
+      }),
+    }));
+    const subscription = await Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.Balanced,
+        timeInterval: 10_000,
+        distanceInterval: 25,
+      },
+      (position) => {
+        void (
+          supabase.rpc as unknown as (
+            name: string,
+            args: Record<string, unknown>,
+          ) => Promise<{ error: unknown }>
+        )('record_job_location', {
+          p_job_id: job.id,
+          p_session_id: parsedStart.data.sessionId,
+          p_latitude: position.coords.latitude,
+          p_longitude: position.coords.longitude,
+          p_accuracy_m: position.coords.accuracy ?? 0,
+        });
+      },
+    );
+    const expiresIn = Math.max(0, new Date(parsedStart.data.expiresAt).getTime() - Date.now());
+    const timer = setTimeout(() => {
+      subscription.remove();
+      delete activeLocationShares.current[job.id];
+      setLocationStates((states) => ({
+        ...states,
+        [job.id]: reduceLocationSharing(states[job.id] ?? { state: 'idle' }, {
+          type: 'EXPIRED',
+        }),
+      }));
+      void (
+        supabase.rpc as unknown as (name: string, args: Record<string, unknown>) => Promise<unknown>
+      )('stop_job_location_sharing', {
+        p_session_id: parsedStart.data.sessionId,
+        p_reason: 'expired',
+      });
+    }, expiresIn);
+    activeLocationShares.current[job.id] = {
+      sessionId: parsedStart.data.sessionId,
+      subscription,
+      timer,
+    };
     Alert.alert(t('locationSharedTitle'), t('locationSharedBody'));
+  }
+  async function stopLocationShare(job: Job) {
+    const current = locationStates[job.id];
+    if (current?.state !== 'sharing') return;
+    setLocationStates((states) => ({
+      ...states,
+      [job.id]: reduceLocationSharing(current, { type: 'STOP' }),
+    }));
+    const response = await (
+      supabase.rpc as unknown as (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ error: unknown }>
+    )('stop_job_location_sharing', {
+      p_session_id: current.sessionId,
+      p_reason: 'provider_stopped',
+    });
+    if (response.error) throw new Error('LOCATION_SESSION_STOP_FAILED');
+    const active = activeLocationShares.current[job.id];
+    active?.subscription.remove();
+    if (active) clearTimeout(active.timer);
+    delete activeLocationShares.current[job.id];
+    setLocationStates((states) => ({
+      ...states,
+      [job.id]: reduceLocationSharing(states[job.id] ?? current, { type: 'STOPPED' }),
+    }));
   }
   function confirmLocationShare(job: Job) {
     Alert.alert(t('foregroundLocationTitle'), t('foregroundLocationBody'), [
@@ -184,13 +313,105 @@ export default function Jobs() {
       },
     ]);
   }
+  useEffect(
+    () => () => {
+      for (const active of Object.values(activeLocationShares.current)) {
+        active.subscription.remove();
+        clearTimeout(active.timer);
+      }
+      activeLocationShares.current = {};
+    },
+    [],
+  );
+  useEffect(() => {
+    const activeJobs = new Map(query.data?.jobs.map((job) => [job.id, job.status]) ?? []);
+    for (const [jobId, active] of Object.entries(activeLocationShares.current)) {
+      if (activeJobs.get(jobId) === 'en_route') continue;
+      active.subscription.remove();
+      clearTimeout(active.timer);
+      delete activeLocationShares.current[jobId];
+      void (
+        supabase.rpc as unknown as (name: string, args: Record<string, unknown>) => Promise<unknown>
+      )('stop_job_location_sharing', {
+        p_session_id: active.sessionId,
+        p_reason: 'job_state_changed',
+      });
+    }
+  }, [query.data?.jobs]);
   async function openNativeMaps(job: Job) {
-    const address = job.addresses?.formatted_address;
-    if (!address) throw new Error('ADDRESS_NOT_AVAILABLE');
-    const query = encodeURIComponent(address);
-    const url = Platform.OS === 'ios' ? `https://maps.apple.com/?q=${query}` : `geo:0,0?q=${query}`;
+    let location = locations[job.id];
+    if (!location) location = await loadAuthorizedLocation(job);
+    const coordinates = `${location.latitude},${location.longitude}`;
+    const url =
+      Platform.OS === 'ios'
+        ? `https://maps.apple.com/?ll=${coordinates}`
+        : `geo:${coordinates}?q=${coordinates}`;
     if (!(await Linking.canOpenURL(url))) throw new Error('MAPS_NOT_AVAILABLE');
     await Linking.openURL(url);
+  }
+  async function loadAuthorizedLocation(job: Job) {
+    const response = await (
+      supabase.rpc as unknown as (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ data: unknown; error: unknown }>
+    )('get_authorized_job_location', { p_job_id: job.id });
+    const parsed = z
+      .object({
+        destination: z.object({
+          formattedAddress: z.string(),
+          latitude: z.number(),
+          longitude: z.number(),
+        }),
+        providerLocation: z
+          .object({
+            latitude: z.number(),
+            longitude: z.number(),
+            capturedAt: z.string(),
+          })
+          .nullable(),
+      })
+      .safeParse(response.data);
+    if (response.error || !parsed.success) throw new Error('LOCATION_ACCESS_FAILED');
+    const result = { ...parsed.data.destination, providerLocation: parsed.data.providerLocation };
+    setLocations((current) => ({ ...current, [job.id]: result }));
+    return result;
+  }
+  async function loadProofs(job: Job) {
+    const response = await (
+      supabase.rpc as unknown as (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ data: unknown; error: unknown }>
+    )('get_completion_proof_manifest', { p_job_id: job.id });
+    const parsed = z
+      .object({
+        proofs: z.array(
+          z.object({
+            id: z.uuid(),
+            uploadId: z.uuid(),
+            mimeType: z.string(),
+            description: z.string().nullable(),
+          }),
+        ),
+      })
+      .safeParse(response.data);
+    if (response.error || !parsed.success) throw new Error('PROOF_MANIFEST_FAILED');
+    setProofs((current) => ({ ...current, [job.id]: parsed.data.proofs }));
+    for (const proof of parsed.data.proofs) {
+      const signed = await supabase.functions.invoke('media-access', {
+        body: { uploadId: proof.uploadId, expiresInSeconds: 300 },
+      });
+      const url = z.object({ signedUrl: z.string().url() }).safeParse(signed.data);
+      if (!signed.error && url.success) {
+        setProofUrls((current) => ({ ...current, [proof.id]: url.data.signedUrl }));
+      }
+    }
+  }
+  async function viewVideoProof(proofId: string, url: string) {
+    if (!(await Linking.canOpenURL(url))) throw new Error('PROOF_VIEWER_UNAVAILABLE');
+    await Linking.openURL(url);
+    setProofViewed((current) => ({ ...current, [proofId]: true }));
   }
   async function accept(job: Job, accepted: boolean) {
     const score = Number(rating);
@@ -259,7 +480,7 @@ export default function Jobs() {
           onChangeText={setReason}
           placeholder={t('actionReasonPlaceholder')}
         />
-        {query.isPending && <Text style={styles.lead}>{t('loadingJobs')}</Text>}
+        {query.isPending && <LoadingSkeleton label={t('loadingJobs')} />}
         {query.isError && <Text style={styles.error}>{t('signInToLoadJobs')}</Text>}
         {query.data?.jobs.map((job) => {
           const customer = job.customer_id === query.data?.userId;
@@ -271,6 +492,11 @@ export default function Jobs() {
             (item) => !['resolved', 'closed'].includes(item.status),
           );
           const latestDispute = openDisputeCase ?? job.disputes[0];
+          const jobProofs = proofs[job.id] ?? [];
+          const allProofsViewed = allCompletionEvidenceViewed(
+            jobProofs.map((proof) => proof.id),
+            proofViewed,
+          );
           const next =
             customer && job.status === 'provider_selected'
               ? 'scheduled'
@@ -279,10 +505,22 @@ export default function Jobs() {
                 : undefined;
           return (
             <Card key={job.id}>
-              <Text style={styles.badge}>{job.status}</Text>
+              <Text style={styles.badge}>{formatStatusLabel(job.status, locale)}</Text>
               <Text>
                 {t('approvedTotal', { amount: formatSar(job.approved_total_minor, locale) })}
               </Text>
+              {job.payments[0] && (
+                <Text style={styles.lead}>
+                  {t('paymentBalanceSummary', {
+                    status: formatStatusLabel(job.payments[0].status, locale),
+                    refunded: formatSar(job.payments[0].refunded_minor, locale),
+                    net: formatSar(
+                      job.payments[0].amount_minor - job.payments[0].refunded_minor,
+                      locale,
+                    ),
+                  })}
+                </Text>
+              )}
               <Text style={styles.lead}>
                 {t('jobRoleSummary', {
                   version: job.version,
@@ -316,24 +554,23 @@ export default function Jobs() {
                   onPress={() => confirmLocationShare(job)}
                 />
               )}
-              {job.addresses?.formatted_address && (
+              <Button
+                kind="secondary"
+                label={locations[job.id] ? t('openJobMaps') : t('loadExactJobLocation')}
+                onPress={() =>
+                  command.mutate(() =>
+                    locations[job.id] ? openNativeMaps(job) : loadAuthorizedLocation(job),
+                  )
+                }
+              />
+              {locationStates[job.id]?.state === 'sharing' && !customer && (
                 <Button
                   kind="secondary"
-                  label={t('openJobMaps')}
-                  onPress={() => command.mutate(() => openNativeMaps(job))}
+                  label={t('stopLocationSharing')}
+                  onPress={() => command.mutate(() => stopLocationShare(job))}
                 />
               )}
-              {customer && job.status === 'en_route' && (
-                <Text style={styles.lead} accessibilityLiveRegion="polite">
-                  {job.job_location_updates[0]
-                    ? t('latestLocationUpdate', {
-                        time: new Date(job.job_location_updates[0].captured_at).toLocaleTimeString(
-                          locale === 'ar' ? 'ar-SA' : locale,
-                        ),
-                      })
-                    : t('noProviderLocationUpdate')}
-                </Text>
-              )}
+              {customer && job.status === 'en_route' && <JobTrackingMap jobId={job.id} />}
               {!customer && job.status === 'diagnosing' && (
                 <>
                   <TextInput
@@ -388,6 +625,47 @@ export default function Jobs() {
               )}
               {customer && job.status === 'completion_submitted' && (
                 <>
+                  <Button
+                    kind="secondary"
+                    label={t('viewCompletionProof')}
+                    onPress={() => command.mutate(() => loadProofs(job))}
+                  />
+                  {jobProofs.map((proof) => (
+                    <Card key={proof.id}>
+                      {proofUrls[proof.id] ? (
+                        proof.mimeType.startsWith('image/') ? (
+                          <Image
+                            source={{ uri: proofUrls[proof.id] }}
+                            accessibilityLabel={t('completionProofA11y')}
+                            onLoad={() =>
+                              setProofViewed((current) => ({
+                                ...current,
+                                [proof.id]: true,
+                              }))
+                            }
+                            style={{ width: '100%', height: 220, borderRadius: 12 }}
+                          />
+                        ) : (
+                          <Button
+                            kind="secondary"
+                            label={t('openVideoEvidence')}
+                            onPress={() =>
+                              command.mutate(() =>
+                                viewVideoProof(proof.id, proofUrls[proof.id] ?? ''),
+                              )
+                            }
+                          />
+                        )
+                      ) : (
+                        <Button
+                          kind="secondary"
+                          label={t('retryMedia')}
+                          onPress={() => command.mutate(() => loadProofs(job))}
+                        />
+                      )}
+                      {proof.description && <Text style={styles.lead}>{proof.description}</Text>}
+                    </Card>
+                  ))}
                   <TextInput
                     style={styles.input}
                     value={rating}
@@ -403,6 +681,7 @@ export default function Jobs() {
                   />
                   <View style={styles.row}>
                     <Button
+                      disabled={!allProofsViewed}
                       label={t('acceptCompletion')}
                       onPress={() => command.mutate(() => accept(job, true))}
                     />

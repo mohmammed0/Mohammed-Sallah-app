@@ -67,6 +67,22 @@
       "security": "Repository SECURITY.md"
     },
     {
+      "project": "react-native-maps/react-native-maps",
+      "package": "react-native-maps",
+      "version": "1.27.2",
+      "license": "MIT",
+      "use": "authorized foreground job tracking map and markers",
+      "security": "GitHub advisories"
+    },
+    {
+      "project": "expo/expo",
+      "package": "expo-network",
+      "version": "57.0.1",
+      "license": "MIT",
+      "use": "native connectivity state and offline query orchestration",
+      "security": "Expo GitHub security policy/advisories"
+    },
+    {
       "project": "colinhacks/zod",
       "package": "zod",
       "version": "4.4.3",

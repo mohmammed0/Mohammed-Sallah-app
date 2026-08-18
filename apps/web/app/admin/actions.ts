@@ -30,6 +30,7 @@ const disputeDecision = z.object({
   disputeId: z.uuid(),
   action: z.enum(['no_financial_action', 'release_to_provider', 'refund_customer', 'split']),
   amountMinor: z.coerce.number().int().min(0).max(100_000_000),
+  jobOutcome: z.enum(['resume', 'complete', 'cancel', 'close_no_further_work']),
   reason: z.string().trim().min(5).max(2000),
   expectedJobVersion: z.coerce.number().int().positive(),
 });
@@ -45,7 +46,7 @@ export async function reviewProvider(formData: FormData): Promise<void> {
     decision: formData.get('decision'),
     reason: formData.get('reason'),
   });
-  const { client } = await requireAdmin(['verification_reviewer', 'super_admin']);
+  const { client } = await requireAdmin(['provider.document.read']);
   const { error } = await client.rpc('review_provider', {
     p_provider_id: input.providerId,
     p_decision: input.decision,
@@ -63,7 +64,7 @@ export async function setCategoryState(formData: FormData): Promise<void> {
     enabled: formData.get('enabled'),
     reason: formData.get('reason'),
   });
-  const { client } = await requireAdmin(['operations_admin', 'super_admin']);
+  const { client } = await requireAdmin(['operations.mutate']);
   const { error } = await client.rpc('admin_set_category', {
     p_category_id: input.categoryId,
     p_enabled: input.enabled,
@@ -81,7 +82,7 @@ export async function setCustomerStatus(formData: FormData): Promise<void> {
     status: formData.get('status'),
     reason: formData.get('reason'),
   });
-  const { client } = await requireAdmin(['operations_admin', 'super_admin']);
+  const { client } = await requireAdmin(['operations.mutate']);
   const { error } = await client.rpc('admin_set_customer_status', {
     p_customer_id: input.customerId,
     p_status: input.status,
@@ -101,12 +102,7 @@ export async function decideCancellation(formData: FormData): Promise<void> {
     reason: formData.get('reason'),
     expectedJobVersion: formData.get('expectedJobVersion'),
   });
-  const { client } = await requireAdmin([
-    'operations_admin',
-    'support_agent',
-    'finance_reviewer',
-    'super_admin',
-  ]);
+  const { client } = await requireAdmin(['support.case.read']);
   const { error } = await client.rpc('decide_cancellation', {
     p_cancellation_id: input.cancellationId,
     p_approve: input.approve,
@@ -127,24 +123,24 @@ export async function resolveDispute(formData: FormData): Promise<void> {
     disputeId: formData.get('disputeId'),
     action: formData.get('action'),
     amountMinor: formData.get('amountMinor'),
+    jobOutcome: formData.get('jobOutcome'),
     reason: formData.get('reason'),
     expectedJobVersion: formData.get('expectedJobVersion'),
   });
-  const { client } = await requireAdmin([
-    'operations_admin',
-    'support_agent',
-    'finance_reviewer',
-    'super_admin',
-  ]);
+  const { client } = await requireAdmin(['support.case.read']);
   const { error } = await client.rpc('resolve_dispute', {
     p_dispute_id: input.disputeId,
     p_action: input.action,
     p_amount_minor: input.amountMinor,
+    p_job_outcome: input.jobOutcome,
     p_reason: input.reason,
     p_expected_job_version: input.expectedJobVersion,
     p_idempotency_key: globalThis.crypto.randomUUID(),
   });
-  if (error) throw new Error('DISPUTE_RESOLUTION_FAILED');
+  if (error) {
+    console.error('DISPUTE_RESOLUTION_FAILED', { code: error.code, message: error.message });
+    throw new Error('DISPUTE_RESOLUTION_FAILED');
+  }
   revalidatePath('/admin/support');
   revalidatePath('/admin/finance');
   revalidatePath('/admin/jobs');
@@ -157,7 +153,7 @@ export async function confirmFinancialAction(formData: FormData): Promise<void> 
     providerReference: formData.get('providerReference'),
     reason: formData.get('reason'),
   });
-  const { client } = await requireAdmin(['finance_reviewer', 'super_admin']);
+  const { client } = await requireAdmin(['finance.read']);
   const { error } = await client.rpc('confirm_financial_action', {
     p_intent_id: input.intentId,
     p_provider_reference: input.providerReference,

@@ -3,7 +3,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, ScrollView, Text } from 'react-native';
 import { z } from 'zod';
-import { Button, Card, Screen, styles } from '@/components/ui';
+import { Button, Card, LoadingSkeleton, Screen, styles } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { formatSar } from '@sallah/i18n';
 import { useLocale } from '@/providers/locale-provider';
@@ -66,7 +66,7 @@ export default function Offers() {
         <Text style={styles.title}>{t('privateOffersTitle')}</Text>
         <Text style={styles.lead}>{t('privateOffersLead')}</Text>
         {!requestId && <Text style={styles.error}>{t('missingRequestId')}</Text>}
-        {query.isPending && <Text style={styles.lead}>{t('loadingOffers')}</Text>}
+        {query.isPending && <LoadingSkeleton label={t('loadingOffers')} />}
         {query.isError && <Text style={styles.error}>{t('loadOffersFailed')}</Text>}
         {query.data?.map((offer) => (
           <Card key={offer.id}>

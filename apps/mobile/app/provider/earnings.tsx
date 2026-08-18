@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { ScrollView, Text } from 'react-native';
 import { z } from 'zod';
-import { Card, Screen, styles } from '@/components/ui';
+import { Card, LoadingSkeleton, Screen, styles } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
-import { formatSar } from '@sallah/i18n';
+import { formatSar, formatStatusLabel } from '@sallah/i18n';
 import { useLocale } from '@/providers/locale-provider';
 
 const settlementSchema = z.object({
@@ -37,9 +37,10 @@ export default function Earnings() {
         <Card>
           <Text style={styles.lead}>{t('earningsOfflineNotice')}</Text>
         </Card>
+        {query.isPending && <LoadingSkeleton label={t('loading')} />}
         {query.data?.map((settlement) => (
           <Card key={settlement.id}>
-            <Text style={styles.badge}>{settlement.status}</Text>
+            <Text style={styles.badge}>{formatStatusLabel(settlement.status, locale)}</Text>
             <Text>{t('netAmount', { amount: formatSar(settlement.net_minor, locale) })}</Text>
             <Text style={styles.lead}>
               {t('grossAndFees', {

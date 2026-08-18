@@ -7,6 +7,7 @@ const actionLabels: Record<string, TranslationKey> = {
   void_authorization: 'voidAuthorization',
   refund: 'refundCustomer',
   manual_refund: 'manualRefund',
+  release: 'releaseToProvider',
 };
 const sourceLabels: Record<string, TranslationKey> = {
   cancellation: 'cancellationSource',
@@ -14,11 +15,13 @@ const sourceLabels: Record<string, TranslationKey> = {
 };
 
 export default async function FinancePage() {
-  const { client } = await requireAdmin(['finance_reviewer', 'super_admin']);
+  const { client } = await requireAdmin(['finance.read']);
   const [payments, settlements, holds, intents] = await Promise.all([
     client
       .from('payments')
-      .select('id,amount_minor,currency,status,payment_mode,provider_name,created_at')
+      .select(
+        'id,amount_minor,refunded_minor,currency,status,payment_mode,provider_name,created_at',
+      )
       .order('created_at', { ascending: false })
       .limit(100),
     client
@@ -53,6 +56,8 @@ export default async function FinancePage() {
             <tr>
               <th>{t('identifier')}</th>
               <th>{t('amount')}</th>
+              <th>{t('refundedAmount')}</th>
+              <th>{t('netPaidAmount')}</th>
               <th>{t('mode')}</th>
               <th>{t('status')}</th>
             </tr>
@@ -63,6 +68,12 @@ export default async function FinancePage() {
                 <td>{item.id.slice(0, 8)}</td>
                 <td>
                   {(item.amount_minor / 100).toFixed(2)} {item.currency}
+                </td>
+                <td>
+                  {(item.refunded_minor / 100).toFixed(2)} {item.currency}
+                </td>
+                <td>
+                  {((item.amount_minor - item.refunded_minor) / 100).toFixed(2)} {item.currency}
                 </td>
                 <td>{item.payment_mode}</td>
                 <td>{item.status}</td>

@@ -2,7 +2,8 @@ import { Link } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { ScrollView, Text } from 'react-native';
 import { z } from 'zod';
-import { Button, Card, Screen, styles } from '@/components/ui';
+import { formatStatusLabel } from '@sallah/i18n';
+import { Button, Card, LoadingSkeleton, Screen, styles } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/providers/locale-provider';
 
@@ -33,11 +34,11 @@ export default function Requests() {
       <Screen>
         <Text style={styles.title}>{t('requestsAndOffers')}</Text>
         <Text style={styles.lead}>{t('requestsPrivacyNotice')}</Text>
-        {query.isPending && <Text style={styles.lead}>{t('loadingRequests')}</Text>}
+        {query.isPending && <LoadingSkeleton label={t('loadingRequests')} />}
         {query.isError && <Text style={styles.error}>{t('loadRequestsFailed')}</Text>}
         {query.data?.map((request) => (
           <Card key={request.id}>
-            <Text style={styles.badge}>{request.status}</Text>
+            <Text style={styles.badge}>{formatStatusLabel(request.status, locale)}</Text>
             <Text>{request.title}</Text>
             <Text style={styles.lead}>
               {new Date(request.created_at).toLocaleString(locale === 'ar' ? 'ar-SA' : locale)} ·{' '}
