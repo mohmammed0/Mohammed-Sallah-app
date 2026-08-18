@@ -14,7 +14,7 @@ pnpm dev
 
 Use the local publishable key printed by `supabase status`; never copy its local secret key into `NEXT_PUBLIC_*` or `EXPO_PUBLIC_*`. The web app runs through Next.js and the mobile app through Expo. Local email is captured by Mailpit. Seed data includes catalog configuration plus deterministic local demo scenarios from `supabase/seed.demo.sql`; it must never be deployed as production data.
 
-After migrations, run `supabase db reset`, `supabase test db`, regenerate types with `supabase gen types typescript --local`, and verify no diff remains. Stop with `supabase stop` when desired. Windows/WSL path issues are avoided by running all repository commands from one shell/runtime consistently.
+After migrations, run `supabase db reset`, `supabase test db`, regenerate the application contract with `supabase gen types typescript --local --schema public`, and verify no diff remains. Stop with `supabase stop` when desired. Windows/WSL path issues are avoided by running all repository commands from one shell/runtime consistently.
 
 ## Local demo accounts
 
