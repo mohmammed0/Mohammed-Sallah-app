@@ -229,7 +229,7 @@ select is(
 select set_config('request.jwt.claim.sub','a1000000-0000-4000-8000-000000000003',true);
 select throws_ok(
   $$select public.get_completion_proof_manifest('a1500000-0000-4000-8000-000000000001')$$,
-  'COMPLETION_PROOF_ACCESS_DENIED','unmatched provider cannot read completion evidence'
+  'JOB_ACCESS_DENIED','unmatched provider cannot read completion evidence'
 );
 select set_config('request.jwt.claim.sub','a1000000-0000-4000-8000-000000000004',true);
 select is(

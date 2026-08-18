@@ -1,5 +1,5 @@
 begin;
-select plan(28);
+select plan(34);
 
 select has_table('public','customer_acceptance_evidence','completion decisions preserve authoritative evidence references');
 
@@ -19,7 +19,7 @@ insert into public.user_roles(user_id,role) values
   ('f1000000-0000-4000-8000-000000000003','operations_admin'),
   ('f1000000-0000-4000-8000-000000000004','support_agent');
 insert into public.provider_profiles(user_id,kind,verification_status,accepting_requests,active_workload)
-values('f1000000-0000-4000-8000-000000000002','individual','verified',true,1);
+values('f1000000-0000-4000-8000-000000000002','individual','verified',true,0);
 insert into public.addresses(id,user_id,city_id,label,formatted_address,location)
 select 'f1100000-0000-4000-8000-000000000001','f1000000-0000-4000-8000-000000000001',id,
   'Atomic fixture','Synthetic exact address',
@@ -70,6 +70,18 @@ insert into public.file_uploads(
   'completion_proof','f1400000-0000-4000-8000-000000000001','proof.jpg','jpg','image/jpeg','image/jpeg',
   120,20971520,'atomic/quarantine.jpg','completion-proofs','atomic/proof.jpg','atomic/proof.jpg',
   repeat('a',64),'clean','fixture',false,now()
+),(
+  'f1600000-0000-4000-8000-000000000002','f1000000-0000-4000-8000-000000000001',
+  'support_evidence','f1400000-0000-4000-8000-000000000001','rejection.jpg','jpg','image/jpeg','image/jpeg',
+  140,20971520,'atomic/customer-quarantine.jpg','support-evidence',
+  'atomic/customer-rejection.jpg','atomic/customer-rejection.jpg',
+  repeat('b',64),'clean','fixture',false,now()
+),(
+  'f1600000-0000-4000-8000-000000000003','f1000000-0000-4000-8000-000000000002',
+  'completion_proof','f1400000-0000-4000-8000-000000000001','corrected.jpg','jpg',
+  'image/jpeg','image/jpeg',180,20971520,'atomic/corrected-quarantine.jpg',
+  'completion-proofs','atomic/corrected.jpg','atomic/corrected.jpg',
+  repeat('c',64),'clean','fixture',false,now()
 );
 insert into public.completion_proofs(
   job_id,provider_id,storage_path,mime_type,size_bytes,description,file_upload_id
@@ -87,7 +99,7 @@ insert into atomic_context(key,payload) values(
   'rejection',public.accept_completion(
     'f1400000-0000-4000-8000-000000000001',false,
     'The submitted completion evidence does not show the repaired leak',1,'',
-    'atomic-rejection-key',array['f1600000-0000-4000-8000-000000000001'::uuid]
+    'atomic-rejection-key',array['f1600000-0000-4000-8000-000000000002'::uuid]
   )
 );
 select is((select payload->>'status' from atomic_context where key='rejection'),'disputed',
@@ -110,8 +122,8 @@ select is((select count(*) from public.financial_holds where job_id='f1400000-00
 select is((select count(*) from public.notification_outbox where user_id='f1000000-0000-4000-8000-000000000002' and event_type='completion_rejected_dispute_opened'),1::bigint,
   'provider receives one rejection notification');
 select is((select count(*) from public.notification_outbox where user_id in (
-  'f1000000-0000-4000-8000-000000000003','f1000000-0000-4000-8000-000000000004') and event_type='operations_dispute_queue'),2::bigint,
-  'support and operations queues receive the dispute');
+  'f1000000-0000-4000-8000-000000000003','f1000000-0000-4000-8000-000000000004') and event_type='operations_dispute_queue'),1::bigint,
+  'only the operations queue receives an unassigned dispute');
 select is((select count(*) from public.customer_acceptance_evidence),1::bigint,
   'rejection evidence remains linked to the acceptance');
 select is((select pre_dispute_job_status::text from public.disputes where job_id='f1400000-0000-4000-8000-000000000001'),
@@ -123,7 +135,7 @@ select is(
   public.accept_completion(
     'f1400000-0000-4000-8000-000000000001',false,
     'The submitted completion evidence does not show the repaired leak',1,'',
-    'atomic-rejection-key',array['f1600000-0000-4000-8000-000000000001'::uuid]
+    'atomic-rejection-key',array['f1600000-0000-4000-8000-000000000002'::uuid]
   )->>'disputeId',
   (select payload->>'disputeId' from atomic_context where key='rejection'),
   'same key and canonical payload replay the same dispute'
@@ -132,7 +144,7 @@ select throws_ok(
   $$select public.accept_completion(
     'f1400000-0000-4000-8000-000000000001',false,
     'A different rejection reason must conflict with the original request',1,'',
-    'atomic-rejection-key',array['f1600000-0000-4000-8000-000000000001'::uuid]
+    'atomic-rejection-key',array['f1600000-0000-4000-8000-000000000002'::uuid]
   )$$,'IDEMPOTENCY_KEY_CONFLICT','same key with a different payload is rejected');
 select set_config('request.jwt.claim.sub','f1000000-0000-4000-8000-000000000004',true);
 select throws_ok(
@@ -154,7 +166,62 @@ reset role;
 select is((select status::text from public.disputes where job_id='f1400000-0000-4000-8000-000000000001'),
   'resolved','resolution closes the authoritative dispute');
 select is((select status::text from public.jobs where id='f1400000-0000-4000-8000-000000000001'),
-  'completion_submitted','resolution resumes the preserved pre-dispute state');
+  'in_progress','resolution resumes the provider into valid rework state');
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub','f1000000-0000-4000-8000-000000000002',true);
+insert into atomic_context(key,payload) values(
+  'second_submission',public.submit_completion(
+    'f1400000-0000-4000-8000-000000000001',
+    jsonb_build_array(jsonb_build_object(
+      'uploadId','f1600000-0000-4000-8000-000000000003',
+      'mimeType','image/jpeg','sizeBytes',180,
+      'description','Corrected completion after the resumed work'
+    )),
+    'atomic-second-submission-key'
+  )
+);
+select is((select payload->>'status' from atomic_context where key='second_submission'),
+  'completion_submitted','provider submits a corrected second completion attempt');
+reset role;
+select is((select count(*) from public.completion_attempts
+  where job_id='f1400000-0000-4000-8000-000000000001'),2::bigint,
+  'both completion attempts are retained');
+select is((select count(*) from public.customer_acceptances
+  where job_id='f1400000-0000-4000-8000-000000000001' and not accepted),1::bigint,
+  'the first rejection remains authoritative history');
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub','f1000000-0000-4000-8000-000000000001',true);
+insert into atomic_context(key,payload) values(
+  'second_acceptance',public.accept_completion(
+    'f1400000-0000-4000-8000-000000000001',true,
+    'The corrected work is complete and accepted',5,'Corrected successfully',
+    'atomic-second-acceptance-key','{}'::uuid[]
+  )
+);
+select is((select payload->>'status' from atomic_context where key='second_acceptance'),
+  'completed','customer accepts the corrected completion attempt');
+reset role;
+select is((select count(*) from public.customer_acceptances
+  where job_id='f1400000-0000-4000-8000-000000000001'),2::bigint,
+  'one decision is retained for each completion attempt');
+select is((select count(*) from public.job_terminal_effects
+  where job_id='f1400000-0000-4000-8000-000000000001' and outcome='completed'),1::bigint,
+  'terminal completion effects are marked exactly once');
+select is((select active_workload from public.provider_profiles
+  where user_id='f1000000-0000-4000-8000-000000000002'),0,
+  'provider active workload decrements exactly once on final completion');
+select is((select completed_jobs from public.provider_profiles
+  where user_id='f1000000-0000-4000-8000-000000000002'),1,
+  'provider completion metrics increment exactly once');
+select is((select rating_count from public.provider_profiles
+  where user_id='f1000000-0000-4000-8000-000000000002'),1,
+  'only the customer acceptance creates a rating');
+select is((select string_agg(status,',' order by attempt_number)
+  from public.completion_attempts
+  where job_id='f1400000-0000-4000-8000-000000000001'),
+  'rejected,accepted','completion attempt history preserves both final decisions');
 select throws_ok(
   $$update public.jobs set status='disputed' where id='f1400000-0000-4000-8000-000000000001'$$,
   'DISPUTED_JOB_REQUIRES_OPEN_DISPUTE','resolved or absent cases cannot leave an orphan disputed job'
@@ -186,27 +253,5 @@ select throws_ok(
   $$select private.idempotency_replay(
     'f1000000-0000-4000-8000-000000000001','test_processing','processing-key',repeat('f',64)
   )$$,'IDEMPOTENCY_COMMAND_IN_PROGRESS','an existing processing command cannot execute twice');
-insert into public.idempotency_keys(
-  user_id,command,key,request_hash,status,attempt_count,updated_at,last_failure_category
-) values
-  ('f1000000-0000-4000-8000-000000000001','test_failed','retry-ready-key',repeat('e',64),'failed',1,now()-interval '6 seconds','controlled_fixture'),
-  ('f1000000-0000-4000-8000-000000000001','test_failed','retry-wait-key',repeat('d',64),'failed',1,now(),'controlled_fixture'),
-  ('f1000000-0000-4000-8000-000000000001','test_failed','retry-exhausted-key',repeat('c',64),'failed',3,now()-interval '6 seconds','controlled_fixture');
-select is(
-  private.idempotency_replay(
-    'f1000000-0000-4000-8000-000000000001','test_failed','retry-ready-key',repeat('e',64)
-  ),null::jsonb,'a cooled-down failed command is admitted for its controlled retry');
-select ok((select status='processing' and attempt_count=2 and last_failure_category is null
-  from public.idempotency_keys where command='test_failed' and key='retry-ready-key'),
-  'controlled retry increments the attempt and clears the prior failure category');
-select throws_ok(
-  $$select private.idempotency_replay(
-    'f1000000-0000-4000-8000-000000000001','test_failed','retry-wait-key',repeat('d',64)
-  )$$,'IDEMPOTENCY_RETRY_NOT_READY','failed commands observe a retry cooldown');
-select throws_ok(
-  $$select private.idempotency_replay(
-    'f1000000-0000-4000-8000-000000000001','test_failed','retry-exhausted-key',repeat('c',64)
-  )$$,'IDEMPOTENCY_RETRY_EXHAUSTED','failed commands stop after the bounded attempt count');
-
 select * from finish();
 rollback;

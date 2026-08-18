@@ -16,7 +16,9 @@ flowchart LR
   Offer --> Job
   Job --> Conversation
   Job --> ChangeOrder
-  Job --> CompletionProof
+  Job --> CompletionAttempt
+  CompletionAttempt --> CompletionProof
+  CompletionAttempt --> CustomerDecision
   Job --> LocationSharingSession
   Job --> Payment
   Payment --> Settlement
@@ -51,3 +53,8 @@ Exact address records are separate from approximate PostGIS points. Providers ma
 `file_uploads` is the authoritative media lifecycle record. Completion proofs, message attachments, request media, provider documents, and support evidence bind only to a clean upload. The storage path is an internal implementation detail; consumers receive manifests containing upload IDs and ask the signed-media broker for time-limited access.
 
 Refund accounting stores every refund in minor units and derives `partially_refunded` versus `refunded` from cumulative confirmed amounts. Dispute/cancellation commands lock the job and financial rows, enforce expected versions and idempotency payload equality, record workflow history, and defer externally confirmed money movement to a service-role reconciliation command.
+
+Completion is versioned by `completion_attempts`. Proofs and customer decisions belong to one
+attempt, one active attempt is allowed per job, and rejected history remains immutable when dispute
+resolution resumes work for a corrected attempt. Terminal bookkeeping uses a per-job exactly-once
+marker so workload and completion metrics cannot be applied twice.

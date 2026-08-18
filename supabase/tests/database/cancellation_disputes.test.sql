@@ -157,7 +157,11 @@ select is((select payload->>'status' from workflow_test_context where key='revie
 select is((select status::text from public.jobs where id='91400000-0000-4000-8000-000000000003'),'in_progress','reviewed cancellation defers the job transition until finance confirms the refund');
 reset role;
 select is((select status::text from public.payments where id='91500000-0000-4000-8000-000000000003'),'captured','captured payment is unchanged before provider confirmation');
-select is((select count(*) from public.financial_action_intents where source_type='cancellation' and status='pending'),1::bigint,'cancellation creates one pending external financial action');
+select is((select count(*) from public.financial_action_intents
+  where source_type='cancellation' and status='pending'
+    and source_id=(select (payload->>'cancellationId')::uuid
+      from workflow_test_context where key='reviewed')),
+  1::bigint,'cancellation creates one pending external financial action');
 
 insert into workflow_test_context(key,id)
 select 'cancellation_intent',id from public.financial_action_intents
@@ -217,27 +221,30 @@ select 'resolution',public.resolve_dispute(
   'split',4000,'cancel','Finance approves a split customer refund',8,'finance-resolution-key'
 );
 select is((select payload->>'status' from workflow_test_context where key='resolution'),'waiting_operations','refund resolution waits for external execution');
+reset role;
 select is((select status::text from public.refunds where payment_id='91500000-0000-4000-8000-000000000004'),'pending','refund remains pending before confirmation');
 select is((select status::text from public.payments where id='91500000-0000-4000-8000-000000000004'),'captured','dispute payment remains captured before confirmation');
 insert into workflow_test_context(key,id)
 select 'dispute_intent',id from public.financial_action_intents
 where source_type='dispute' and source_id=(select (payload->>'disputeId')::uuid from workflow_test_context where key='dispute');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','91000000-0000-4000-8000-000000000006',true);
 insert into workflow_test_context(key,payload)
 select 'confirmation',public.confirm_financial_action(
   (select id from workflow_test_context where key='dispute_intent'),
   'provider-refund-reference-001','Finance verified the provider refund receipt','finance-confirm-key'
 );
 select is((select payload->>'status' from workflow_test_context where key='confirmation'),'confirmed','finance confirms the external action using a provider reference');
+reset role;
 select is((select status::text from public.refunds where payment_id='91500000-0000-4000-8000-000000000004'),'refunded','confirmed refund updates the refund ledger');
 select is((select status::text from public.payments where id='91500000-0000-4000-8000-000000000004'),'partially_refunded','partial refund preserves the remaining captured balance');
 select is((select refunded_minor from public.payments where id='91500000-0000-4000-8000-000000000004'),4000::bigint,'payment accounting stores the cumulative refunded amount');
-reset role;
 select is((select status::text from public.disputes where id=(select (payload->>'disputeId')::uuid from workflow_test_context where key='dispute')),'resolved','confirmed financial action resolves the dispute');
 select is((select status::text from public.financial_holds where dispute_id=(select (payload->>'disputeId')::uuid from workflow_test_context where key='dispute')),'released','confirmed resolution releases the financial hold');
 select is((select status::text from public.jobs where id='91400000-0000-4000-8000-000000000004'),'cancelled','explicit dispute outcome is applied after financial confirmation');
 select is((select action_type from public.resolution_actions where dispute_id=(select (payload->>'disputeId')::uuid from workflow_test_context where key='dispute')),'split','split resolution is represented explicitly');
 select ok((select count(*) from public.job_status_history where job_id='91400000-0000-4000-8000-000000000004' and new_status in ('disputed','cancelled'))=2,'dispute open and resolution both append job history');
-select ok((select count(*) from public.job_events where job_id='91400000-0000-4000-8000-000000000004' and event_type='dispute_job_outcome_applied')=1,'confirmed dispute outcome emits exactly one job event');
+select ok((select count(*) from public.job_events where job_id='91400000-0000-4000-8000-000000000004' and event_type='terminal_outcome_applied')=1,'confirmed dispute outcome emits exactly one terminal job event');
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub','91000000-0000-4000-8000-000000000001',true);
@@ -311,17 +318,20 @@ select 'refund_resolution_one',public.resolve_dispute(
   (select (payload->>'disputeId')::uuid from workflow_test_context where key='refund_dispute_one'),
   'split',6000,'resume','First partial split refund is approved',6,'refund-resolve-one-key'
 );
+reset role;
 select is((select status::text from public.payments where id='91500000-0000-4000-8000-000000000006'),'captured','payment stays captured until the external refund is confirmed');
 insert into workflow_test_context(key,id)
 select 'refund_intent_one',id from public.financial_action_intents
 where source_id=(select (payload->>'disputeId')::uuid from workflow_test_context where key='refund_dispute_one');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','91000000-0000-4000-8000-000000000006',true);
 insert into workflow_test_context(key,payload)
 select 'refund_confirmation_one',public.confirm_financial_action(
   (select id from workflow_test_context where key='refund_intent_one'),
   'cumulative-provider-ref-1','First external refund is verified','refund-confirm-one-key'
 );
-select is((select status::text from public.payments where id='91500000-0000-4000-8000-000000000006'),'partially_refunded','first cumulative refund is represented as partial');
 reset role;
+select is((select status::text from public.payments where id='91500000-0000-4000-8000-000000000006'),'partially_refunded','first cumulative refund is represented as partial');
 select is((select net_paid_minor from public.payment_accounting where id='91500000-0000-4000-8000-000000000006'),4000::bigint,'payment read model exposes the correct remaining balance');
 set local role authenticated;
 select set_config('request.jwt.claim.sub','91000000-0000-4000-8000-000000000006',true);

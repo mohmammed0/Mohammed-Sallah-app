@@ -11,6 +11,7 @@ select id,'00000000-0000-0000-0000-000000000000','authenticated','authenticated'
     case
       -- Known only to local Playwright runs. This seed file is never used by production config.
       when email='admin.demo@example.invalid' then 'LocalE2E-Only!2026'
+      when email='finance.demo@example.invalid' then 'LocalFinanceE2E-Only!2026'
       when email='provider.demo@example.invalid' then 'LocalProviderE2E-Only!2026'
       else gen_random_uuid()::text
     end,
@@ -26,7 +27,8 @@ from (values
   ('d2000000-0000-4000-8000-000000000003'::uuid,'provider.suspended@example.invalid','مقدم خدمة موقوف','ar'),
   ('d3000000-0000-4000-8000-000000000001'::uuid,'admin.demo@example.invalid','مدير العمليات','ar'),
   ('d3000000-0000-4000-8000-000000000002'::uuid,'support.demo@example.invalid','موظف الدعم','ar'),
-  ('d3000000-0000-4000-8000-000000000003'::uuid,'reviewer.demo@example.invalid','مراجع التحقق','ar')
+  ('d3000000-0000-4000-8000-000000000003'::uuid,'reviewer.demo@example.invalid','مراجع التحقق','ar'),
+  ('d3000000-0000-4000-8000-000000000004'::uuid,'finance.demo@example.invalid','مراجع المالية','ar')
 ) demo(id,email,display_name,locale)
 on conflict(id) do nothing;
 
@@ -40,7 +42,8 @@ from (values
   ('d2000000-0000-4000-8000-000000000003'::uuid,'provider.suspended@example.invalid'),
   ('d3000000-0000-4000-8000-000000000001'::uuid,'admin.demo@example.invalid'),
   ('d3000000-0000-4000-8000-000000000002'::uuid,'support.demo@example.invalid'),
-  ('d3000000-0000-4000-8000-000000000003'::uuid,'reviewer.demo@example.invalid')
+  ('d3000000-0000-4000-8000-000000000003'::uuid,'reviewer.demo@example.invalid'),
+  ('d3000000-0000-4000-8000-000000000004'::uuid,'finance.demo@example.invalid')
 ) demo(id,email)
 on conflict(provider_id,provider) do nothing;
 
@@ -51,7 +54,8 @@ insert into public.user_roles(user_id,role) values
  ('d2000000-0000-4000-8000-000000000003','provider'),
  ('d3000000-0000-4000-8000-000000000001','operations_admin'),
  ('d3000000-0000-4000-8000-000000000002','support_agent'),
- ('d3000000-0000-4000-8000-000000000003','verification_reviewer')
+ ('d3000000-0000-4000-8000-000000000003','verification_reviewer'),
+ ('d3000000-0000-4000-8000-000000000004','finance_reviewer')
 on conflict(user_id,role) do nothing;
 
 insert into public.admin_role_assignments(user_id,admin_role_id,granted_by,reason)
@@ -223,6 +227,14 @@ insert into public.financial_holds(job_id,amount_minor,reason,created_by,dispute
 values(
   'de000000-0000-4000-8000-000000000003',24000,'demo_dispute_hold',
   'd3000000-0000-4000-8000-000000000002','e3000000-0000-4000-8000-000000000001'
+);
+insert into public.financial_action_intents(
+  id,source_type,source_id,payment_id,action_type,amount_minor,status,idempotency_key,created_by
+) values(
+  'e4000000-0000-4000-8000-000000000001','cancellation',
+  'e2500000-0000-4000-8000-000000000001','e1000000-0000-4000-8000-000000000001',
+  'manual_refund',1000,'pending','demo-finance-review-intent',
+  'd3000000-0000-4000-8000-000000000001'
 );
 insert into public.notification_outbox(user_id,event_type,channel,payload,deduplication_key,status) values
  ('d1000000-0000-4000-8000-000000000001','change_order','in_app','{"jobId":"de000000-0000-4000-8000-000000000001"}','demo-change-order-customer','pending'),

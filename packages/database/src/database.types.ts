@@ -1070,9 +1070,78 @@ export type Database = {
         };
         Relationships: [];
       };
+      completion_attempts: {
+        Row: {
+          attempt_number: number;
+          corrected_from_attempt_id: string | null;
+          created_at: string;
+          decided_at: string | null;
+          id: string;
+          idempotency_key: string;
+          job_id: string;
+          provider_id: string;
+          status: string;
+          submitted_at: string;
+        };
+        Insert: {
+          attempt_number: number;
+          corrected_from_attempt_id?: string | null;
+          created_at?: string;
+          decided_at?: string | null;
+          id?: string;
+          idempotency_key: string;
+          job_id: string;
+          provider_id: string;
+          status?: string;
+          submitted_at?: string;
+        };
+        Update: {
+          attempt_number?: number;
+          corrected_from_attempt_id?: string | null;
+          created_at?: string;
+          decided_at?: string | null;
+          id?: string;
+          idempotency_key?: string;
+          job_id?: string;
+          provider_id?: string;
+          status?: string;
+          submitted_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'completion_attempts_corrected_from_attempt_id_fkey';
+            columns: ['corrected_from_attempt_id'];
+            isOneToOne: false;
+            referencedRelation: 'completion_attempts';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'completion_attempts_job_id_fkey';
+            columns: ['job_id'];
+            isOneToOne: false;
+            referencedRelation: 'jobs';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'completion_attempts_provider_id_fkey';
+            columns: ['provider_id'];
+            isOneToOne: false;
+            referencedRelation: 'provider_profiles';
+            referencedColumns: ['user_id'];
+          },
+          {
+            foreignKeyName: 'completion_attempts_provider_id_fkey';
+            columns: ['provider_id'];
+            isOneToOne: false;
+            referencedRelation: 'provider_public_profiles';
+            referencedColumns: ['user_id'];
+          },
+        ];
+      };
       completion_proofs: {
         Row: {
           captured_at: string | null;
+          completion_attempt_id: string;
           created_at: string;
           description: string | null;
           file_upload_id: string | null;
@@ -1085,6 +1154,7 @@ export type Database = {
         };
         Insert: {
           captured_at?: string | null;
+          completion_attempt_id: string;
           created_at?: string;
           description?: string | null;
           file_upload_id?: string | null;
@@ -1097,6 +1167,7 @@ export type Database = {
         };
         Update: {
           captured_at?: string | null;
+          completion_attempt_id?: string;
           created_at?: string;
           description?: string | null;
           file_upload_id?: string | null;
@@ -1108,6 +1179,13 @@ export type Database = {
           storage_path?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: 'completion_proofs_completion_attempt_id_fkey';
+            columns: ['completion_attempt_id'];
+            isOneToOne: false;
+            referencedRelation: 'completion_attempts';
+            referencedColumns: ['id'];
+          },
           {
             foreignKeyName: 'completion_proofs_file_upload_id_fkey';
             columns: ['file_upload_id'];
@@ -1249,6 +1327,7 @@ export type Database = {
         Row: {
           accepted: boolean;
           accepted_total_minor: number;
+          completion_attempt_id: string;
           created_at: string;
           customer_id: string;
           evidence_references: Json;
@@ -1259,6 +1338,7 @@ export type Database = {
         Insert: {
           accepted: boolean;
           accepted_total_minor: number;
+          completion_attempt_id: string;
           created_at?: string;
           customer_id: string;
           evidence_references?: Json;
@@ -1269,6 +1349,7 @@ export type Database = {
         Update: {
           accepted?: boolean;
           accepted_total_minor?: number;
+          completion_attempt_id?: string;
           created_at?: string;
           customer_id?: string;
           evidence_references?: Json;
@@ -1277,6 +1358,13 @@ export type Database = {
           reason?: string | null;
         };
         Relationships: [
+          {
+            foreignKeyName: 'customer_acceptances_completion_attempt_id_fkey';
+            columns: ['completion_attempt_id'];
+            isOneToOne: true;
+            referencedRelation: 'completion_attempts';
+            referencedColumns: ['id'];
+          },
           {
             foreignKeyName: 'customer_acceptances_customer_id_fkey';
             columns: ['customer_id'];
@@ -1287,7 +1375,7 @@ export type Database = {
           {
             foreignKeyName: 'customer_acceptances_job_id_fkey';
             columns: ['job_id'];
-            isOneToOne: true;
+            isOneToOne: false;
             referencedRelation: 'jobs';
             referencedColumns: ['id'];
           },
@@ -1354,6 +1442,30 @@ export type Database = {
             referencedColumns: ['id'];
           },
         ];
+      };
+      data_export_table_classifications: {
+        Row: {
+          classification: string;
+          manifest_categories: string[];
+          query_anchors: string[];
+          reason: string;
+          table_name: string;
+        };
+        Insert: {
+          classification: string;
+          manifest_categories?: string[];
+          query_anchors?: string[];
+          reason: string;
+          table_name: string;
+        };
+        Update: {
+          classification?: string;
+          manifest_categories?: string[];
+          query_anchors?: string[];
+          reason?: string;
+          table_name?: string;
+        };
+        Relationships: [];
       };
       dead_letter_events: {
         Row: {
@@ -1450,6 +1562,8 @@ export type Database = {
       disputes: {
         Row: {
           assigned_to: string | null;
+          completion_attempt_id: string | null;
+          completion_decision_id: string | null;
           created_at: string;
           expected_job_version: number | null;
           id: string;
@@ -1469,6 +1583,8 @@ export type Database = {
         };
         Insert: {
           assigned_to?: string | null;
+          completion_attempt_id?: string | null;
+          completion_decision_id?: string | null;
           created_at?: string;
           expected_job_version?: number | null;
           id?: string;
@@ -1488,6 +1604,8 @@ export type Database = {
         };
         Update: {
           assigned_to?: string | null;
+          completion_attempt_id?: string | null;
+          completion_decision_id?: string | null;
           created_at?: string;
           expected_job_version?: number | null;
           id?: string;
@@ -1511,6 +1629,20 @@ export type Database = {
             columns: ['assigned_to'];
             isOneToOne: false;
             referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'disputes_completion_attempt_id_fkey';
+            columns: ['completion_attempt_id'];
+            isOneToOne: false;
+            referencedRelation: 'completion_attempts';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'disputes_completion_decision_id_fkey';
+            columns: ['completion_decision_id'];
+            isOneToOne: false;
+            referencedRelation: 'customer_acceptances';
             referencedColumns: ['id'];
           },
           {
@@ -2417,6 +2549,51 @@ export type Database = {
             foreignKeyName: 'job_status_history_job_id_fkey';
             columns: ['job_id'];
             isOneToOne: false;
+            referencedRelation: 'jobs';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      job_terminal_effects: {
+        Row: {
+          actor_id: string | null;
+          applied_at: string;
+          job_id: string;
+          metadata: Json;
+          outcome: string;
+          source_id: string | null;
+          source_type: string;
+        };
+        Insert: {
+          actor_id?: string | null;
+          applied_at?: string;
+          job_id: string;
+          metadata?: Json;
+          outcome: string;
+          source_id?: string | null;
+          source_type: string;
+        };
+        Update: {
+          actor_id?: string | null;
+          applied_at?: string;
+          job_id?: string;
+          metadata?: Json;
+          outcome?: string;
+          source_id?: string | null;
+          source_type?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'job_terminal_effects_actor_id_fkey';
+            columns: ['actor_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'job_terminal_effects_job_id_fkey';
+            columns: ['job_id'];
+            isOneToOne: true;
             referencedRelation: 'jobs';
             referencedColumns: ['id'];
           },
@@ -3890,6 +4067,58 @@ export type Database = {
           },
         ];
       };
+      provider_job_eligibility_reviews: {
+        Row: {
+          created_at: string;
+          id: string;
+          job_id: string;
+          provider_id: string;
+          reason: string;
+          resolved_at: string | null;
+          status: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          job_id: string;
+          provider_id: string;
+          reason: string;
+          resolved_at?: string | null;
+          status?: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          job_id?: string;
+          provider_id?: string;
+          reason?: string;
+          resolved_at?: string | null;
+          status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'provider_job_eligibility_reviews_job_id_fkey';
+            columns: ['job_id'];
+            isOneToOne: false;
+            referencedRelation: 'jobs';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'provider_job_eligibility_reviews_provider_id_fkey';
+            columns: ['provider_id'];
+            isOneToOne: false;
+            referencedRelation: 'provider_profiles';
+            referencedColumns: ['user_id'];
+          },
+          {
+            foreignKeyName: 'provider_job_eligibility_reviews_provider_id_fkey';
+            columns: ['provider_id'];
+            isOneToOne: false;
+            referencedRelation: 'provider_public_profiles';
+            referencedColumns: ['user_id'];
+          },
+        ];
+      };
       provider_payout_accounts: {
         Row: {
           created_at: string;
@@ -4857,6 +5086,7 @@ export type Database = {
           content_hash: string | null;
           created_at: string;
           deleted_at: string | null;
+          file_upload_id: string | null;
           id: string;
           media_kind: string;
           mime_type: string;
@@ -4871,6 +5101,7 @@ export type Database = {
           content_hash?: string | null;
           created_at?: string;
           deleted_at?: string | null;
+          file_upload_id?: string | null;
           id?: string;
           media_kind: string;
           mime_type: string;
@@ -4885,6 +5116,7 @@ export type Database = {
           content_hash?: string | null;
           created_at?: string;
           deleted_at?: string | null;
+          file_upload_id?: string | null;
           id?: string;
           media_kind?: string;
           mime_type?: string;
@@ -4896,6 +5128,13 @@ export type Database = {
           uploader_id?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: 'request_media_file_upload_id_fkey';
+            columns: ['file_upload_id'];
+            isOneToOne: true;
+            referencedRelation: 'file_uploads';
+            referencedColumns: ['id'];
+          },
           {
             foreignKeyName: 'request_media_request_id_fkey';
             columns: ['request_id'];
@@ -5608,7 +5847,9 @@ export type Database = {
           ai_provider: string | null;
           approximate_location: unknown;
           cancellation_reason: string | null;
+          category_confirmed_at: string | null;
           category_id: string | null;
+          category_selection_source: string | null;
           city_id: string;
           created_at: string;
           customer_approved_at: string | null;
@@ -5625,6 +5866,7 @@ export type Database = {
           status: Database['public']['Enums']['request_status'];
           structured_description: string;
           subcategory_id: string | null;
+          suggested_category_id: string | null;
           title: string;
           updated_at: string;
           urgency: Database['public']['Enums']['request_urgency'];
@@ -5636,7 +5878,9 @@ export type Database = {
           ai_provider?: string | null;
           approximate_location?: unknown;
           cancellation_reason?: string | null;
+          category_confirmed_at?: string | null;
           category_id?: string | null;
+          category_selection_source?: string | null;
           city_id: string;
           created_at?: string;
           customer_approved_at?: string | null;
@@ -5653,6 +5897,7 @@ export type Database = {
           status?: Database['public']['Enums']['request_status'];
           structured_description: string;
           subcategory_id?: string | null;
+          suggested_category_id?: string | null;
           title: string;
           updated_at?: string;
           urgency?: Database['public']['Enums']['request_urgency'];
@@ -5664,7 +5909,9 @@ export type Database = {
           ai_provider?: string | null;
           approximate_location?: unknown;
           cancellation_reason?: string | null;
+          category_confirmed_at?: string | null;
           category_id?: string | null;
+          category_selection_source?: string | null;
           city_id?: string;
           created_at?: string;
           customer_approved_at?: string | null;
@@ -5681,6 +5928,7 @@ export type Database = {
           status?: Database['public']['Enums']['request_status'];
           structured_description?: string;
           subcategory_id?: string | null;
+          suggested_category_id?: string | null;
           title?: string;
           updated_at?: string;
           urgency?: Database['public']['Enums']['request_urgency'];
@@ -5727,6 +5975,13 @@ export type Database = {
             columns: ['subcategory_id'];
             isOneToOne: false;
             referencedRelation: 'service_subcategories';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'service_requests_suggested_category_id_fkey';
+            columns: ['suggested_category_id'];
+            isOneToOne: false;
+            referencedRelation: 'service_categories';
             referencedColumns: ['id'];
           },
         ];
@@ -6069,6 +6324,7 @@ export type Database = {
         Row: {
           closed_at: string | null;
           created_at: string;
+          dispute_id: string | null;
           id: string;
           job_id: string | null;
           opened_by: string;
@@ -6082,6 +6338,7 @@ export type Database = {
         Insert: {
           closed_at?: string | null;
           created_at?: string;
+          dispute_id?: string | null;
           id?: string;
           job_id?: string | null;
           opened_by: string;
@@ -6095,6 +6352,7 @@ export type Database = {
         Update: {
           closed_at?: string | null;
           created_at?: string;
+          dispute_id?: string | null;
           id?: string;
           job_id?: string | null;
           opened_by?: string;
@@ -6106,6 +6364,13 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: 'support_cases_dispute_id_fkey';
+            columns: ['dispute_id'];
+            isOneToOne: true;
+            referencedRelation: 'disputes';
+            referencedColumns: ['id'];
+          },
           {
             foreignKeyName: 'support_cases_job_id_fkey';
             columns: ['job_id'];
@@ -6759,6 +7024,10 @@ export type Database = {
       };
     };
     Functions: {
+      abandon_ai_intake_session: {
+        Args: { p_session_id: string };
+        Returns: undefined;
+      };
       accept_completion:
         | {
             Args: {
@@ -6802,11 +7071,27 @@ export type Database = {
         };
         Returns: undefined;
       };
+      assert_data_export_catalog_complete: { Args: never; Returns: boolean };
+      assign_support_case: {
+        Args: {
+          p_assignee_id: string;
+          p_case_id: string;
+          p_expires_at: string;
+          p_idempotency_key: string;
+          p_permissions: string[];
+          p_reason: string;
+        };
+        Returns: Json;
+      };
       authorize_clean_media: {
         Args: { p_upload_id: string; p_user_id: string };
         Returns: Json;
       };
       build_data_export: {
+        Args: { p_request_id: string; p_user_id: string };
+        Returns: Json;
+      };
+      build_data_export_v3: {
         Args: { p_request_id: string; p_user_id: string };
         Returns: Json;
       };
@@ -6918,6 +7203,14 @@ export type Database = {
         };
         Returns: Json;
       };
+      end_support_case_assignment: {
+        Args: {
+          p_assignment_id: string;
+          p_idempotency_key: string;
+          p_reason: string;
+        };
+        Returns: Json;
+      };
       expire_data_export: { Args: { p_request_id: string }; Returns: undefined };
       fail_file_upload: {
         Args: {
@@ -6956,11 +7249,26 @@ export type Database = {
         Returns: Json;
       };
       get_customer_offers: { Args: { p_request_id: string }; Returns: Json };
+      get_customer_pii: {
+        Args: { p_customer_id: string; p_reason: string };
+        Returns: Json;
+      };
       get_data_export_manifest: { Args: never; Returns: Json };
+      get_data_export_manifest_v3: { Args: never; Returns: Json };
       get_data_export_query_coverage: { Args: never; Returns: Json };
+      get_data_export_query_coverage_v3: { Args: never; Returns: Json };
+      get_finance_review_queue: { Args: never; Returns: Json };
+      get_marketplace_safe_identity: {
+        Args: { p_case_id?: string; p_user_id: string };
+        Returns: Json;
+      };
       get_privacy_retention_config: { Args: never; Returns: Json };
       get_provider_request_brief: {
         Args: { p_request_id: string };
+        Returns: Json;
+      };
+      get_provider_verification_identity: {
+        Args: { p_provider_id: string; p_reason: string };
         Returns: Json;
       };
       get_session_context: { Args: never; Returns: Json };
@@ -6979,6 +7287,10 @@ export type Database = {
       link_ai_session_to_request: {
         Args: { p_request_id: string; p_session_id: string };
         Returns: undefined;
+      };
+      list_customer_pii: {
+        Args: { p_query: string; p_reason: string };
+        Returns: Json;
       };
       open_dispute:
         | {
@@ -7214,7 +7526,8 @@ export type Database = {
         | 'support_agent'
         | 'finance_reviewer'
         | 'analyst'
-        | 'super_admin';
+        | 'super_admin'
+        | 'privacy_reviewer';
       verification_status:
         | 'draft'
         | 'submitted'
@@ -7409,6 +7722,7 @@ export const Constants = {
         'finance_reviewer',
         'analyst',
         'super_admin',
+        'privacy_reviewer',
       ],
       verification_status: [
         'draft',

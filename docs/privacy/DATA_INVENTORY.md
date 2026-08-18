@@ -74,6 +74,31 @@ references, audit IP hashes, and data belonging only to another participant are 
 - `notifications`
 - `uploadSecurityEvents`
 - `privacyRequests`
+- `blockedUsers`
+- `providerQualifications`
+- `providerQualificationHistory`
+- `providerDocumentReviews`
+- `providerStatusHistory`
+- `providerSuspensions`
+- `offerRevisions`
+- `offerStatusHistory`
+- `offerWithdrawals`
+- `changeOrders`
+- `changeOrderItems`
+- `jobAssignments`
+- `jobChecklists`
+- `jobNotes`
+- `completionAttempts`
+- `acceptanceEvidence`
+- `messageReadReceipts`
+- `messageTranslations`
+- `messageModeration`
+- `paymentAttempts`
+- `paymentEvents`
+- `providerSettlements`
+- `settlementEvents`
+- `platformFees`
+- `financialActionIntents`
 
 <!-- export-manifest:end -->
 
@@ -136,6 +161,31 @@ anchor disappears from the export function.
 - `notifications` → `notification_outbox notifications_export`
 - `uploadSecurityEvents` → `upload_security_events upload_events_export`
 - `privacyRequests` → `data_export_requests privacy_exports_export`
+- `blockedUsers` → `blocked_users blocked_export`
+- `providerQualifications` → `provider_restricted_qualifications qualifications_export`
+- `providerQualificationHistory` → `provider_qualification_events qualification_events_export`
+- `providerDocumentReviews` → `provider_document_reviews document_reviews_export`
+- `providerStatusHistory` → `provider_status_history provider_history_export`
+- `providerSuspensions` → `provider_suspensions suspensions_export`
+- `offerRevisions` → `offer_revisions revisions_export`
+- `offerStatusHistory` → `offer_status_history offer_history_export`
+- `offerWithdrawals` → `offer_withdrawals withdrawals_export`
+- `changeOrders` → `change_orders change_orders_export`
+- `changeOrderItems` → `change_order_items change_items_export`
+- `jobAssignments` → `job_assignments assignments_export`
+- `jobChecklists` → `job_checklists checklists_export`
+- `jobNotes` → `job_notes notes_export`
+- `completionAttempts` → `completion_attempts attempts_export`
+- `acceptanceEvidence` → `customer_acceptance_evidence acceptance_evidence_export`
+- `messageReadReceipts` → `message_read_receipts read_receipts_export`
+- `messageTranslations` → `message_translations message_translations_export`
+- `messageModeration` → `message_moderation_events moderation_export`
+- `paymentAttempts` → `payment_attempts payment_attempts_export`
+- `paymentEvents` → `payment_events payment_events_export`
+- `providerSettlements` → `provider_settlements settlements_export`
+- `settlementEvents` → `settlement_events settlement_events_export`
+- `platformFees` → `platform_fees fees_export`
+- `financialActionIntents` → `financial_action_intents intents_export`
 
 <!-- export-query-coverage:end -->
 
@@ -151,7 +201,22 @@ references, internal support messages/notes, private storage paths, signed URLs,
 and exact coordinates. Approximate request geography is also omitted from the portable payload;
 the legal/data-governance policy remains the authority for any future location portability change.
 
-`scripts/check-data-inventory.mjs` compares the manifest, documented anchors, database coverage map,
-and concrete export-function query text on every full validation run.
+## Schema-wide classification
 
-The database function and this document are two views of one explicit 51-category contract. Export generation fails if an unlisted category is introduced, and CI fails if the documented list or query coverage drifts. Account deletion uses the same ownership inventory for storage discovery, paginates until no objects remain, and records a failure instead of claiming completion when cleanup is incomplete.
+After a clean reset, every public application table must have exactly one row in
+`data_export_table_classifications`: `exported`, `exported_with_redaction`,
+`internal_security_only`, `operational_only`, or `not_user_related`. Exported rows map to manifest
+categories and concrete query anchors. Every excluded row carries its repository-reviewed reason;
+the classification table is the authoritative, testable documentation for those per-table reasons.
+
+The current catalog contains 130 classified tables: 14 `exported`, 64
+`exported_with_redaction`, 17 `internal_security_only`, 21 `operational_only`, and 14
+`not_user_related`. `assert_data_export_catalog_complete()` compares those rows with
+`pg_catalog`; pgTAP and CI fail on any new, missing, duplicate, invalid, or unmapped table. The
+classification metadata itself is service-role-only and protected by RLS.
+
+`scripts/check-data-inventory.mjs` compares the 76-category manifest, documented anchors, database
+coverage map, concrete export queries, classification cardinality, all five classification kinds,
+and the presence of the catalog assertion on every full validation run.
+
+The database function and this document are two views of one explicit 76-category contract. Export generation fails if an unlisted category is introduced, and CI fails if the documented list, query coverage, or actual database catalog drifts. Account deletion uses the same ownership inventory for storage discovery, paginates until no objects remain, and records a failure instead of claiming completion when cleanup is incomplete.

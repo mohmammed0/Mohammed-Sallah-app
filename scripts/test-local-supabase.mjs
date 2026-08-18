@@ -394,19 +394,24 @@ async function runAiPublicationFlow(config, owner) {
   );
   if (!Array.isArray(messages) || messages.length !== 4) fail('ai_messages_not_persisted');
 
+  const publicationKey = crypto.randomUUID();
   const publication = {
     title: 'Kitchen sink leak',
     original_text: 'The kitchen sink is leaking under the cabinet.\n' + secondUserText,
     structured_description: second.customerSummary,
     urgency: second.urgencySuggestion,
     locale: 'en',
-    category_slug: 'general-handyman',
+    selected_category_slug: 'general-handyman',
+    suggested_category_slug: second.categorySlug,
+    category_confirmed_by_user: true,
+    category_selection_source:
+      second.categorySlug === 'general-handyman' ? 'ai_suggestion' : 'customer_correction',
     city_code: 'riyadh',
     exact_location: { latitude: 24.7136, longitude: 46.6753 },
     media: [],
     ai_diagnostic: second,
     ai_session_id: first.metadata.sessionId,
-    idempotency_key: crypto.randomUUID(),
+    idempotency_key: publicationKey,
   };
   const rejected = await rpc(config, owner, 'publish_service_request', {
     payload: { ...publication, customer_approved: false },
@@ -414,18 +419,18 @@ async function runAiPublicationFlow(config, owner) {
   if (rejected.ok) fail('unapproved_ai_draft_was_published');
   const requestId = await expectOk(
     await rpc(config, owner, 'publish_service_request', {
-      payload: { ...publication, customer_approved: true, idempotency_key: crypto.randomUUID() },
+      payload: { ...publication, customer_approved: true },
     }),
     'approved_ai_publication',
   );
   if (typeof requestId !== 'string') fail('publication_id_invalid');
-  await expectOk(
-    await rpc(config, owner, 'link_ai_session_to_request', {
-      p_session_id: first.metadata.sessionId,
-      p_request_id: requestId,
+  const replayedRequestId = await expectOk(
+    await rpc(config, owner, 'publish_service_request', {
+      payload: { ...publication, customer_approved: true },
     }),
-    'ai_session_link',
+    'approved_ai_publication_response_loss_replay',
   );
+  if (replayedRequestId !== requestId) fail('atomic_publication_replay_changed_request');
   const linked = await expectOk(
     await fetch(
       `${config.apiUrl}/rest/v1/ai_sessions?id=eq.${first.metadata.sessionId}` +
@@ -495,7 +500,10 @@ async function runConcurrentIdempotencyFlow(config, owner, provider) {
     structured_description: 'Concurrent publication must create one request.',
     urgency: 'normal',
     locale: 'en',
-    category_slug: 'air-conditioning',
+    selected_category_slug: 'air-conditioning',
+    suggested_category_slug: null,
+    category_confirmed_by_user: true,
+    category_selection_source: 'manual',
     city_code: 'riyadh',
     exact_location: { latitude: 24.7136, longitude: 46.6753 },
     media: [],

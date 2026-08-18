@@ -1,5 +1,5 @@
 begin;
-select plan(19);
+select plan(27);
 
 select has_table('public','provider_restricted_qualifications','restricted qualifications have an authoritative reviewer-owned ledger');
 
@@ -54,12 +54,19 @@ from (values
   ('f2000000-0000-4000-8000-000000000003'::uuid)
 ) p(provider_id) cross join generate_series(0,6) day;
 
+insert into public.addresses(id,user_id,city_id,label,formatted_address,location)
+select 'f2050000-0000-4000-8000-000000000001','f2000000-0000-4000-8000-000000000001',
+  id,'Selection fixture','Customer exact selection address',
+  extensions.st_setsrid(extensions.st_makepoint(46.67,24.71),4326)::extensions.geography
+from public.cities where code='riyadh';
+
 insert into public.service_requests(
   id,customer_id,category_id,city_id,title,structured_description,original_text,
-  approximate_location,status,published_at,customer_approved_at
+  approximate_location,exact_address_id,status,published_at,customer_approved_at
 ) select 'f2100000-0000-4000-8000-000000000001','f2000000-0000-4000-8000-000000000001',cat.id,city.id,
   'Restricted matching','Restricted matching fixture','Restricted matching fixture',
   extensions.st_setsrid(extensions.st_makepoint(46.67,24.71),4326)::extensions.geography,
+  'f2050000-0000-4000-8000-000000000001',
   'matching',now(),now()
 from public.service_categories cat cross join public.cities city
 where cat.slug='pest-control' and city.code='riyadh';
@@ -113,12 +120,71 @@ select ok((select score from public.request_provider_matches
 
 set local role authenticated;
 select set_config('request.jwt.claim.role','authenticated',true);
+select set_config('request.jwt.claim.sub','f2000000-0000-4000-8000-000000000002',true);
+select lives_ok(
+  $$select public.submit_offer(jsonb_build_object(
+    'requestId','f2100000-0000-4000-8000-000000000001','expectedRequestVersion',
+    (select version from public.service_requests where id='f2100000-0000-4000-8000-000000000001'),
+    'idempotencyKey','qualified-active-offer-key','totalAmountMinor',12000,'visitFeeMinor',1000,
+    'laborAmountMinor',11000,'materialsIncluded',false,'materialsEstimateMinor',0,
+    'estimatedArrivalMinutes',30,'estimatedDurationMinutes',90,'warrantyDays',7,
+    'note','Qualified offer before qualification revocation','expiresAt',now()+interval '1 day'
+  ))$$,
+  'qualified provider submits an active offer before revocation'
+);
+reset role;
+select is((select status::text from public.offers
+  where provider_id='f2000000-0000-4000-8000-000000000002'
+    and request_id='f2100000-0000-4000-8000-000000000001'),
+  'active','offer is active while the provider remains qualified');
+
+set local role authenticated;
+select set_config('request.jwt.claim.role','authenticated',true);
 select set_config('request.jwt.claim.sub','f2000000-0000-4000-8000-000000000005',true);
 select public.set_provider_restricted_qualification(
   'f2000000-0000-4000-8000-000000000002',
   (select id from public.service_categories where slug='pest-control'),null,false,
   'Restricted qualification revoked after evidence expired','qualification-revoke-key'
 );
+reset role;
+select is((select status::text from public.offers
+  where provider_id='f2000000-0000-4000-8000-000000000002'
+    and request_id='f2100000-0000-4000-8000-000000000001'),
+  'withdrawn','qualification revocation proactively invalidates the active offer');
+set local role authenticated;
+select set_config('request.jwt.claim.role','authenticated',true);
+select set_config('request.jwt.claim.sub','f2000000-0000-4000-8000-000000000001',true);
+select is((select value->>'selectable'
+  from jsonb_array_elements(public.get_customer_offers(
+    'f2100000-0000-4000-8000-000000000001'
+  )) value where value->>'providerId'='f2000000-0000-4000-8000-000000000002'),
+  'false','customer offer view clearly disables the revoked provider offer');
+reset role;
+update public.offers set status='active'
+where provider_id='f2000000-0000-4000-8000-000000000002'
+  and request_id='f2100000-0000-4000-8000-000000000001';
+set local role authenticated;
+select set_config('request.jwt.claim.role','authenticated',true);
+select set_config('request.jwt.claim.sub','f2000000-0000-4000-8000-000000000001',true);
+select throws_ok(
+  format('select public.select_offer(%L,%L)',
+    (select id from public.offers
+      where provider_id='f2000000-0000-4000-8000-000000000002'
+        and request_id='f2100000-0000-4000-8000-000000000001'),
+    'stale-selection-after-revocation-key'),
+  'OFFER_PROVIDER_INELIGIBLE:restricted_category_unqualified',
+  'select_offer independently revalidates a stale active offer after revocation'
+);
+reset role;
+select is((select count(*) from public.jobs
+  where request_id='f2100000-0000-4000-8000-000000000001'),0::bigint,
+  'denied stale selection cannot create a job');
+update public.offers set status='withdrawn'
+where provider_id='f2000000-0000-4000-8000-000000000002'
+  and request_id='f2100000-0000-4000-8000-000000000001';
+
+set local role authenticated;
+select set_config('request.jwt.claim.role','authenticated',true);
 select set_config('request.jwt.claim.sub','f2000000-0000-4000-8000-000000000002',true);
 select throws_ok(
   $$select public.submit_offer(jsonb_build_object(
@@ -132,26 +198,59 @@ select throws_ok(
   'offer submission independently rejects a revoked qualification');
 select throws_ok(
   $$select public.get_provider_request_brief('f2100000-0000-4000-8000-000000000001')$$,
-  'PROVIDER_ELIGIBILITY_REVOKED:restricted_category_unqualified',
-  'request brief access is revoked after qualification changes');
+  'PROVIDER_BRIEF_ACCESS_DENIED',
+  'request brief authorization is removed immediately after qualification revocation closes the match');
 
 reset role;
-select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000000',true);
+select set_config('request.jwt.claim.sub','f2000000-0000-4000-8000-000000000005',true);
 update public.provider_restricted_qualifications set qualified=true
 where provider_id='f2000000-0000-4000-8000-000000000002';
-insert into public.provider_blackout_periods(provider_id,starts_at,ends_at,reason)
-values('f2000000-0000-4000-8000-000000000002',now()-interval '1 hour',now()+interval '1 hour','test blackout');
-select is(private.provider_request_eligibility(
-  'f2000000-0000-4000-8000-000000000002','f2100000-0000-4000-8000-000000000001',now())->>'reason',
-  'blackout_active','active blackout excludes the otherwise qualified provider');
-delete from public.provider_blackout_periods where provider_id='f2000000-0000-4000-8000-000000000002';
-delete from public.provider_availability where provider_id='f2000000-0000-4000-8000-000000000002';
-select is(private.provider_request_eligibility(
-  'f2000000-0000-4000-8000-000000000002','f2100000-0000-4000-8000-000000000001',now())->>'reason',
-  'outside_availability','current time outside availability excludes the provider');
+update public.service_requests
+set requested_start=(
+    date_trunc('day',now() at time zone 'Asia/Riyadh')+interval '2 days 10 hours'
+  ) at time zone 'Asia/Riyadh',
+  requested_end=(
+    date_trunc('day',now() at time zone 'Asia/Riyadh')+interval '2 days 11 hours'
+  ) at time zone 'Asia/Riyadh'
+where id='f2100000-0000-4000-8000-000000000001';
+delete from public.provider_availability
+where provider_id='f2000000-0000-4000-8000-000000000002';
 insert into public.provider_availability(provider_id,weekday,start_time,end_time)
-select 'f2000000-0000-4000-8000-000000000002',day,'00:00'::time,'23:59:59'::time
-from generate_series(0,6) day;
+values(
+  'f2000000-0000-4000-8000-000000000002',
+  extract(dow from now() at time zone 'Asia/Riyadh')::smallint,
+  '00:00','23:59:59'
+);
+select is(private.provider_request_eligibility(
+  'f2000000-0000-4000-8000-000000000002','f2100000-0000-4000-8000-000000000001',now())->>'reason',
+  'outside_availability','available now but unavailable in the scheduled window is excluded');
+delete from public.provider_availability where provider_id='f2000000-0000-4000-8000-000000000002';
+insert into public.provider_availability(provider_id,weekday,start_time,end_time)
+select 'f2000000-0000-4000-8000-000000000002',
+  extract(dow from requested_start at time zone 'Asia/Riyadh')::smallint,
+  '09:00'::time,'12:00'::time
+from public.service_requests where id='f2100000-0000-4000-8000-000000000001';
+select is(private.provider_request_eligibility(
+  'f2000000-0000-4000-8000-000000000002','f2100000-0000-4000-8000-000000000001',now())->>'eligible',
+  'true','unavailable now but available for the scheduled window remains eligible');
+insert into public.provider_blackout_periods(provider_id,starts_at,ends_at,reason)
+values('f2000000-0000-4000-8000-000000000002',
+  now()-interval '1 hour',now()+interval '1 hour','current-only blackout');
+select is(private.provider_request_eligibility(
+  'f2000000-0000-4000-8000-000000000002','f2100000-0000-4000-8000-000000000001',now())->>'eligible',
+  'true','a blackout outside the scheduled request window does not exclude the provider');
+delete from public.provider_blackout_periods
+where provider_id='f2000000-0000-4000-8000-000000000002';
+insert into public.provider_blackout_periods(provider_id,starts_at,ends_at,reason)
+select 'f2000000-0000-4000-8000-000000000002',
+  requested_start+interval '15 minutes',requested_end+interval '15 minutes',
+  'scheduled overlap'
+from public.service_requests where id='f2100000-0000-4000-8000-000000000001';
+select is(private.provider_request_eligibility(
+  'f2000000-0000-4000-8000-000000000002','f2100000-0000-4000-8000-000000000001',now())->>'reason',
+  'blackout_overlap','only a blackout overlapping the requested window excludes the provider');
+delete from public.provider_blackout_periods
+where provider_id='f2000000-0000-4000-8000-000000000002';
 update public.provider_profiles set active_workload=max_active_jobs
 where user_id='f2000000-0000-4000-8000-000000000002';
 select is(private.provider_request_eligibility(
