@@ -7,6 +7,7 @@ import { Button, Card, LoadingSkeleton, Screen, styles } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { formatSar } from '@sallah/i18n';
 import { useLocale } from '@/providers/locale-provider';
+import { executeJournaledMutation } from '@/lib/mutation-journal';
 
 const offerSchema = z.object({
   id: z.uuid(),
@@ -25,6 +26,8 @@ const offerSchema = z.object({
   note: z.string(),
   expiresAt: z.string(),
   status: z.string(),
+  selectable: z.boolean(),
+  ineligibleReason: z.string().nullable(),
 });
 
 export default function Offers() {
@@ -46,12 +49,23 @@ export default function Offers() {
   });
   const selectOffer = useMutation({
     mutationFn: async (offerId: string) => {
-      const { data, error: rpcError } = await supabase.rpc('select_offer', {
-        p_offer_id: offerId,
-        p_idempotency_key: globalThis.crypto.randomUUID(),
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) throw new Error('AUTH_REQUIRED');
+      return executeJournaledMutation({
+        userId: userData.user.id,
+        operation: 'select_offer',
+        entityKey: offerId,
+        payload: { offerId },
+        execute: async (idempotencyKey, persistedPayload) => {
+          const authoritative = z.object({ offerId: z.uuid() }).parse(persistedPayload);
+          const { data, error: rpcError } = await supabase.rpc('select_offer', {
+            p_offer_id: authoritative.offerId,
+            p_idempotency_key: idempotencyKey,
+          });
+          if (rpcError) throw rpcError;
+          return z.string().uuid().parse(data);
+        },
       });
-      if (rpcError) throw rpcError;
-      return z.string().uuid().parse(data);
     },
     onSuccess: async (jobId) => {
       await queryClient.invalidateQueries({ queryKey: ['customer-requests'] });
@@ -91,7 +105,7 @@ export default function Offers() {
             </Text>
             {offer.note.length > 0 && <Text>{offer.note}</Text>}
             <Button
-              disabled={selectOffer.isPending}
+              disabled={selectOffer.isPending || !offer.selectable}
               label={t('selectThisOffer')}
               onPress={() => selectOffer.mutate(offer.id)}
             />

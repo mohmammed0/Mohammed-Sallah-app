@@ -8,6 +8,15 @@ pending turns, temporary fallback messages, and media bindings locally; after re
 restores the server session, replays missing customer turns sequentially, and reconciles temporary
 messages with server replies without duplicating turns.
 
+Selected image and voice files are copied immediately from picker/cache locations into a
+user-scoped app-private directory. The encrypted snapshot stores stable local media IDs and keeps
+their association with the customer turn across restart. The queue permits four retained items,
+10 MiB per item, 20 MiB total, and seven days of retention. Replay uploads and scans every queued
+file before submitting its bound turn; upload failure leaves the whole turn pending and never
+silently converts it to text-only. Successful atomic publication deletes the snapshot and retained
+files. Explicit draft deletion first abandons the owned active server session, then deletes local
+conversation state and media; failure leaves the draft recoverable.
+
 For clean `request_media` images, the function verifies ownership/status, downloads the private
 object server-side, rechecks the byte limit and detected MIME signature, and passes base64 image
 content through a provider-neutral multimodal contract. Private storage URLs and quarantine objects
@@ -35,15 +44,19 @@ sequenceDiagram
   Edge->>DB: append authoritative assistant reply
   Edge-->>Mobile: schema-validated editable draft
   Mobile->>Mobile: reconcile temporary reply + clear pending turn
-  Customer->>Mobile: edit + explicit approval
-  Mobile->>DB: publish_service_request
+  Customer->>Mobile: confirm/correct category + approve
+  Mobile->>DB: publish_service_request(session, media, approval snapshot)
+  DB->>DB: request + clean media + AI/transcription links atomically
 ```
 
 `confirmedCategorySlug` and `summaryRequested` are explicit prompt inputs, not metadata-only hints.
 The active database prompt declaration and diagnostic metadata use `diagnostic-v3`. AI never
 publishes, quotes a guaranteed price, diagnoses with certainty, or replaces emergency guidance.
-Publishing requires a separate customer-owned request command with explicit approval; successful
-publication then links the AI session to that request. Invalid provider output, provider failure,
+The UI keeps suggested, selected, and customer-confirmed category state separate; no default is
+confirmed. Publishing requires a separate customer-owned command with explicit category confirmation
+and approval. The transaction creates the request, binds clean request media, links diagnostics and
+applicable transcriptions, records the approval snapshot, and marks the owned active session
+published. Invalid provider output, provider failure,
 network interruption, and unsupported vision produce a schema-validated deterministic fallback that
 remains editable and manually publishable. Safety flags show conservative immediate guidance and
 escalate to manual review. Original content, translations, customer edits, media bindings, and

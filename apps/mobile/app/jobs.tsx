@@ -14,6 +14,7 @@ import { useLocale } from '@/providers/locale-provider';
 import { reduceLocationSharing, type LocationSharingState } from '@/features/jobs/location-sharing';
 import { JobTrackingMap } from '@/features/jobs/job-tracking-map';
 import { allCompletionEvidenceViewed } from '@/features/jobs/completion-evidence';
+import { executeJournaledMutation, type MutationOperation } from '@/lib/mutation-journal';
 
 const changeOrderSchema = z.object({
   id: z.uuid(),
@@ -161,13 +162,44 @@ export default function Jobs() {
     },
     onError: () => Alert.alert(t('commandFailedTitle'), t('commandFailedBody')),
   });
+  async function journaled<T>(
+    operation: MutationOperation,
+    entityKey: string,
+    payload: unknown,
+    execute: (idempotencyKey: string, persistedPayload: unknown) => Promise<T>,
+  ): Promise<T> {
+    const { data } = await supabase.auth.getUser();
+    if (!data.user) throw new Error('AUTH_REQUIRED');
+    return executeJournaledMutation({
+      userId: data.user.id,
+      operation,
+      entityKey,
+      payload,
+      execute,
+    });
+  }
   function transition(job: Job, status: string) {
+    const transitionReason = reason.trim() || t('jobStatusUpdateReason');
     command.mutate(() =>
-      new MarketplaceApi(supabase).transitionJob(
-        job.id,
-        status,
-        reason.trim() || t('jobStatusUpdateReason'),
-        globalThis.crypto.randomUUID(),
+      journaled(
+        'transition_job',
+        `${job.id}:${job.version}:${status}`,
+        { jobId: job.id, status, reason: transitionReason },
+        (idempotencyKey, persistedPayload) => {
+          const authoritative = z
+            .object({
+              jobId: z.uuid(),
+              status: z.string(),
+              reason: z.string(),
+            })
+            .parse(persistedPayload);
+          return new MarketplaceApi(supabase).transitionJob(
+            authoritative.jobId,
+            authoritative.status,
+            authoritative.reason,
+            idempotencyKey,
+          );
+        },
       ),
     );
   }
@@ -191,19 +223,45 @@ export default function Jobs() {
       purpose: 'completion_proof',
       resourceId: job.id,
     });
-    const { error } = await supabase.rpc('submit_completion', {
-      p_job_id: job.id,
-      p_proofs: [
-        {
-          storagePath: upload.storagePath,
-          mimeType: upload.mimeType,
-          sizeBytes: upload.sizeBytes,
-          description: t('completionEvidenceDescription'),
-        },
-      ],
-      p_idempotency_key: globalThis.crypto.randomUUID(),
-    });
-    if (error) throw error;
+    const proofs = [
+      {
+        uploadId: upload.uploadId,
+        storagePath: upload.storagePath,
+        mimeType: upload.mimeType,
+        sizeBytes: upload.sizeBytes,
+        description: t('completionEvidenceDescription'),
+      },
+    ];
+    await journaled(
+      'submit_completion',
+      `${job.id}:${job.version}`,
+      {
+        jobId: job.id,
+        proofs,
+      },
+      async (idempotencyKey, persistedPayload) => {
+        const authoritative = z
+          .object({
+            jobId: z.uuid(),
+            proofs: z.array(
+              z.object({
+                uploadId: z.uuid(),
+                storagePath: z.string(),
+                mimeType: z.string(),
+                sizeBytes: z.number().int(),
+                description: z.string(),
+              }),
+            ),
+          })
+          .parse(persistedPayload);
+        const { error } = await supabase.rpc('submit_completion', {
+          p_job_id: authoritative.jobId,
+          p_proofs: authoritative.proofs,
+          p_idempotency_key: idempotencyKey,
+        });
+        if (error) throw error;
+      },
+    );
   }
   async function shareCurrentLocation(job: Job) {
     const permission = await Location.requestForegroundPermissionsAsync();
@@ -415,61 +473,154 @@ export default function Jobs() {
   }
   async function accept(job: Job, accepted: boolean) {
     const score = Number(rating);
-    const { error } = await supabase.rpc('accept_completion', {
-      p_job_id: job.id,
-      p_accept: accepted,
-      p_reason: accepted
-        ? t('customerAcceptedCompletionReason')
-        : reason.trim() || t('completionNotAcceptedReason'),
-      p_score: accepted ? score : 1,
-      p_review: review,
-      p_idempotency_key: globalThis.crypto.randomUUID(),
-      p_evidence_upload_ids: accepted ? [] : (proofs[job.id] ?? []).map((proof) => proof.uploadId),
-    });
-    if (error) throw error;
+    const decisionReason = accepted
+      ? t('customerAcceptedCompletionReason')
+      : reason.trim() || t('completionNotAcceptedReason');
+    const payload = {
+      jobId: job.id,
+      accepted,
+      reason: decisionReason,
+      score: accepted ? score : 1,
+      review,
+      evidenceUploadIds: [] as string[],
+    };
+    await journaled(
+      'accept_completion',
+      `${job.id}:${job.version}:${accepted}`,
+      payload,
+      async (idempotencyKey, persistedPayload) => {
+        const authoritative = z
+          .object({
+            jobId: z.uuid(),
+            accepted: z.boolean(),
+            reason: z.string(),
+            score: z.number().int(),
+            review: z.string(),
+            evidenceUploadIds: z.array(z.uuid()),
+          })
+          .parse(persistedPayload);
+        const { error } = await supabase.rpc('accept_completion', {
+          p_job_id: authoritative.jobId,
+          p_accept: authoritative.accepted,
+          p_reason: authoritative.reason,
+          p_score: authoritative.score,
+          p_review: authoritative.review,
+          p_idempotency_key: idempotencyKey,
+          p_evidence_upload_ids: authoritative.evidenceUploadIds,
+        });
+        if (error) throw error;
+      },
+    );
   }
   async function createChangeOrder(job: Job) {
     const amountMinor = Math.round(Number(changeAmount) * 100);
     if (changeDescription.trim().length < 5 || !Number.isFinite(amountMinor) || amountMinor < 0)
       throw new Error('INVALID_CHANGE_ORDER');
-    const { error } = await supabase.rpc('create_change_order', {
-      payload: {
-        jobId: job.id,
-        reason: t('scopeChangedReason'),
-        description: changeDescription.trim(),
-        lineItems: [{ description: changeDescription.trim(), quantity: 1, amountMinor }],
-        expiresAt: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
-        idempotencyKey: globalThis.crypto.randomUUID(),
+    const payload = {
+      jobId: job.id,
+      reason: t('scopeChangedReason'),
+      description: changeDescription.trim(),
+      lineItems: [{ description: changeDescription.trim(), quantity: 1, amountMinor }],
+      expiresAt: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+    };
+    await journaled(
+      'create_change_order',
+      `${job.id}:${job.version}`,
+      payload,
+      async (idempotencyKey, persistedPayload) => {
+        const authoritative = z.record(z.string(), z.unknown()).parse(persistedPayload);
+        const { error } = await supabase.rpc('create_change_order', {
+          payload: { ...authoritative, idempotencyKey },
+        });
+        if (error) throw error;
       },
-    });
-    if (error) throw error;
+    );
   }
   async function decideChangeOrder(orderId: string, approve: boolean) {
-    const { error } = await supabase.rpc('decide_change_order', {
-      p_change_order_id: orderId,
-      p_approve: approve,
-      p_reason: approve ? t('customerApprovedChangeReason') : t('customerRejectedChangeReason'),
-      p_idempotency_key: globalThis.crypto.randomUUID(),
-    });
-    if (error) throw error;
+    const decisionReason = approve
+      ? t('customerApprovedChangeReason')
+      : t('customerRejectedChangeReason');
+    await journaled(
+      'decide_change_order',
+      `${orderId}:${approve}`,
+      {
+        orderId,
+        approve,
+        reason: decisionReason,
+      },
+      async (idempotencyKey, persistedPayload) => {
+        const authoritative = z
+          .object({
+            orderId: z.uuid(),
+            approve: z.boolean(),
+            reason: z.string(),
+          })
+          .parse(persistedPayload);
+        const { error } = await supabase.rpc('decide_change_order', {
+          p_change_order_id: authoritative.orderId,
+          p_approve: authoritative.approve,
+          p_reason: authoritative.reason,
+          p_idempotency_key: idempotencyKey,
+        });
+        if (error) throw error;
+      },
+    );
   }
   async function openDispute(job: Job) {
-    const { error } = await supabase.rpc('open_dispute', {
-      p_job_id: job.id,
-      p_reason: reason.trim() || t('jobDisputeReason'),
-      p_expected_version: job.version,
-      p_idempotency_key: globalThis.crypto.randomUUID(),
-    });
-    if (error) throw error;
+    const disputeReason = reason.trim() || t('jobDisputeReason');
+    await journaled(
+      'open_dispute',
+      `${job.id}:${job.version}`,
+      {
+        jobId: job.id,
+        reason: disputeReason,
+        expectedVersion: job.version,
+      },
+      async (idempotencyKey, persistedPayload) => {
+        const authoritative = z
+          .object({
+            jobId: z.uuid(),
+            reason: z.string(),
+            expectedVersion: z.number().int(),
+          })
+          .parse(persistedPayload);
+        const { error } = await supabase.rpc('open_dispute', {
+          p_job_id: authoritative.jobId,
+          p_reason: authoritative.reason,
+          p_expected_version: authoritative.expectedVersion,
+          p_idempotency_key: idempotencyKey,
+        });
+        if (error) throw error;
+      },
+    );
   }
   async function requestCancellation(job: Job) {
-    const { error } = await supabase.rpc('request_job_cancellation', {
-      p_job_id: job.id,
-      p_reason: reason.trim() || t('jobCancellationReason'),
-      p_expected_version: job.version,
-      p_idempotency_key: globalThis.crypto.randomUUID(),
-    });
-    if (error) throw error;
+    const cancellationReason = reason.trim() || t('jobCancellationReason');
+    await journaled(
+      'request_cancellation',
+      `${job.id}:${job.version}`,
+      {
+        jobId: job.id,
+        reason: cancellationReason,
+        expectedVersion: job.version,
+      },
+      async (idempotencyKey, persistedPayload) => {
+        const authoritative = z
+          .object({
+            jobId: z.uuid(),
+            reason: z.string(),
+            expectedVersion: z.number().int(),
+          })
+          .parse(persistedPayload);
+        const { error } = await supabase.rpc('request_job_cancellation', {
+          p_job_id: authoritative.jobId,
+          p_reason: authoritative.reason,
+          p_expected_version: authoritative.expectedVersion,
+          p_idempotency_key: idempotencyKey,
+        });
+        if (error) throw error;
+      },
+    );
   }
   return (
     <ScrollView contentContainerStyle={{ flexGrow: 1 }}>

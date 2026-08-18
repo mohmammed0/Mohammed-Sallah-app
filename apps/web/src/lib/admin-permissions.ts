@@ -19,6 +19,7 @@ const grants: Readonly<Record<string, readonly AdminPermission[]>> = {
     'operations.exact_location.read',
   ],
   verification_reviewer: ['dashboard.aggregate.read', 'provider.document.read'],
+  privacy_reviewer: ['dashboard.aggregate.read', 'customer.pii.read'],
   support_agent: ['dashboard.aggregate.read', 'support.case.read'],
   finance_reviewer: ['dashboard.aggregate.read', 'finance.read'],
   analyst: ['dashboard.aggregate.read'],

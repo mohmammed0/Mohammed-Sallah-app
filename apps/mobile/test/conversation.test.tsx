@@ -51,11 +51,19 @@ describe('multi-turn request conversation', () => {
       title: 'Plumbing request',
       summary: 'Best-effort summary preserved after provider failure.',
       categorySlug: 'plumbing',
+      categoryConfirmedByUser: false,
       cityCode: 'riyadh',
       coordinates: { latitude: 24.7136, longitude: 46.6753 },
       approved: false,
     };
     expect(canPublishRequest(fallbackDraft)).toBe(false);
-    expect(canPublishRequest({ ...fallbackDraft, approved: true })).toBe(true);
+    expect(canPublishRequest({ ...fallbackDraft, approved: true })).toBe(false);
+    expect(
+      canPublishRequest({
+        ...fallbackDraft,
+        approved: true,
+        categoryConfirmedByUser: true,
+      }),
+    ).toBe(true);
   });
 });

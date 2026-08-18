@@ -3,6 +3,26 @@ import { requireAdmin } from '@/lib/auth';
 import { setCustomerStatus } from '../actions';
 
 const searchSchema = z.string().trim().max(80).catch('');
+const customerSchema = z.array(
+  z.object({
+    id: z.uuid(),
+    displayName: z.string(),
+    phone: z.string().nullable(),
+    preferredLocale: z.string(),
+    status: z.string(),
+    createdAt: z.string(),
+    serviceRequestCount: z.number().int(),
+    supportCaseCount: z.number().int(),
+    deletion: z
+      .object({
+        status: z.string(),
+        requestedAt: z.string(),
+        retentionSnapshot: z.unknown().nullable(),
+        failureCategory: z.string().nullable(),
+      })
+      .nullable(),
+  }),
+);
 
 export default async function CustomersPage({
   searchParams,
@@ -16,20 +36,15 @@ export default async function CustomersPage({
     .replace(/[,%_()]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-  let customersQuery = client
-    .from('profiles')
-    .select(
-      'id,display_name,phone,preferred_locale,status,created_at,user_roles!inner(role),service_requests(count),support_cases(count),account_deletion_requests(status,requested_at,retention_snapshot,failure_category)',
-    )
-    .eq('user_roles.role', 'customer')
-    .order('created_at', { ascending: false })
-    .limit(100);
-  if (safeQuery) {
-    customersQuery = customersQuery.or(
-      `display_name.ilike.%${safeQuery}%,phone.ilike.%${safeQuery}%`,
-    );
-  }
-  const { data, error } = await customersQuery;
+  const response = await client.rpc('list_customer_pii', {
+    p_query: safeQuery,
+    p_reason: safeQuery
+      ? 'Reasoned customer administration search'
+      : 'Reasoned customer administration queue review',
+  });
+  const parsed = customerSchema.safeParse(response.data);
+  const data = parsed.success ? parsed.data : [];
+  const error = response.error ?? (parsed.success ? null : new Error('CUSTOMER_PII_INVALID'));
   const canWrite = roles.some((role) => role === 'operations_admin' || role === 'super_admin');
 
   return (
@@ -58,16 +73,14 @@ export default async function CustomersPage({
             </tr>
           </thead>
           <tbody>
-            {data?.map((customer) => {
+            {data.map((customer) => {
               const nextStatus = customer.status === 'active' ? 'suspended' : 'active';
               const phone = customer.phone
                 ? `${customer.phone.slice(0, 4)}••••${customer.phone.slice(-2)}`
                 : 'لا يوجد هاتف';
-              const deletion = customer.account_deletion_requests
-                .slice()
-                .sort((a, b) => b.requested_at.localeCompare(a.requested_at))[0];
+              const deletion = customer.deletion;
               const blockerCount = Object.entries(
-                (deletion?.retention_snapshot as Record<string, unknown> | null) ?? {},
+                (deletion?.retentionSnapshot as Record<string, unknown> | null) ?? {},
               ).filter(
                 ([key, value]) =>
                   !['policyVersion', 'ledgerRetentionYears'].includes(key) &&
@@ -77,24 +90,22 @@ export default async function CustomersPage({
               return (
                 <tr key={customer.id}>
                   <td>
-                    {customer.display_name || 'دون اسم'}
+                    {customer.displayName || 'دون اسم'}
                     <small className="muted">
-                      {phone} · {customer.preferred_locale.toUpperCase()} ·{' '}
-                      {customer.id.slice(0, 8)}
+                      {phone} · {customer.preferredLocale.toUpperCase()} · {customer.id.slice(0, 8)}
                     </small>
                   </td>
                   <td>
                     <span className="badge">{customer.status}</span>
                   </td>
                   <td>
-                    {customer.service_requests[0]?.count ?? 0} طلب ·{' '}
-                    {customer.support_cases[0]?.count ?? 0} دعم
+                    {customer.serviceRequestCount} طلب · {customer.supportCaseCount} دعم
                   </td>
                   <td>
                     {deletion?.status ?? 'لا يوجد طلب مفتوح'}
                     {deletion && (
                       <small className="muted">
-                        {blockerCount} عوائق · {deletion.failure_category ?? 'لا يوجد فشل'}
+                        {blockerCount} عوائق · {deletion.failureCategory ?? 'لا يوجد فشل'}
                       </small>
                     )}
                   </td>
@@ -128,7 +139,7 @@ export default async function CustomersPage({
           </tbody>
         </table>
       </div>
-      {!error && data?.length === 0 && <p>لا توجد نتائج مطابقة.</p>}
+      {!error && data.length === 0 && <p>لا توجد نتائج مطابقة.</p>}
     </main>
   );
 }

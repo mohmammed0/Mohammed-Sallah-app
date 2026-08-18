@@ -7,6 +7,7 @@ import { Button, Card, Screen, styles } from '@/components/ui';
 import { MarketplaceApi } from '@sallah/api';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/providers/locale-provider';
+import { executeJournaledMutation } from '@/lib/mutation-journal';
 
 const offerFormSchema = z.object({
   amount: z.coerce.number().positive().max(1_000_000),
@@ -17,6 +18,20 @@ const offerFormSchema = z.object({
   note: z.string().trim().max(2000),
 });
 type OfferForm = z.input<typeof offerFormSchema>;
+const offerCommandSchema = z.object({
+  requestId: z.uuid(),
+  totalAmountMinor: z.number().int(),
+  visitFeeMinor: z.number().int(),
+  laborAmountMinor: z.number().int().nullable(),
+  materialsIncluded: z.boolean(),
+  materialsEstimateMinor: z.number().int().nullable(),
+  estimatedArrivalMinutes: z.number().int(),
+  estimatedDurationMinutes: z.number().int(),
+  warrantyDays: z.number().int(),
+  note: z.string(),
+  expiresAt: z.string(),
+  expectedRequestVersion: z.number().int(),
+});
 
 export default function ProviderOffer() {
   const { t } = useLocale();
@@ -41,7 +56,7 @@ export default function ProviderOffer() {
     }
     try {
       const value = parsed.data;
-      await new MarketplaceApi(supabase).submitOffer({
+      const commandPayload = {
         requestId: params.requestId,
         totalAmountMinor: Math.round(value.amount * 100),
         visitFeeMinor: Math.round(value.visitFee * 100),
@@ -54,7 +69,19 @@ export default function ProviderOffer() {
         note: value.note,
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         expectedRequestVersion: Number(params.requestVersion),
-        idempotencyKey: globalThis.crypto.randomUUID(),
+      };
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) throw new Error('AUTH_REQUIRED');
+      await executeJournaledMutation({
+        userId: userData.user.id,
+        operation: 'submit_offer',
+        entityKey: `${params.requestId}:${params.requestVersion}`,
+        payload: commandPayload,
+        execute: async (idempotencyKey, persistedPayload) =>
+          new MarketplaceApi(supabase).submitOffer({
+            ...offerCommandSchema.parse(persistedPayload),
+            idempotencyKey,
+          }),
       });
       setDone(true);
     } catch {

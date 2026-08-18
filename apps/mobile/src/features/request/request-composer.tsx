@@ -34,6 +34,13 @@ import {
   type PendingCustomerTurn,
 } from './conversation-recovery';
 import { isNetworkOnline } from '@/features/connectivity/network-state';
+import {
+  clearRetainedMedia,
+  listRetainedMedia,
+  retainPrivateMedia,
+  type RetainedMedia,
+} from '@/lib/durable-media';
+import { executeJournaledMutation } from '@/lib/mutation-journal';
 
 const MAX_MEDIA_BYTES = 10 * 1024 * 1024;
 const MAX_RECORDING_MS = 120_000;
@@ -75,7 +82,12 @@ export function RequestComposer() {
   const [coordinates, setCoordinates] = useState<{ latitude: number; longitude: number } | null>(
     null,
   );
-  const [categorySlug, setCategorySlug] = useState('');
+  const [suggestedCategorySlug, setSuggestedCategorySlug] = useState('');
+  const [selectedCategorySlug, setSelectedCategorySlug] = useState('');
+  const [categoryConfirmedByUser, setCategoryConfirmedByUser] = useState(false);
+  const [categorySelectionSource, setCategorySelectionSource] = useState<
+    'ai_suggestion' | 'customer_correction' | 'manual' | null
+  >(null);
   const [cityCode, setCityCode] = useState('');
   const [urgency, setUrgency] = useState<'flexible' | 'normal' | 'urgent' | 'safety_critical'>(
     'normal',
@@ -86,10 +98,12 @@ export function RequestComposer() {
   const [error, setError] = useState('');
   const [userId, setUserId] = useState<string | null>(null);
   const [pendingTurns, setPendingTurns] = useState<PendingCustomerTurn[]>([]);
+  const [retainedMedia, setRetainedMedia] = useState<RetainedMedia[]>([]);
   const [restored, setRestored] = useState(false);
   const sessionIdRef = useRef<string | null>(null);
   const replayingRef = useRef(false);
   const replaySignatureRef = useRef('');
+  const reconnectRestoredRef = useRef(false);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder, 250);
 
@@ -116,16 +130,22 @@ export function RequestComposer() {
         setDescription(local.draft.description);
         setTitle(local.draft.title);
         setSummary(local.draft.summary);
-        setCategorySlug(local.draft.categorySlug);
+        setSuggestedCategorySlug(local.draft.suggestedCategorySlug);
+        setSelectedCategorySlug(local.draft.selectedCategorySlug);
+        setCategoryConfirmedByUser(local.draft.categoryConfirmedByUser);
+        setCategorySelectionSource(local.draft.categorySelectionSource);
         setCityCode(local.draft.cityCode);
         setUrgency(local.draft.urgency);
         setSchedule(local.draft.schedule);
         setCoordinates(local.draft.coordinates);
         setImageUpload(local.draft.imageUpload);
         setVoiceUpload(local.draft.voiceUpload);
+        setRetainedMedia(local.draft.retainedMedia);
         const restoredDiagnostic = aiDiagnosticSchema.safeParse(local.draft.diagnostic);
         if (restoredDiagnostic.success) setDiagnostic(restoredDiagnostic.data);
       }
+      const durable = await listRetainedMedia(data.user.id);
+      if (active) setRetainedMedia(durable);
       if (online) {
         const response = await (
           supabase.rpc as unknown as (name: string) => Promise<{ data: unknown; error: unknown }>
@@ -182,10 +202,67 @@ export function RequestComposer() {
   }, []);
 
   useEffect(() => {
+    if (!online) {
+      reconnectRestoredRef.current = false;
+      return;
+    }
+    if (!restored || !userId || reconnectRestoredRef.current) return;
+    reconnectRestoredRef.current = true;
+    void (async () => {
+      const response = await (
+        supabase.rpc as unknown as (name: string) => Promise<{ data: unknown; error: unknown }>
+      )('restore_active_ai_intake');
+      const server = restoredSessionSchema.safeParse(response.data);
+      if (response.error || !server.success || !server.data.session) return;
+      setSessionId(server.data.session.id);
+      sessionIdRef.current = server.data.session.id;
+      const userClientByMessageId = new Map(
+        server.data.messages
+          .filter((message) => message.actor === 'user' && message.clientMessageId)
+          .map((message) => [message.id, message.clientMessageId!]),
+      );
+      const authoritative = server.data.messages.flatMap<ConversationMessage>((message) => {
+        if (message.actor === 'system') return [];
+        const clientMessageId =
+          message.actor === 'user'
+            ? (message.clientMessageId ?? undefined)
+            : message.inReplyToMessageId
+              ? userClientByMessageId.get(message.inReplyToMessageId)
+              : undefined;
+        return [
+          {
+            role: message.actor,
+            text: message.content,
+            clientMessageId,
+            authoritative: true,
+            mediaUploadIds: message.mediaUploadIds,
+          },
+        ];
+      });
+      const authoritativeIds = new Set(
+        authoritative.flatMap((message) =>
+          message.clientMessageId ? [message.clientMessageId] : [],
+        ),
+      );
+      setConversation((current) => [
+        ...authoritative,
+        ...current.filter(
+          (message) => message.clientMessageId && !authoritativeIds.has(message.clientMessageId),
+        ),
+      ]);
+      setPendingTurns((current) =>
+        current.filter((turn) => !authoritativeIds.has(turn.clientMessageId)),
+      );
+      const latest = aiDiagnosticSchema.safeParse(server.data.latestDiagnostic?.output);
+      if (latest.success) setDiagnostic(latest.data);
+    })();
+  }, [online, restored, userId]);
+
+  useEffect(() => {
     if (!restored || !userId) return;
     const timer = setTimeout(() => {
       void saveAiIntakeSnapshot(userId, {
-        version: 1,
+        version: 2,
         sessionId,
         conversation,
         pendingTurns,
@@ -193,7 +270,10 @@ export function RequestComposer() {
           description,
           title,
           summary,
-          categorySlug,
+          suggestedCategorySlug,
+          selectedCategorySlug,
+          categoryConfirmedByUser,
+          categorySelectionSource,
           cityCode,
           urgency,
           schedule,
@@ -201,6 +281,7 @@ export function RequestComposer() {
           diagnostic,
           imageUpload,
           voiceUpload,
+          retainedMedia,
         },
       });
     }, 100);
@@ -214,7 +295,10 @@ export function RequestComposer() {
     description,
     title,
     summary,
-    categorySlug,
+    suggestedCategorySlug,
+    selectedCategorySlug,
+    categoryConfirmedByUser,
+    categorySelectionSource,
     cityCode,
     urgency,
     schedule,
@@ -222,6 +306,7 @@ export function RequestComposer() {
     diagnostic,
     imageUpload,
     voiceUpload,
+    retainedMedia,
   ]);
   const catalog = useQuery({
     queryKey: ['request-catalog', locale],
@@ -244,8 +329,8 @@ export function RequestComposer() {
     },
   });
   useEffect(() => {
-    if (!categorySlug && catalog.data?.categories.length)
-      setCategorySlug(
+    if (!suggestedCategorySlug && catalog.data?.categories.length)
+      setSuggestedCategorySlug(
         catalog.data.categories.find((item) => item.slug === 'general-handyman')?.slug ??
           catalog.data.categories[0]?.slug ??
           '',
@@ -256,10 +341,27 @@ export function RequestComposer() {
           catalog.data.cities[0]?.code ??
           '',
       );
-  }, [catalog.data, categorySlug, cityCode]);
+  }, [catalog.data, suggestedCategorySlug, cityCode]);
   const canPublish = useMemo(
-    () => canPublishRequest({ title, summary, coordinates, categorySlug, cityCode, approved }),
-    [title, summary, coordinates, categorySlug, cityCode, approved],
+    () =>
+      canPublishRequest({
+        title,
+        summary,
+        coordinates,
+        categorySlug: selectedCategorySlug,
+        categoryConfirmedByUser,
+        cityCode,
+        approved,
+      }),
+    [
+      title,
+      summary,
+      coordinates,
+      selectedCategorySlug,
+      categoryConfirmedByUser,
+      cityCode,
+      approved,
+    ],
   );
   useEffect(() => {
     if (recorderState.isRecording && recorderState.durationMillis >= MAX_RECORDING_MS)
@@ -280,6 +382,10 @@ export function RequestComposer() {
     return await secureUpload({ bytes, filename, mimeType, purpose });
   }
   async function pickImage() {
+    if (!userId) {
+      setError(t('authRequired'));
+      return;
+    }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
@@ -296,9 +402,24 @@ export function RequestComposer() {
       Alert.alert(t('unsupportedFileTitle'), t('unsupportedRequestMedia'));
       return;
     }
-    setImage(asset);
-    setImageUpload(null);
-    invalidateApproval();
+    try {
+      const extension =
+        asset.mimeType === 'image/png' ? 'png' : asset.mimeType === 'image/webp' ? 'webp' : 'jpg';
+      const retained = await retainPrivateMedia({
+        userId,
+        kind: 'image',
+        sourceUri: asset.uri,
+        filename: asset.fileName ?? `${globalThis.crypto.randomUUID()}.${extension}`,
+        mimeType: asset.mimeType ?? 'image/jpeg',
+        sizeBytes: asset.fileSize,
+      });
+      setRetainedMedia((current) => [...current.filter((item) => item.kind !== 'image'), retained]);
+      setImage({ ...asset, uri: retained.localUri });
+      setImageUpload(null);
+      invalidateApproval();
+    } catch {
+      setError(t('publishOrUploadFailed'));
+    }
   }
   async function locate() {
     const permission = await Location.requestForegroundPermissionsAsync();
@@ -329,12 +450,26 @@ export function RequestComposer() {
   async function stopRecording() {
     await recorder.stop();
     await setAudioModeAsync({ allowsRecording: false });
-    if (!recorder.uri) return;
+    if (!recorder.uri || !userId) return;
     try {
+      const retained = await retainPrivateMedia({
+        userId,
+        kind: 'voice',
+        sourceUri: recorder.uri,
+        filename: `${globalThis.crypto.randomUUID()}.m4a`,
+        mimeType: 'audio/mp4',
+      });
+      setRetainedMedia((current) => [...current.filter((item) => item.kind !== 'voice'), retained]);
+      setVoiceUpload(null);
+      if (!online) {
+        invalidateApproval();
+        setError(t('aiUnavailableDraftCreated'));
+        return;
+      }
       const upload = await uploadPrivate(
-        recorder.uri,
-        `${globalThis.crypto.randomUUID()}.m4a`,
-        'audio/mp4',
+        retained.localUri,
+        retained.filename,
+        retained.mimeType,
         'request_audio',
       );
       const raw: unknown = await supabase.functions.invoke<unknown>('transcribe', {
@@ -353,7 +488,36 @@ export function RequestComposer() {
     }
   }
 
-  async function invokeQueuedTurn(turn: PendingCustomerTurn): Promise<AiDiagnostic> {
+  async function prepareQueuedTurn(turn: PendingCustomerTurn): Promise<PendingCustomerTurn> {
+    if (!turn.localMediaIds.length) return turn;
+    const uploads = [...turn.mediaUploadIds];
+    for (const localMediaId of turn.localMediaIds) {
+      const media = retainedMedia.find((item) => item.id === localMediaId);
+      if (!media) throw new Error('RETAINED_MEDIA_MISSING');
+      const existing = media.kind === 'image' ? imageUpload : voiceUpload;
+      const upload =
+        existing ??
+        (await uploadPrivate(
+          media.localUri,
+          media.filename,
+          media.mimeType,
+          media.kind === 'image' ? 'request_media' : 'request_audio',
+        ));
+      if (media.kind === 'image') setImageUpload(upload);
+      else setVoiceUpload(upload);
+      if (!uploads.includes(upload.uploadId)) uploads.push(upload.uploadId);
+    }
+    const prepared = { ...turn, mediaUploadIds: uploads, localMediaIds: [] };
+    setPendingTurns((current) =>
+      current.map((item) => (item.clientMessageId === turn.clientMessageId ? prepared : item)),
+    );
+    return prepared;
+  }
+
+  async function invokeQueuedTurn(
+    queuedTurn: PendingCustomerTurn,
+  ): Promise<{ diagnostic: AiDiagnostic; turn: PendingCustomerTurn }> {
+    const turn = await prepareQueuedTurn(queuedTurn);
     const raw: unknown = await supabase.functions.invoke<unknown>('ai-diagnostic', {
       body: {
         sessionId: sessionIdRef.current ?? undefined,
@@ -374,7 +538,7 @@ export function RequestComposer() {
       sessionIdRef.current = result.metadata.sessionId;
       setSessionId(result.metadata.sessionId);
     }
-    return result;
+    return { diagnostic: result, turn };
   }
 
   function applyDiagnosticResult(
@@ -398,7 +562,7 @@ export function RequestComposer() {
       result.suggestedCategorySlug &&
       catalog.data?.categories.some((item) => item.slug === result.suggestedCategorySlug)
     )
-      setCategorySlug(result.suggestedCategorySlug);
+      setSuggestedCategorySlug(result.suggestedCategorySlug);
   }
 
   useEffect(() => {
@@ -415,7 +579,7 @@ export function RequestComposer() {
     void replayPendingTurns(pendingTurns, invokeQueuedTurn)
       .then((replayed) => {
         for (const completed of replayed.completed) {
-          applyDiagnosticResult(completed.turn, completed.value, true);
+          applyDiagnosticResult(completed.value.turn, completed.value.diagnostic, true);
         }
         setPendingTurns(replayed.pending);
         if (replayed.pending.length) setError(t('aiUnavailableDraftCreated'));
@@ -428,7 +592,13 @@ export function RequestComposer() {
   }, [restored, online, busy, pendingTurns]);
 
   async function analyze(summaryRequested = false) {
-    const userText = description.trim() || (summaryRequested ? t('summaryRequestMessage') : '');
+    const userText =
+      description.trim() ||
+      (retainedMedia.some((item) => item.kind === 'voice')
+        ? t('recordVoice')
+        : summaryRequested
+          ? t('summaryRequestMessage')
+          : '');
     if (userText.length < 10) {
       setError(t('descriptionTooShort'));
       return;
@@ -439,27 +609,26 @@ export function RequestComposer() {
     const nextConversation = [...conversation, { role: 'user' as const, text: userText }];
     let turn: PendingCustomerTurn | null = null;
     try {
-      let cleanImage = imageUpload;
-      if (image && !cleanImage) {
-        const extension =
-          image.mimeType === 'image/png' ? 'png' : image.mimeType === 'image/webp' ? 'webp' : 'jpg';
-        cleanImage = await uploadPrivate(
-          image.uri,
-          `${globalThis.crypto.randomUUID()}.${extension}`,
-          image.mimeType ?? 'image/jpeg',
-          'request_media',
-        );
-        setImageUpload(cleanImage);
-      }
-      const mediaUploadIds = [cleanImage?.uploadId, voiceUpload?.uploadId].filter(
+      const mediaUploadIds = [imageUpload?.uploadId, voiceUpload?.uploadId].filter(
         (value): value is string => Boolean(value),
       );
       turn = {
         clientMessageId: globalThis.crypto.randomUUID(),
         text: userText,
-        inputKind: voiceUpload ? 'voice' : cleanImage ? 'image' : 'text',
+        inputKind: retainedMedia.some((item) => item.kind === 'voice')
+          ? 'voice'
+          : retainedMedia.some((item) => item.kind === 'image')
+            ? 'image'
+            : 'text',
         mediaUploadIds,
-        confirmedCategorySlug: categorySlug || null,
+        localMediaIds: retainedMedia
+          .filter(
+            (item) =>
+              !((item.kind === 'image' && imageUpload) || (item.kind === 'voice' && voiceUpload)),
+          )
+          .map((item) => item.id),
+        confirmedCategorySlug:
+          categoryConfirmedByUser && selectedCategorySlug ? selectedCategorySlug : null,
         summaryRequested,
         createdAt: new Date().toISOString(),
       };
@@ -467,7 +636,7 @@ export function RequestComposer() {
       setPendingTurns(queued);
       if (userId) {
         await saveAiIntakeSnapshot(userId, {
-          version: 1,
+          version: 2,
           sessionId,
           conversation,
           pendingTurns: queued,
@@ -475,46 +644,57 @@ export function RequestComposer() {
             description,
             title,
             summary,
-            categorySlug,
+            suggestedCategorySlug,
+            selectedCategorySlug,
+            categoryConfirmedByUser,
+            categorySelectionSource,
             cityCode,
             urgency,
             schedule,
             coordinates,
             diagnostic,
-            imageUpload: cleanImage,
+            imageUpload,
             voiceUpload,
+            retainedMedia,
           },
         });
       }
       if (!online) throw new Error('OFFLINE_TURN_QUEUED');
       const result = await invokeQueuedTurn(turn);
-      applyDiagnosticResult(turn, result, true);
+      applyDiagnosticResult(result.turn, result.diagnostic, true);
       setPendingTurns((current) =>
         current.filter((item) => item.clientMessageId !== turn!.clientMessageId),
       );
       setDescription('');
-      setVoiceUpload(null);
     } catch {
       const result = await fallback.diagnose({
         locale,
         messages: nextConversation,
         categoryHints: catalog.data?.categories.map((item) => item.slug) ?? [],
-        confirmedCategorySlug: categorySlug || null,
+        confirmedCategorySlug:
+          categoryConfirmedByUser && selectedCategorySlug ? selectedCategorySlug : null,
         summaryRequested,
       });
       const fallbackTurn = turn ?? {
         clientMessageId: globalThis.crypto.randomUUID(),
         text: userText,
-        inputKind: 'text' as const,
-        mediaUploadIds: [],
-        confirmedCategorySlug: categorySlug || null,
+        inputKind: retainedMedia.some((item) => item.kind === 'voice')
+          ? ('voice' as const)
+          : retainedMedia.some((item) => item.kind === 'image')
+            ? ('image' as const)
+            : ('text' as const),
+        mediaUploadIds: [imageUpload?.uploadId, voiceUpload?.uploadId].filter(
+          (value): value is string => Boolean(value),
+        ),
+        localMediaIds: retainedMedia.map((item) => item.id),
+        confirmedCategorySlug:
+          categoryConfirmedByUser && selectedCategorySlug ? selectedCategorySlug : null,
         summaryRequested,
         createdAt: new Date().toISOString(),
       };
       setPendingTurns((current) => enqueuePendingTurn(current, fallbackTurn));
       applyDiagnosticResult(fallbackTurn, result, false);
       setDescription('');
-      setVoiceUpload(null);
       setError(t('aiUnavailableDraftCreated'));
     } finally {
       invalidateApproval();
@@ -522,35 +702,34 @@ export function RequestComposer() {
     }
   }
   async function publish() {
-    if (!canPublish) return;
+    if (!canPublish || !userId || !categorySelectionSource) return;
     setBusy(true);
     setError('');
     try {
-      const media: Array<{ storage_path: string; mime_type: string; size: number }> = [];
-      if (image || imageUpload) {
-        const extension =
-          image?.mimeType === 'image/png'
-            ? 'png'
-            : image?.mimeType === 'image/webp'
-              ? 'webp'
-              : 'jpg';
-        const upload =
-          imageUpload ??
-          (image
-            ? await uploadPrivate(
-                image.uri,
-                `${globalThis.crypto.randomUUID()}.${extension}`,
-                image.mimeType ?? 'image/jpeg',
-                'request_media',
-              )
-            : null);
-        if (!upload) throw new Error('RESTORED_MEDIA_MISSING');
-        media.push({
-          storage_path: upload.storagePath,
-          mime_type: upload.mimeType,
-          size: upload.sizeBytes,
-        });
-      }
+      const publicationMedia = await prepareQueuedTurn({
+        clientMessageId: `publication-media:${userId}`,
+        text: 'publication media',
+        inputKind: retainedMedia.some((item) => item.kind === 'voice')
+          ? 'voice'
+          : retainedMedia.some((item) => item.kind === 'image')
+            ? 'image'
+            : 'text',
+        mediaUploadIds: [imageUpload?.uploadId, voiceUpload?.uploadId].filter(
+          (value): value is string => Boolean(value),
+        ),
+        localMediaIds: retainedMedia
+          .filter(
+            (item) =>
+              !((item.kind === 'image' && imageUpload) || (item.kind === 'voice' && voiceUpload)),
+          )
+          .map((item) => item.id),
+        confirmedCategorySlug: selectedCategorySlug,
+        summaryRequested: false,
+        createdAt: new Date().toISOString(),
+      });
+      const media = [...new Set(publicationMedia.mediaUploadIds)].map((uploadId) => ({
+        upload_id: uploadId,
+      }));
       const now = Date.now();
       const requestedStart =
         schedule === 'today'
@@ -558,47 +737,94 @@ export function RequestComposer() {
           : schedule === 'asap'
             ? new Date(now).toISOString()
             : null;
-      const { data, error: rpcError } = await supabase.rpc('publish_service_request', {
-        payload: {
-          title: title.trim(),
-          original_text: conversationOriginalText([
-            ...conversation,
-            ...(description.trim() ? [{ role: 'user' as const, text: description.trim() }] : []),
-          ]),
-          structured_description: summary,
-          urgency,
-          locale,
-          category_slug: categorySlug,
-          city_code: cityCode,
-          requested_start: requestedStart,
-          schedule_preference: schedule,
-          exact_location: coordinates,
-          media,
-          customer_approved: true,
-          ai_diagnostic: diagnostic,
-          ai_session_id: sessionId,
-          idempotency_key: globalThis.crypto.randomUUID(),
+      const requestedEnd = requestedStart
+        ? new Date(Date.parse(requestedStart) + 60 * 60 * 1000).toISOString()
+        : null;
+      const publicationPayload = {
+        title: title.trim(),
+        original_text: conversationOriginalText([
+          ...conversation,
+          ...(description.trim() ? [{ role: 'user' as const, text: description.trim() }] : []),
+        ]),
+        structured_description: summary,
+        urgency,
+        locale,
+        selected_category_slug: selectedCategorySlug,
+        suggested_category_slug: suggestedCategorySlug || null,
+        category_confirmed_by_user: categoryConfirmedByUser,
+        category_selection_source: categorySelectionSource,
+        city_code: cityCode,
+        requested_start: requestedStart,
+        requested_end: requestedEnd,
+        schedule_preference: schedule,
+        exact_location: coordinates,
+        media,
+        customer_approved: true,
+        ai_diagnostic: diagnostic,
+        ai_session_id: sessionId,
+      };
+      const requestId = await executeJournaledMutation({
+        userId,
+        operation: 'publish_request',
+        entityKey: sessionId ?? 'manual-draft',
+        payload: publicationPayload,
+        execute: async (idempotencyKey, persistedPayload) => {
+          const authoritativePayload = z.record(z.string(), z.unknown()).parse(persistedPayload);
+          const { data, error: rpcError } = await supabase.rpc('publish_service_request', {
+            payload: { ...authoritativePayload, idempotency_key: idempotencyKey },
+          });
+          if (rpcError) throw rpcError;
+          return z.string().uuid().parse(data);
         },
       });
-      if (rpcError) throw rpcError;
-      const requestId = z.string().uuid().parse(data);
-      if (sessionId) {
-        const linked = await (
-          supabase.rpc as unknown as (
-            name: string,
-            args: Record<string, unknown>,
-          ) => Promise<{ error: unknown }>
-        )('link_ai_session_to_request', {
-          p_session_id: sessionId,
-          p_request_id: requestId,
-        });
-        if (linked.error) setError(t('aiHistoryLinkFailed'));
-      }
-      if (userId) await clearAiIntakeSnapshot(userId);
+      await clearAiIntakeSnapshot(userId);
+      await clearRetainedMedia(userId);
+      setRetainedMedia([]);
       setPendingTurns([]);
       Alert.alert(t('requestPublishedTitle'), t('requestNumber', { id: requestId }));
     } catch {
       setError(t('publishOrUploadFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function deleteDraft() {
+    if (!userId) return;
+    setBusy(true);
+    setError('');
+    try {
+      if (sessionId) {
+        if (!online) throw new Error('NETWORK_REQUIRED_TO_ABANDON_SESSION');
+        const { error: abandonError } = await supabase.rpc('abandon_ai_intake_session', {
+          p_session_id: sessionId,
+        });
+        if (abandonError) throw abandonError;
+      }
+      await clearAiIntakeSnapshot(userId);
+      await clearRetainedMedia(userId);
+      setConversation([]);
+      setPendingTurns([]);
+      setSessionId(null);
+      sessionIdRef.current = null;
+      setDescription('');
+      setTitle('');
+      setSummary('');
+      setDiagnostic(null);
+      setImage(null);
+      setImageUpload(null);
+      setVoiceUpload(null);
+      setCoordinates(null);
+      setSuggestedCategorySlug('');
+      setSelectedCategorySlug('');
+      setCategoryConfirmedByUser(false);
+      setCategorySelectionSource(null);
+      setCityCode('');
+      setUrgency('normal');
+      setSchedule('flexible');
+      setApproved(false);
+      setRetainedMedia([]);
+    } catch {
+      setError(t('deleteDraftFailed'));
     } finally {
       setBusy(false);
     }
@@ -651,9 +877,12 @@ export function RequestComposer() {
             onPress={() => void locate()}
           />
         </View>
-        {image && (
+        {(image || retainedMedia.some((item) => item.kind === 'image')) && (
           <Image
-            source={{ uri: image.uri }}
+            source={{
+              uri:
+                image?.uri ?? retainedMedia.find((item) => item.kind === 'image')?.localUri ?? '',
+            }}
             accessibilityLabel={t('attachedImageA11y')}
             style={{ width: '100%', height: 180, borderRadius: 16 }}
           />
@@ -712,14 +941,35 @@ export function RequestComposer() {
           placeholder={t('providerSummaryPlaceholder')}
         />
         <Text style={styles.lead}>{t('editableAiCategory')}</Text>
+        {suggestedCategorySlug && !categoryConfirmedByUser && (
+          <Button
+            kind="secondary"
+            label={t('confirmSuggestedCategory')}
+            onPress={() => {
+              setSelectedCategorySlug(suggestedCategorySlug);
+              setCategoryConfirmedByUser(true);
+              setCategorySelectionSource('ai_suggestion');
+              invalidateApproval();
+            }}
+          />
+        )}
+        {categoryConfirmedByUser && (
+          <Text accessibilityLiveRegion="polite" style={styles.badge}>
+            {t('categoryConfirmed')}
+          </Text>
+        )}
         <View style={styles.row}>
           {catalog.data?.categories.map((category) => (
             <Button
               key={category.slug}
-              kind={categorySlug === category.slug ? 'primary' : 'secondary'}
+              kind={selectedCategorySlug === category.slug ? 'primary' : 'secondary'}
               label={category.service_category_translations[0]?.name ?? category.slug}
               onPress={() => {
-                setCategorySlug(category.slug);
+                setSelectedCategorySlug(category.slug);
+                setCategoryConfirmedByUser(true);
+                setCategorySelectionSource(
+                  category.slug === suggestedCategorySlug ? 'ai_suggestion' : 'customer_correction',
+                );
                 invalidateApproval();
               }}
             />
@@ -796,6 +1046,17 @@ export function RequestComposer() {
           disabled={!canPublish || busy}
           label={t('publishRequest')}
           onPress={() => void publish()}
+        />
+        <Button
+          disabled={busy || !userId}
+          kind="secondary"
+          label={t('deleteDraft')}
+          onPress={() =>
+            Alert.alert(t('deleteDraftTitle'), t('deleteDraftMessage'), [
+              { text: t('cancel'), style: 'cancel' },
+              { text: t('deleteDraft'), style: 'destructive', onPress: () => void deleteDraft() },
+            ])
+          }
         />
       </Screen>
     </ScrollView>

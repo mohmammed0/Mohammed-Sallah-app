@@ -83,6 +83,14 @@
       "security": "Expo GitHub security policy/advisories"
     },
     {
+      "project": "expo/expo",
+      "package": "expo-file-system",
+      "version": "57.0.4",
+      "license": "MIT",
+      "use": "durable user-scoped app-private storage for offline request media",
+      "security": "Expo GitHub security policy/advisories"
+    },
+    {
       "project": "colinhacks/zod",
       "package": "zod",
       "version": "4.4.3",

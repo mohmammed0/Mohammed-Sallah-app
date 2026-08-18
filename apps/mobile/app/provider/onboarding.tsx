@@ -10,6 +10,7 @@ import { Button, Card, LoadingSkeleton, Screen, styles } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { secureUpload } from '@/lib/secure-upload';
 import { useLocale } from '@/providers/locale-provider';
+import { executeJournaledMutation } from '@/lib/mutation-journal';
 
 const onboardingSchema = z.object({
   kind: z.enum(['individual', 'company']),
@@ -138,37 +139,48 @@ export default function ProviderOnboarding() {
           });
         }),
       );
-      const { data, error } = await supabase.rpc('upsert_provider_onboarding', {
-        payload: {
-          ...input,
-          categoryIds,
-          serviceAreas: cityIds.map((cityId) => ({
-            cityId,
-            location,
-            radiusKm: input.serviceRadiusKm,
-          })),
-          availability: weekdays.map((weekday) => ({
-            weekday,
-            start: '08:00',
-            end: '18:00',
-          })),
-          locale,
-          idempotencyKey: globalThis.crypto.randomUUID(),
-          submit: shouldSubmit,
-          documents: uploadedDocuments.map((upload, index) => ({
-            documentType:
-              input.kind === 'company' && index === 0
-                ? 'commercial_registration'
-                : 'identity_or_license',
-            storagePath: upload.storagePath,
-            contentHash: upload.contentHash,
-            mimeType: upload.mimeType,
-            sizeBytes: upload.sizeBytes,
-          })),
+      const commandPayload = {
+        ...input,
+        categoryIds,
+        serviceAreas: cityIds.map((cityId) => ({
+          cityId,
+          location,
+          radiusKm: input.serviceRadiusKm,
+        })),
+        availability: weekdays.map((weekday) => ({
+          weekday,
+          start: '08:00',
+          end: '18:00',
+        })),
+        locale,
+        submit: shouldSubmit,
+        documents: uploadedDocuments.map((upload, index) => ({
+          documentType:
+            input.kind === 'company' && index === 0
+              ? 'commercial_registration'
+              : 'identity_or_license',
+          storagePath: upload.storagePath,
+          contentHash: upload.contentHash,
+          mimeType: upload.mimeType,
+          sizeBytes: upload.sizeBytes,
+        })),
+      };
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) throw new Error('AUTH_REQUIRED');
+      return executeJournaledMutation({
+        userId: userData.user.id,
+        operation: 'provider_onboarding',
+        entityKey: shouldSubmit ? 'submit' : 'draft',
+        payload: commandPayload,
+        execute: async (idempotencyKey, persistedPayload) => {
+          const authoritativePayload = z.record(z.string(), z.unknown()).parse(persistedPayload);
+          const { data, error } = await supabase.rpc('upsert_provider_onboarding', {
+            payload: { ...authoritativePayload, idempotencyKey },
+          });
+          if (error) throw error;
+          return z.object({ providerId: z.uuid(), status: z.string() }).parse(data);
         },
       });
-      if (error) throw error;
-      return z.object({ providerId: z.uuid(), status: z.string() }).parse(data);
     },
     onSuccess: (result) => {
       void status.refetch();

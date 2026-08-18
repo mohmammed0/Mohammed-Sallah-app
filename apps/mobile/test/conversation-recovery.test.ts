@@ -14,12 +14,17 @@ vi.mock('expo-secure-store', () => ({
   setItemAsync: vi.fn(),
   deleteItemAsync: vi.fn(),
 }));
+vi.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
+vi.mock('expo-file-system/legacy', () => ({
+  documentDirectory: 'file:///app-private/',
+}));
 
 const first: PendingCustomerTurn = {
   clientMessageId: 'turn-0001',
   text: 'The sink is leaking in Riyadh tomorrow morning.',
   inputKind: 'image',
   mediaUploadIds: ['11111111-1111-4111-8111-111111111111'],
+  localMediaIds: [],
   confirmedCategorySlug: 'plumbing',
   summaryRequested: false,
   createdAt: '2026-08-18T10:00:00.000Z',
@@ -29,6 +34,7 @@ const second: PendingCustomerTurn = {
   clientMessageId: 'turn-0002',
   text: 'The leak started last night.',
   mediaUploadIds: [],
+  localMediaIds: [],
   inputKind: 'text',
   createdAt: '2026-08-18T10:01:00.000Z',
 };
@@ -66,7 +72,7 @@ describe('AI intake recovery', () => {
 
   it('restores a session, ordered messages, draft, and pending media after restart', () => {
     const snapshot = aiIntakeSnapshotSchema.parse({
-      version: 1,
+      version: 2,
       sessionId: '22222222-2222-4222-8222-222222222222',
       conversation: appendTemporaryFallback([], first, 'Offline fallback'),
       pendingTurns: [first],
@@ -74,7 +80,10 @@ describe('AI intake recovery', () => {
         description: '',
         title: 'Leaking sink',
         summary: 'The kitchen sink is leaking and needs inspection.',
-        categorySlug: 'plumbing',
+        suggestedCategorySlug: 'plumbing',
+        selectedCategorySlug: 'plumbing',
+        categoryConfirmedByUser: true,
+        categorySelectionSource: 'ai_suggestion',
         cityCode: 'riyadh',
         urgency: 'normal',
         schedule: 'today',
@@ -89,10 +98,62 @@ describe('AI intake recovery', () => {
           contentHash: 'a'.repeat(64),
         },
         voiceUpload: null,
+        retainedMedia: [],
       },
     });
     expect(snapshot.sessionId).toMatch(/^2222/);
     expect(snapshot.pendingTurns[0]?.mediaUploadIds).toEqual(first.mediaUploadIds);
     expect(snapshot.conversation.map((message) => message.role)).toEqual(['user', 'assistant']);
+  });
+
+  it('restores a selected image before upload without converting the turn to text-only', () => {
+    const localImageId = '33333333-3333-4333-8333-333333333333';
+    const snapshot = aiIntakeSnapshotSchema.parse({
+      version: 2,
+      sessionId: null,
+      conversation: [],
+      pendingTurns: [
+        {
+          ...first,
+          mediaUploadIds: [],
+          localMediaIds: [localImageId],
+        },
+      ],
+      draft: {
+        description: 'A leaking pipe photographed while offline.',
+        title: 'Leaking pipe',
+        summary: 'A leaking pipe needs a plumbing inspection.',
+        suggestedCategorySlug: 'plumbing',
+        selectedCategorySlug: 'plumbing',
+        categoryConfirmedByUser: true,
+        categorySelectionSource: 'ai_suggestion',
+        cityCode: 'riyadh',
+        urgency: 'normal',
+        schedule: 'asap',
+        coordinates: null,
+        diagnostic: null,
+        imageUpload: null,
+        voiceUpload: null,
+        retainedMedia: [
+          {
+            id: localImageId,
+            userId: '44444444-4444-4444-8444-444444444444',
+            kind: 'image',
+            localUri: 'file:///private/image.jpg',
+            filename: 'image.jpg',
+            mimeType: 'image/jpeg',
+            sizeBytes: 1024,
+            createdAt: '2026-08-18T10:00:00.000Z',
+            expiresAt: '2026-08-25T10:00:00.000Z',
+          },
+        ],
+      },
+    });
+    expect(snapshot.pendingTurns[0]).toMatchObject({
+      inputKind: 'image',
+      mediaUploadIds: [],
+      localMediaIds: [localImageId],
+    });
+    expect(snapshot.draft.retainedMedia[0]?.localUri).toContain('/private/image.jpg');
   });
 });

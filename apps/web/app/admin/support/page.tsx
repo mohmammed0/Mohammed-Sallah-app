@@ -1,6 +1,13 @@
 import { translate } from '@sallah/i18n';
 import { requireAnyAdmin } from '@/lib/auth';
-import { decideCancellation, resolveDispute } from '../actions';
+import {
+  assignSupportCase,
+  decideCancellation,
+  endSupportAssignment,
+  grantSupportAccess,
+  resolveDispute,
+  revokeSupportAccess,
+} from '../actions';
 
 const t = (key: Parameters<typeof translate>[1]) => translate('ar', key);
 
@@ -10,10 +17,13 @@ export default async function SupportPage() {
     'operations.marketplace.read',
   ]);
   const canFinance = roles.some((role) => role === 'finance_reviewer' || role === 'super_admin');
+  const canOperate = roles.some((role) => role === 'operations_admin' || role === 'super_admin');
   const [cases, cancellations, disputes] = await Promise.all([
     client
       .from('support_cases')
-      .select('id,subject,topic,priority,status,opened_by,created_at,updated_at')
+      .select(
+        'id,subject,topic,priority,status,opened_by,created_at,updated_at,support_case_assignments(id,assignee_id,assigned_at,expires_at,permissions,ended_at),support_case_access_grants(id,user_id,permissions,expires_at,revoked_at)',
+      )
       .order('updated_at', { ascending: false })
       .limit(100),
     client
@@ -51,7 +61,93 @@ export default async function SupportPage() {
           <tbody>
             {cases.data?.map((item) => (
               <tr key={item.id}>
-                <td>{item.subject}</td>
+                <td>
+                  <p>{item.subject}</p>
+                  {item.support_case_assignments
+                    .filter((assignment) => !assignment.ended_at)
+                    .map((assignment) => (
+                      <form
+                        action={endSupportAssignment}
+                        className="inline-form"
+                        key={assignment.id}
+                      >
+                        <input type="hidden" name="assignmentId" value={assignment.id} />
+                        <span className="muted">
+                          {t('supportAgentId')}: {assignment.assignee_id}
+                        </span>
+                        <input
+                          name="reason"
+                          minLength={5}
+                          maxLength={1000}
+                          required
+                          placeholder={t('decisionReason')}
+                        />
+                        {canOperate && <button type="submit">{t('endAssignment')}</button>}
+                      </form>
+                    ))}
+                  {item.support_case_access_grants
+                    .filter((grant) => !grant.revoked_at)
+                    .map((grant) => (
+                      <form action={revokeSupportAccess} className="inline-form" key={grant.id}>
+                        <input type="hidden" name="grantId" value={grant.id} />
+                        <span className="muted">
+                          {t('supportAgentId')}: {grant.user_id}
+                        </span>
+                        <input
+                          name="reason"
+                          minLength={5}
+                          maxLength={1000}
+                          required
+                          placeholder={t('decisionReason')}
+                        />
+                        {canOperate && <button type="submit">{t('revokeAccess')}</button>}
+                      </form>
+                    ))}
+                  {canOperate && (
+                    <>
+                      <form action={assignSupportCase} className="inline-form">
+                        <input type="hidden" name="caseId" value={item.id} />
+                        <input name="assigneeId" required placeholder={t('supportAgentId')} />
+                        <input name="expiresAt" placeholder={t('accessExpiry')} />
+                        <label>
+                          {t('exactLocationAccess')}
+                          <select name="exactLocation" defaultValue="false">
+                            <option value="false">{t('no')}</option>
+                            <option value="true">{t('yes')}</option>
+                          </select>
+                        </label>
+                        <input
+                          name="reason"
+                          minLength={5}
+                          maxLength={1000}
+                          required
+                          placeholder={t('decisionReason')}
+                        />
+                        <button type="submit">{t('assignSupportCase')}</button>
+                      </form>
+                      <form action={grantSupportAccess} className="inline-form">
+                        <input type="hidden" name="caseId" value={item.id} />
+                        <input name="userId" required placeholder={t('supportAgentId')} />
+                        <input name="expiresAt" required placeholder={t('accessExpiry')} />
+                        <label>
+                          {t('exactLocationAccess')}
+                          <select name="exactLocation" defaultValue="false">
+                            <option value="false">{t('no')}</option>
+                            <option value="true">{t('yes')}</option>
+                          </select>
+                        </label>
+                        <input
+                          name="reason"
+                          minLength={5}
+                          maxLength={1000}
+                          required
+                          placeholder={t('decisionReason')}
+                        />
+                        <button type="submit">{t('grantTemporaryAccess')}</button>
+                      </form>
+                    </>
+                  )}
+                </td>
                 <td>{item.priority}</td>
                 <td>
                   <span className="badge">{item.status}</span>

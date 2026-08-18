@@ -35,6 +35,14 @@ describe('admin permission evaluation', () => {
     expect(hasRequiredAdminPermissions('active', roles, ['finance.read'])).toBe(false);
   });
 
+  it('separates privacy review from broad support access', () => {
+    expect(permissionsForRoles(['privacy_reviewer']).has('customer.pii.read')).toBe(true);
+    expect(permissionsForRoles(['support_agent']).has('customer.pii.read')).toBe(false);
+    expect(permissionsForRoles(['privacy_reviewer']).has('operations.marketplace.read')).toBe(
+      false,
+    );
+  });
+
   it('denies inactive administrators even when a role grants the permission', () => {
     const roles = [{ role: 'super_admin', revoked_at: null }];
     expect(hasRequiredAdminPermissions('suspended', roles, ['finance.read'])).toBe(false);

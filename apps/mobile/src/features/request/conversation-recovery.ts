@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { chunkedSecureStorage } from '../../lib/secure-storage';
 import type { ConversationMessage } from './conversation-state';
+import { retainedMediaSchema } from '../../lib/durable-media';
 
 const cleanUploadSchema = z.object({
   uploadId: z.uuid(),
@@ -15,6 +16,7 @@ export const pendingCustomerTurnSchema = z.object({
   text: z.string().min(1).max(8000),
   inputKind: z.enum(['text', 'voice', 'image']),
   mediaUploadIds: z.array(z.uuid()).max(4),
+  localMediaIds: z.array(z.string().min(8).max(128)).max(4),
   confirmedCategorySlug: z.string().nullable(),
   summaryRequested: z.boolean(),
   createdAt: z.string(),
@@ -31,7 +33,7 @@ const conversationMessageSchema = z.object({
 });
 
 export const aiIntakeSnapshotSchema = z.object({
-  version: z.literal(1),
+  version: z.literal(2),
   sessionId: z.uuid().nullable(),
   conversation: z.array(conversationMessageSchema),
   pendingTurns: z.array(pendingCustomerTurnSchema),
@@ -39,7 +41,10 @@ export const aiIntakeSnapshotSchema = z.object({
     description: z.string(),
     title: z.string(),
     summary: z.string(),
-    categorySlug: z.string(),
+    suggestedCategorySlug: z.string(),
+    selectedCategorySlug: z.string(),
+    categoryConfirmedByUser: z.boolean(),
+    categorySelectionSource: z.enum(['ai_suggestion', 'customer_correction', 'manual']).nullable(),
     cityCode: z.string(),
     urgency: z.enum(['flexible', 'normal', 'urgent', 'safety_critical']),
     schedule: z.enum(['asap', 'today', 'flexible']),
@@ -47,6 +52,7 @@ export const aiIntakeSnapshotSchema = z.object({
     diagnostic: z.unknown().nullable(),
     imageUpload: cleanUploadSchema.nullable(),
     voiceUpload: cleanUploadSchema.nullable(),
+    retainedMedia: z.array(retainedMediaSchema).max(4),
   }),
 });
 export type AiIntakeSnapshot = z.infer<typeof aiIntakeSnapshotSchema>;

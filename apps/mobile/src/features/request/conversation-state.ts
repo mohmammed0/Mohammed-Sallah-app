@@ -11,6 +11,7 @@ export interface PublishableRequestDraft {
   title: string;
   summary: string;
   categorySlug: string;
+  categoryConfirmedByUser: boolean;
   cityCode: string;
   coordinates: { latitude: number; longitude: number } | null;
   approved: boolean;
@@ -37,6 +38,7 @@ export function canPublishRequest(draft: PublishableRequestDraft): boolean {
     draft.summary.trim().length >= 10 &&
     draft.coordinates !== null &&
     draft.categorySlug.length > 0 &&
+    draft.categoryConfirmedByUser &&
     draft.cityCode.length > 0 &&
     draft.approved
   );
