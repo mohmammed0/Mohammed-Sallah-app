@@ -2,6 +2,18 @@ import { expect, test } from '@playwright/test';
 
 const adminEmail = 'admin.demo@example.invalid';
 const adminPassword = 'LocalE2E-Only!2026';
+const financeEmail = 'finance.demo@example.invalid';
+const financePassword = 'LocalFinanceE2E-Only!2026';
+
+test.describe.configure({ mode: 'serial' });
+
+async function signIn(page: import('@playwright/test').Page, email: string, password: string) {
+  await page.goto('/login');
+  await page.getByLabel('البريد الإلكتروني').fill(email);
+  await page.getByLabel('كلمة المرور').fill(password);
+  await page.getByRole('button', { name: 'دخول آمن' }).click();
+  await expect(page).toHaveURL(/\/admin$/);
+}
 
 async function createAdminDatabaseSession() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -53,15 +65,13 @@ test('operations admin records human cancellation and dispute decisions', async 
 
   const database = await createAdminDatabaseSession();
 
-  await page.goto('/login');
-  await page.getByLabel('البريد الإلكتروني').fill(adminEmail);
-  await page.getByLabel('كلمة المرور').fill(adminPassword);
-  await page.getByRole('button', { name: 'دخول آمن' }).click();
-  await expect(page).toHaveURL(/\/admin$/);
+  await signIn(page, adminEmail, adminPassword);
 
   await page.goto('/admin/support');
   await expect(page.getByRole('heading', { level: 1 })).toContainText('الدعم والإلغاء والنزاعات');
   await expect(page.getByText('لا تُحسم النزاعات آليًا')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'تعيين الحالة' }).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'منح وصول مؤقت' }).first()).toBeVisible();
 
   const cancellation = page
     .getByText('طلب إلغاء تجريبي للاختبار المتكامل')
@@ -96,4 +106,15 @@ test('operations admin records human cancellation and dispute decisions', async 
       );
     })
     .toEqual({ resolution_outcome: 'resume', status: 'resolved' });
+});
+
+test('finance reviewer receives only the financial decision UI', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'The finance role journey runs once.');
+  await signIn(page, financeEmail, financePassword);
+  await page.goto('/admin/finance');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('المراجعة المالية');
+  await expect(page.getByText('إجراءات مالية بانتظار التأكيد')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'تأكيد الإجراء الخارجي' }).first()).toBeVisible();
+  await page.goto('/admin/support');
+  await expect(page).toHaveURL(/\/forbidden$/);
 });
