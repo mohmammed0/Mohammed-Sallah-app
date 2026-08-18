@@ -1,0 +1,25 @@
+{
+  "name": "@sallah/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@sallah/domain": "workspace:*",
+    "@supabase/supabase-js": "2.112.3",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@sallah/typescript-config": "workspace:*",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
+  }
+}
