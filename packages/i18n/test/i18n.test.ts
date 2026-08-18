@@ -16,4 +16,8 @@ describe('localization', () => {
     for (const locale of supportedLocales)
       expect(translate(locale, 'publishRequest').length).toBeGreaterThan(0);
   });
+  it('interpolates named values without evaluating content', () => {
+    expect(translate('en', 'versionSummary', { version: 7 })).toBe('Version 7');
+    expect(translate('ar', 'requestNumber', { id: '<unsafe>' })).toContain('<unsafe>');
+  });
 });

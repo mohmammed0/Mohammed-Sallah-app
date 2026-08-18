@@ -4,11 +4,10 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { Alert, ScrollView, Text, TextInput, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
-import { sha256 } from '@noble/hashes/sha2.js';
-import { bytesToHex } from '@noble/hashes/utils.js';
 import { z } from 'zod';
 import { Button, Card, Screen, styles } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
+import { secureUpload } from '@/lib/secure-upload';
 import { useLocale } from '@/providers/locale-provider';
 
 const onboardingSchema = z.object({
@@ -32,7 +31,7 @@ const citySchema = z.object({
 });
 
 export default function ProviderOnboarding() {
-  const { locale } = useLocale();
+  const { locale, t } = useLocale();
   const [categoryId, setCategoryId] = useState('');
   const [cityId, setCityId] = useState('');
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -73,7 +72,7 @@ export default function ProviderOnboarding() {
   async function chooseLocation() {
     const permission = await Location.requestForegroundPermissionsAsync();
     if (!permission.granted) {
-      setError('root', { message: 'يلزم موقع مركز نطاق الخدمة؛ لا نستخدم موقع الخلفية.' });
+      setError('root', { message: t('providerLocationRequired') });
       return;
     }
     const current = await Location.getCurrentPositionAsync({
@@ -93,7 +92,7 @@ export default function ProviderOnboarding() {
       (asset.fileSize ?? 0) > 20 * 1024 * 1024 ||
       !(asset.mimeType ?? 'image/jpeg').match(/^image\/(jpeg|png)$/)
     ) {
-      setError('root', { message: 'وثيقة JPEG/PNG مطلوبة وبحجم لا يتجاوز 20MB.' });
+      setError('root', { message: t('providerDocumentRequired') });
       return;
     }
     setDocument(asset);
@@ -103,21 +102,16 @@ export default function ProviderOnboarding() {
       const input = onboardingSchema.parse(raw);
       if (!categoryId || !cityId || !location || !document)
         throw new Error('MISSING_REQUIRED_FIELDS');
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) throw new Error('AUTH_REQUIRED');
       const response = await fetch(document.uri);
       if (!response.ok) throw new Error('DOCUMENT_READ_FAILED');
       const bytes = new Uint8Array(await response.arrayBuffer());
-      const contentHash = bytesToHex(sha256(bytes));
       const extension = document.mimeType === 'image/png' ? 'png' : 'jpg';
-      const storagePath = `${userData.user.id}/verification/${globalThis.crypto.randomUUID()}.${extension}`;
-      const { error: uploadError } = await supabase.storage
-        .from('provider-documents')
-        .upload(storagePath, bytes, {
-          contentType: document.mimeType ?? 'image/jpeg',
-          upsert: false,
-        });
-      if (uploadError) throw uploadError;
+      const upload = await secureUpload({
+        bytes,
+        filename: `${globalThis.crypto.randomUUID()}.${extension}`,
+        mimeType: document.mimeType ?? 'image/jpeg',
+        purpose: 'provider_document',
+      });
       const { data, error } = await supabase.rpc('upsert_provider_onboarding', {
         payload: {
           ...input,
@@ -129,10 +123,10 @@ export default function ProviderOnboarding() {
             {
               documentType:
                 input.kind === 'company' ? 'commercial_registration' : 'identity_or_license',
-              storagePath,
-              contentHash,
-              mimeType: document.mimeType ?? 'image/jpeg',
-              sizeBytes: bytes.byteLength,
+              storagePath: upload.storagePath,
+              contentHash: upload.contentHash,
+              mimeType: upload.mimeType,
+              sizeBytes: upload.sizeBytes,
             },
           ],
         },
@@ -142,36 +136,34 @@ export default function ProviderOnboarding() {
     },
     onSuccess: (result) =>
       Alert.alert(
-        'تم إرسال الملف',
-        `الحالة: ${result.status}. لا يبدأ استقبال الطلبات قبل المراجعة البشرية.`,
+        t('providerSubmissionTitle'),
+        t('providerSubmissionStatus', { status: result.status }),
       ),
     onError: () =>
       setError('root', {
-        message: 'أكمل الخدمة والمدينة والموقع والوثيقة، ثم تحقق من تسجيل الدخول والاتصال.',
+        message: t('providerSubmissionFailed'),
       }),
   });
   return (
     <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
       <Screen>
-        <Text style={styles.title}>تسجيل مقدم الخدمة</Text>
+        <Text style={styles.title}>{t('providerOnboarding')}</Text>
         <Card>
-          <Text style={styles.lead}>
-            الوثائق خاصة ولا تظهر للعملاء. التحقق قرار بشري مسجل، وليس موافقة آلية.
-          </Text>
+          <Text style={styles.lead}>{t('providerDocumentsNotice')}</Text>
         </Card>
-        <Text style={styles.lead}>نوع الحساب</Text>
+        <Text style={styles.lead}>{t('accountType')}</Text>
         <Controller
           control={control}
           name="kind"
           render={({ field }) => (
             <View style={styles.row}>
               <Button
-                label="فرد"
+                label={t('individual')}
                 kind={field.value === 'individual' ? 'primary' : 'secondary'}
                 onPress={() => field.onChange('individual')}
               />
               <Button
-                label="منشأة"
+                label={t('company')}
                 kind={field.value === 'company' ? 'primary' : 'secondary'}
                 onPress={() => field.onChange('company')}
               />
@@ -184,7 +176,7 @@ export default function ProviderOnboarding() {
           render={({ field }) => (
             <TextInput
               style={styles.input}
-              placeholder="الاسم المهني أو اسم المنشأة"
+              placeholder={t('providerNamePlaceholder')}
               value={field.value}
               onBlur={field.onBlur}
               onChangeText={field.onChange}
@@ -197,7 +189,7 @@ export default function ProviderOnboarding() {
           render={({ field }) => (
             <TextInput
               style={styles.input}
-              placeholder="مرجع السجل التجاري للمنشآت (اختياري)"
+              placeholder={t('commercialRegistrationPlaceholder')}
               value={field.value}
               onBlur={field.onBlur}
               onChangeText={field.onChange}
@@ -211,7 +203,7 @@ export default function ProviderOnboarding() {
             <TextInput
               style={[styles.input, { minHeight: 100, textAlignVertical: 'top' }]}
               multiline
-              placeholder="خبرتك والخدمات التي تنفذها"
+              placeholder={t('providerBioPlaceholder')}
               value={field.value}
               onBlur={field.onBlur}
               onChangeText={field.onChange}
@@ -225,14 +217,14 @@ export default function ProviderOnboarding() {
             <TextInput
               style={styles.input}
               keyboardType="number-pad"
-              placeholder="نطاق الخدمة بالكيلومتر"
+              placeholder={t('serviceRadiusPlaceholder')}
               value={String(field.value)}
               onBlur={field.onBlur}
               onChangeText={field.onChange}
             />
           )}
         />
-        <Text style={styles.lead}>الخدمة الرئيسية</Text>
+        <Text style={styles.lead}>{t('primaryService')}</Text>
         <View style={styles.row}>
           {catalog.data?.categories.map((category) => (
             <Button
@@ -243,7 +235,7 @@ export default function ProviderOnboarding() {
             />
           ))}
         </View>
-        <Text style={styles.lead}>المدينة</Text>
+        <Text style={styles.lead}>{t('city')}</Text>
         <View style={styles.row}>
           {catalog.data?.cities.map((city) => (
             <Button
@@ -256,12 +248,12 @@ export default function ProviderOnboarding() {
         </View>
         <Button
           kind="secondary"
-          label={location ? 'تم تحديد مركز نطاق الخدمة' : 'تحديد مركز نطاق الخدمة'}
+          label={location ? t('serviceCenterSelected') : t('selectServiceCenter')}
           onPress={() => void chooseLocation()}
         />
         <Button
           kind="secondary"
-          label={document ? 'تم اختيار الوثيقة — تغيير' : 'إرفاق وثيقة تحقق'}
+          label={document ? t('documentSelectedChange') : t('attachVerificationDocument')}
           onPress={() => void chooseDocument()}
         />
         {formState.errors.root?.message && (
@@ -269,7 +261,7 @@ export default function ProviderOnboarding() {
         )}
         <Button
           disabled={submit.isPending}
-          label="إرسال للمراجعة البشرية"
+          label={t('submitForHumanReview')}
           onPress={() => void handleSubmit((value) => submit.mutate(value))()}
         />
       </Screen>

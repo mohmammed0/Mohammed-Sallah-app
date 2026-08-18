@@ -4,6 +4,7 @@ import { ScrollView, Text } from 'react-native';
 import { z } from 'zod';
 import { Button, Card, Screen, styles } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
+import { useLocale } from '@/providers/locale-provider';
 
 const requestSchema = z.object({
   id: z.uuid(),
@@ -14,6 +15,7 @@ const requestSchema = z.object({
 });
 
 export default function Requests() {
+  const { locale, t } = useLocale();
   const query = useQuery({
     queryKey: ['customer-requests'],
     queryFn: async () => {
@@ -29,29 +31,30 @@ export default function Requests() {
   return (
     <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
       <Screen>
-        <Text style={styles.title}>طلباتي والعروض</Text>
-        <Text style={styles.lead}>العروض خاصة بك وحدك، ولا يستطيع مقدم خدمة رؤية عرض منافس.</Text>
-        {query.isPending && <Text style={styles.lead}>جارٍ تحميل الطلبات…</Text>}
-        {query.isError && <Text style={styles.error}>تعذر تحميل الطلبات الحالية.</Text>}
+        <Text style={styles.title}>{t('requestsAndOffers')}</Text>
+        <Text style={styles.lead}>{t('requestsPrivacyNotice')}</Text>
+        {query.isPending && <Text style={styles.lead}>{t('loadingRequests')}</Text>}
+        {query.isError && <Text style={styles.error}>{t('loadRequestsFailed')}</Text>}
         {query.data?.map((request) => (
           <Card key={request.id}>
             <Text style={styles.badge}>{request.status}</Text>
             <Text>{request.title}</Text>
             <Text style={styles.lead}>
-              {new Date(request.created_at).toLocaleString('ar-SA')} · نسخة {request.version}
+              {new Date(request.created_at).toLocaleString(locale === 'ar' ? 'ar-SA' : locale)} ·{' '}
+              {t('versionSummary', { version: request.version })}
             </Text>
             {request.status === 'receiving_offers' && (
               <Link href={{ pathname: '/offers', params: { requestId: request.id } }} asChild>
-                <Button label="عرض المقارنة الخاصة" />
+                <Button label={t('viewPrivateComparison')} />
               </Link>
             )}
           </Card>
         ))}
         {!query.isPending && query.data?.length === 0 && (
           <Card>
-            <Text style={styles.lead}>لا توجد طلبات بعد.</Text>
+            <Text style={styles.lead}>{t('noRequests')}</Text>
             <Link href="/request/new" asChild>
-              <Button label="إنشاء أول طلب" />
+              <Button label={t('createFirstRequest')} />
             </Link>
           </Card>
         )}

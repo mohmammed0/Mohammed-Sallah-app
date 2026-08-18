@@ -67,5 +67,11 @@ verify_jwt = true
 [functions.notification-worker]
 verify_jwt = false
 
+[functions.privacy-worker]
+verify_jwt = false
+
+[functions.scan-upload]
+verify_jwt = true
+
 [functions.translate-provider-brief]
 verify_jwt = true

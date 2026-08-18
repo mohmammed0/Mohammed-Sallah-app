@@ -17,8 +17,8 @@ export default function Home() {
   ] as const;
   const provider = [
     ['/provider/onboarding', t('providerOnboarding')],
-    ['/provider/feed', 'الطلبات المؤهلة'],
-    ['/jobs', 'تنفيذ العمل'],
+    ['/provider/feed', t('eligibleRequests')],
+    ['/jobs', t('executeJob')],
     ['/messages', t('messages')],
     ['/provider/earnings', t('earnings')],
     ['/support', t('support')],
@@ -28,16 +28,16 @@ export default function Home() {
     <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
       <Screen>
         <Text style={styles.title}>
-          {role === 'customer' ? 'كيف نساعدك اليوم؟' : 'أعمالك بوضوح وثقة'}
+          {role === 'customer' ? t('customerHomeTitle') : t('providerHomeTitle')}
         </Text>
         <View style={styles.row}>
           <Button
-            label="عميل"
+            label={t('customer')}
             kind={role === 'customer' ? 'primary' : 'secondary'}
             onPress={() => setRole('customer')}
           />
           <Button
-            label="مقدم خدمة"
+            label={t('provider')}
             kind={role === 'provider' ? 'primary' : 'secondary'}
             onPress={() => setRole('provider')}
           />
@@ -45,9 +45,7 @@ export default function Home() {
         <Card>
           <Text style={styles.badge}>{role === 'customer' ? 'CUSTOMER' : 'PROVIDER'}</Text>
           <Text style={styles.lead}>
-            {role === 'customer'
-              ? 'لن ننشر طلبًا أو نكشف موقعك الدقيق دون موافقتك.'
-              : 'سترى فقط الطلبات المؤهلة ومعلومات الموقع التقريبية قبل الاختيار.'}
+            {role === 'customer' ? t('customerPrivacyNotice') : t('providerPrivacyNotice')}
           </Text>
         </Card>
         {(role === 'customer' ? customer : provider).map(([href, label]) => (

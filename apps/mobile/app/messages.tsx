@@ -4,6 +4,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { z } from 'zod';
 import { Button, Card, Screen, styles } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
+import { useLocale } from '@/providers/locale-provider';
 const messageSchema = z.object({
   id: z.uuid(),
   body: z.string(),
@@ -12,6 +13,7 @@ const messageSchema = z.object({
 });
 type Message = z.infer<typeof messageSchema>;
 export default function Messages() {
+  const { locale, t } = useLocale();
   const { conversationId } = useLocalSearchParams<{ conversationId?: string }>();
   const [messages, setMessages] = useState<Message[]>([]);
   const [body, setBody] = useState('');
@@ -26,12 +28,12 @@ export default function Messages() {
       .limit(50)
       .then(({ data, error: queryError }) => {
         if (queryError) {
-          setError('تعذر تحميل الرسائل.');
+          setError(t('messagesLoadFailed'));
           return;
         }
         const parsed = z.array(messageSchema).safeParse(data ?? []);
         if (parsed.success) setMessages(parsed.data);
-        else setError('تعذر التحقق من بيانات الرسائل.');
+        else setError(t('messagesInvalid'));
       });
     const channel = supabase
       .channel(`conversation:${conversationId}`)
@@ -52,31 +54,28 @@ export default function Messages() {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [conversationId]);
+  }, [conversationId, t]);
   async function send() {
     if (!conversationId || !body.trim()) return;
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) {
-      setError('سجّل الدخول لإرسال رسالة.');
+      setError(t('signInToMessage'));
       return;
     }
     const { error: insertError } = await supabase
       .from('messages')
       .insert({ conversation_id: conversationId, sender_id: user.id, body: body.trim() });
-    if (insertError) setError('تعذر الإرسال؛ العضوية في المحادثة مطلوبة.');
+    if (insertError) setError(t('messageSendFailed'));
     else setBody('');
   }
   return (
     <Screen>
-      <Text style={styles.title}>الرسائل</Text>
+      <Text style={styles.title}>{t('messages')}</Text>
       {!conversationId && (
         <Card>
-          <Text style={styles.lead}>
-            تظهر المحادثة بعد اختيار مقدم الخدمة. لا تُكشف أرقام الهاتف أو العنوان في الطلبات غير
-            المطابقة.
-          </Text>
+          <Text style={styles.lead}>{t('messagesPrivacyNotice')}</Text>
         </Card>
       )}
       <FlatList
@@ -86,10 +85,12 @@ export default function Messages() {
         renderItem={({ item }) => (
           <Card>
             <Text>{item.body}</Text>
-            <Text style={styles.lead}>{new Date(item.created_at).toLocaleString('ar-SA')}</Text>
+            <Text style={styles.lead}>
+              {new Date(item.created_at).toLocaleString(locale === 'ar' ? 'ar-SA' : locale)}
+            </Text>
           </Card>
         )}
-        ListEmptyComponent={<Text style={styles.lead}>{error || 'لا توجد رسائل.'}</Text>}
+        ListEmptyComponent={<Text style={styles.lead}>{error || t('noMessages')}</Text>}
       />
       <View style={{ gap: 8 }}>
         <TextInput
@@ -97,9 +98,9 @@ export default function Messages() {
           value={body}
           onChangeText={setBody}
           maxLength={4000}
-          placeholder="اكتب رسالة…"
+          placeholder={t('messagePlaceholder')}
         />
-        <Button disabled={!conversationId} label="إرسال" onPress={() => void send()} />
+        <Button disabled={!conversationId} label={t('send')} onPress={() => void send()} />
       </View>
     </Screen>
   );

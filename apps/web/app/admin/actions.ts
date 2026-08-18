@@ -19,6 +19,25 @@ const customerStatusDecision = z.object({
   status: z.enum(['active', 'suspended']),
   reason: z.string().trim().min(5).max(1000),
 });
+const cancellationDecision = z.object({
+  cancellationId: z.uuid(),
+  approve: z.enum(['true', 'false']).transform((value) => value === 'true'),
+  feeMinor: z.coerce.number().int().min(0).max(100_000_000),
+  reason: z.string().trim().min(5).max(1000),
+  expectedJobVersion: z.coerce.number().int().positive(),
+});
+const disputeDecision = z.object({
+  disputeId: z.uuid(),
+  action: z.enum(['no_financial_action', 'release_to_provider', 'refund_customer', 'split']),
+  amountMinor: z.coerce.number().int().min(0).max(100_000_000),
+  reason: z.string().trim().min(5).max(2000),
+  expectedJobVersion: z.coerce.number().int().positive(),
+});
+const financialActionConfirmation = z.object({
+  intentId: z.uuid(),
+  providerReference: z.string().trim().min(3).max(200),
+  reason: z.string().trim().min(5).max(1000),
+});
 
 export async function reviewProvider(formData: FormData): Promise<void> {
   const input = providerDecision.parse({
@@ -71,5 +90,83 @@ export async function setCustomerStatus(formData: FormData): Promise<void> {
   });
   if (error) throw new Error('CUSTOMER_STATUS_UPDATE_FAILED');
   revalidatePath('/admin/customers');
+  revalidatePath('/admin');
+}
+
+export async function decideCancellation(formData: FormData): Promise<void> {
+  const input = cancellationDecision.parse({
+    cancellationId: formData.get('cancellationId'),
+    approve: formData.get('approve'),
+    feeMinor: formData.get('feeMinor'),
+    reason: formData.get('reason'),
+    expectedJobVersion: formData.get('expectedJobVersion'),
+  });
+  const { client } = await requireAdmin([
+    'operations_admin',
+    'support_agent',
+    'finance_reviewer',
+    'super_admin',
+  ]);
+  const { error } = await client.rpc('decide_cancellation', {
+    p_cancellation_id: input.cancellationId,
+    p_approve: input.approve,
+    p_fee_minor: input.feeMinor,
+    p_reason: input.reason,
+    p_expected_job_version: input.expectedJobVersion,
+    p_idempotency_key: globalThis.crypto.randomUUID(),
+  });
+  if (error) throw new Error('CANCELLATION_DECISION_FAILED');
+  revalidatePath('/admin/support');
+  revalidatePath('/admin/finance');
+  revalidatePath('/admin/jobs');
+  revalidatePath('/admin');
+}
+
+export async function resolveDispute(formData: FormData): Promise<void> {
+  const input = disputeDecision.parse({
+    disputeId: formData.get('disputeId'),
+    action: formData.get('action'),
+    amountMinor: formData.get('amountMinor'),
+    reason: formData.get('reason'),
+    expectedJobVersion: formData.get('expectedJobVersion'),
+  });
+  const { client } = await requireAdmin([
+    'operations_admin',
+    'support_agent',
+    'finance_reviewer',
+    'super_admin',
+  ]);
+  const { error } = await client.rpc('resolve_dispute', {
+    p_dispute_id: input.disputeId,
+    p_action: input.action,
+    p_amount_minor: input.amountMinor,
+    p_reason: input.reason,
+    p_expected_job_version: input.expectedJobVersion,
+    p_idempotency_key: globalThis.crypto.randomUUID(),
+  });
+  if (error) throw new Error('DISPUTE_RESOLUTION_FAILED');
+  revalidatePath('/admin/support');
+  revalidatePath('/admin/finance');
+  revalidatePath('/admin/jobs');
+  revalidatePath('/admin');
+}
+
+export async function confirmFinancialAction(formData: FormData): Promise<void> {
+  const input = financialActionConfirmation.parse({
+    intentId: formData.get('intentId'),
+    providerReference: formData.get('providerReference'),
+    reason: formData.get('reason'),
+  });
+  const { client } = await requireAdmin(['finance_reviewer', 'super_admin']);
+  const { error } = await client.rpc('confirm_financial_action', {
+    p_intent_id: input.intentId,
+    p_provider_reference: input.providerReference,
+    p_reason: input.reason,
+    p_idempotency_key: globalThis.crypto.randomUUID(),
+  });
+  if (error) throw new Error('FINANCIAL_ACTION_CONFIRMATION_FAILED');
+  revalidatePath('/admin/support');
+  revalidatePath('/admin/finance');
+  revalidatePath('/admin/jobs');
   revalidatePath('/admin');
 }

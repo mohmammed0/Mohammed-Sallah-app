@@ -19,7 +19,7 @@ const defaultNotifications: NotificationPreferences = {
 };
 
 export default function Account() {
-  const { locale, setLocale } = useLocale();
+  const { locale, setLocale, t } = useLocale();
   const [status, setStatus] = useState('');
   const [notifications, setNotifications] = useState(defaultNotifications);
   const [userId, setUserId] = useState<string | null>(null);
@@ -40,7 +40,7 @@ export default function Account() {
     enabled: boolean,
   ): Promise<void> {
     if (!userId) {
-      setStatus('سجّل الدخول لحفظ تفضيلات الإشعارات.');
+      setStatus(t('signInToSaveNotifications'));
       return;
     }
     const next = { ...notifications, [key]: enabled };
@@ -49,28 +49,28 @@ export default function Account() {
       .from('notification_preferences')
       .update(next)
       .eq('user_id', userId);
-    setStatus(error ? 'تعذر حفظ تفضيلات الإشعارات.' : 'تم حفظ تفضيلات الإشعارات.');
+    setStatus(error ? t('notificationSaveFailed') : t('notificationSaved'));
   }
   async function updateLocale(next: 'ar' | 'en' | 'ur' | 'hi'): Promise<void> {
     setLocale(next);
     if (!userId) {
-      setStatus('تم حفظ اللغة على هذا الجهاز. سجّل الدخول لمزامنتها مع حسابك.');
+      setStatus(t('localeSavedLocally'));
       return;
     }
     const { error } = await supabase
       .from('profiles')
       .update({ preferred_locale: next })
       .eq('id', userId);
-    setStatus(error ? 'حُفظت اللغة على الجهاز فقط.' : 'تم حفظ اللغة ومزامنتها مع الحساب.');
+    setStatus(error ? t('localeLocalOnly') : t('localeSynced'));
   }
   async function command(name: 'request_data_export' | 'request_account_deletion') {
     const { error } = await supabase.rpc(name, {});
     setStatus(
       error
-        ? 'تعذر قبول الطلب. أعد تسجيل الدخول وحاول مرة أخرى.'
+        ? t('privacyRequestFailed')
         : name === 'request_data_export'
-          ? 'تم تسجيل طلب التصدير. ستتاح حزمة خاصة برابط مؤقت.'
-          : 'تم تسجيل طلب الحذف وستُلغى الجلسات عند المعالجة.',
+          ? t('exportRequested')
+          : t('deletionRequested'),
     );
   }
   async function logout() {
@@ -79,9 +79,9 @@ export default function Account() {
   }
   return (
     <Screen>
-      <Text style={styles.title}>الحساب والخصوصية</Text>
+      <Text style={styles.title}>{t('accountPrivacyTitle')}</Text>
       <Card>
-        <Text style={styles.badge}>اللغة</Text>
+        <Text style={styles.badge}>{t('language')}</Text>
         <View style={styles.row}>
           {(['ar', 'en', 'ur', 'hi'] as const).map((code) => (
             <Button
@@ -94,13 +94,13 @@ export default function Account() {
         </View>
       </Card>
       <Card>
-        <Text style={styles.badge}>تفضيلات الإشعارات</Text>
+        <Text style={styles.badge}>{t('notificationPreferences')}</Text>
         {(
           [
-            ['in_app', 'داخل التطبيق'],
-            ['push', 'إشعارات الجهاز'],
-            ['email', 'البريد الإلكتروني'],
-            ['marketing', 'رسائل تسويقية اختيارية'],
+            ['in_app', t('notificationInApp')],
+            ['push', t('notificationPush')],
+            ['email', t('notificationEmail')],
+            ['marketing', t('notificationMarketing')],
           ] as const
         ).map(([key, label]) => (
           <View key={key} style={styles.row}>
@@ -115,28 +115,24 @@ export default function Account() {
       </Card>
       <Button
         kind="secondary"
-        label="طلب تصدير بياناتي"
+        label={t('requestDataExport')}
         onPress={() => void command('request_data_export')}
       />
       <Button
         kind="danger"
-        label="بدء حذف الحساب"
+        label={t('startAccountDeletion')}
         onPress={() =>
-          Alert.alert(
-            'حذف الحساب',
-            'يتطلب الحذف جلسة حديثة. تُحذف البيانات القابلة للحذف وتُجهّل السجلات المحتفظ بها وفق سياسة المراجعة.',
-            [
-              { text: 'رجوع', style: 'cancel' },
-              {
-                text: 'متابعة',
-                style: 'destructive',
-                onPress: () => void command('request_account_deletion'),
-              },
-            ],
-          )
+          Alert.alert(t('deleteAccount'), t('deletionConfirmBody'), [
+            { text: t('back'), style: 'cancel' },
+            {
+              text: t('continueAction'),
+              style: 'destructive',
+              onPress: () => void command('request_account_deletion'),
+            },
+          ])
         }
       />
-      <Button kind="secondary" label="تسجيل الخروج من كل الأجهزة" onPress={() => void logout()} />
+      <Button kind="secondary" label={t('logoutAllDevices')} onPress={() => void logout()} />
       {status.length > 0 && (
         <Text accessibilityLiveRegion="polite" style={styles.lead}>
           {status}

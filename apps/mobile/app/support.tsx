@@ -4,6 +4,7 @@ import { ScrollView, Text, TextInput } from 'react-native';
 import { z } from 'zod';
 import { Button, Card, Screen, styles } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
+import { useLocale } from '@/providers/locale-provider';
 
 const formSchema = z.object({
   subject: z.string().trim().min(5).max(200),
@@ -18,6 +19,7 @@ const caseSchema = z.object({
 });
 
 export default function Support() {
+  const { locale, t } = useLocale();
   const { control, handleSubmit, reset, setError, formState } = useForm<SupportForm>({
     defaultValues: { subject: '', body: '' },
   });
@@ -57,21 +59,20 @@ export default function Support() {
       reset();
       await cases.refetch();
     },
-    onError: () =>
-      setError('root', { message: 'تعذر فتح حالة الدعم. سجّل الدخول وتحقق من الاتصال.' }),
+    onError: () => setError('root', { message: t('supportOpenFailed') }),
   });
   return (
     <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
       <Screen>
-        <Text style={styles.title}>مركز الدعم</Text>
+        <Text style={styles.title}>{t('supportCenter')}</Text>
         <Controller
           control={control}
           name="subject"
           render={({ field }) => (
             <TextInput
-              accessibilityLabel="موضوع الدعم"
+              accessibilityLabel={t('supportSubjectA11y')}
               style={styles.input}
-              placeholder="موضوع الحالة"
+              placeholder={t('supportSubjectPlaceholder')}
               value={field.value}
               onBlur={field.onBlur}
               onChangeText={field.onChange}
@@ -83,10 +84,10 @@ export default function Support() {
           name="body"
           render={({ field }) => (
             <TextInput
-              accessibilityLabel="تفاصيل الدعم"
+              accessibilityLabel={t('supportDetailsA11y')}
               style={[styles.input, { minHeight: 110, textAlignVertical: 'top' }]}
               multiline
-              placeholder="اشرح ما حدث دون مشاركة كلمات مرور أو بيانات دفع"
+              placeholder={t('supportDetailsPlaceholder')}
               value={field.value}
               onBlur={field.onBlur}
               onChangeText={field.onChange}
@@ -98,18 +99,20 @@ export default function Support() {
         )}
         <Button
           disabled={createCase.isPending}
-          label="فتح حالة دعم"
+          label={t('openSupportCase')}
           onPress={() => void handleSubmit((value) => createCase.mutate(value))()}
         />
-        <Text style={styles.title}>الحالات السابقة</Text>
+        <Text style={styles.title}>{t('previousCases')}</Text>
         {cases.data?.map((item) => (
           <Card key={item.id}>
             <Text style={styles.badge}>{item.status}</Text>
             <Text>{item.subject}</Text>
-            <Text style={styles.lead}>{new Date(item.created_at).toLocaleString('ar-SA')}</Text>
+            <Text style={styles.lead}>
+              {new Date(item.created_at).toLocaleString(locale === 'ar' ? 'ar-SA' : locale)}
+            </Text>
           </Card>
         ))}
-        {cases.isError && <Text style={styles.error}>تعذر تحميل حالات الدعم.</Text>}
+        {cases.isError && <Text style={styles.error}>{t('supportCasesLoadFailed')}</Text>}
       </Screen>
     </ScrollView>
   );

@@ -1,5 +1,18 @@
 import type { NextConfig } from 'next';
 
+function localSupabaseConnectSources() {
+  if (process.env.NEXT_PUBLIC_APP_ENV === 'production') return [];
+  const configured = process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'http://127.0.0.1:54321';
+  try {
+    const url = new URL(configured);
+    if (!['127.0.0.1', 'localhost'].includes(url.hostname)) return [];
+    const websocketProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+    return [url.origin, `${websocketProtocol}//${url.host}`];
+  } catch {
+    return [];
+  }
+}
+
 const csp = [
   "default-src 'self'",
   "base-uri 'self'",
@@ -8,7 +21,7 @@ const csp = [
   "object-src 'none'",
   "img-src 'self' data: blob: https://*.supabase.co",
   "media-src 'self' blob: https://*.supabase.co",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+  `connect-src 'self' https://*.supabase.co wss://*.supabase.co ${localSupabaseConnectSources().join(' ')}`,
   "font-src 'self'",
   "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",

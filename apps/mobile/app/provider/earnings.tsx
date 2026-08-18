@@ -3,6 +3,8 @@ import { ScrollView, Text } from 'react-native';
 import { z } from 'zod';
 import { Card, Screen, styles } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
+import { formatSar } from '@sallah/i18n';
+import { useLocale } from '@/providers/locale-provider';
 
 const settlementSchema = z.object({
   id: z.uuid(),
@@ -15,6 +17,7 @@ const settlementSchema = z.object({
 });
 
 export default function Earnings() {
+  const { locale, t } = useLocale();
   const query = useQuery({
     queryKey: ['provider-settlements'],
     queryFn: async () => {
@@ -30,29 +33,28 @@ export default function Earnings() {
   return (
     <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
       <Screen>
-        <Text style={styles.title}>الأرباح والتسويات</Text>
+        <Text style={styles.title}>{t('earningsTitle')}</Text>
         <Card>
-          <Text style={styles.lead}>
-            الإطلاق المبدئي يستخدم الدفع بعد الخدمة. لا تظهر تسوية إلكترونية ما لم يسجلها موفر دفع
-            مُكوّن فعليًا.
-          </Text>
+          <Text style={styles.lead}>{t('earningsOfflineNotice')}</Text>
         </Card>
         {query.data?.map((settlement) => (
           <Card key={settlement.id}>
             <Text style={styles.badge}>{settlement.status}</Text>
-            <Text>الصافي {(settlement.net_minor / 100).toFixed(2)} ر.س</Text>
+            <Text>{t('netAmount', { amount: formatSar(settlement.net_minor, locale) })}</Text>
             <Text style={styles.lead}>
-              الإجمالي {(settlement.gross_minor / 100).toFixed(2)} · الرسوم{' '}
-              {(settlement.fee_minor / 100).toFixed(2)}
+              {t('grossAndFees', {
+                gross: formatSar(settlement.gross_minor, locale),
+                fees: formatSar(settlement.fee_minor, locale),
+              })}
             </Text>
             <Text style={styles.lead}>
-              {new Date(settlement.created_at).toLocaleString('ar-SA')}
+              {new Date(settlement.created_at).toLocaleString(locale === 'ar' ? 'ar-SA' : locale)}
             </Text>
           </Card>
         ))}
-        {query.isError && <Text style={styles.error}>تعذر تحميل سجل التسويات.</Text>}
+        {query.isError && <Text style={styles.error}>{t('settlementsLoadFailed')}</Text>}
         {!query.isPending && query.data?.length === 0 && (
-          <Text style={styles.lead}>لا توجد تسويات مسجلة.</Text>
+          <Text style={styles.lead}>{t('noSettlements')}</Text>
         )}
       </Screen>
     </ScrollView>

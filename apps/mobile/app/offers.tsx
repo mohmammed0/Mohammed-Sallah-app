@@ -5,6 +5,8 @@ import { Alert, ScrollView, Text } from 'react-native';
 import { z } from 'zod';
 import { Button, Card, Screen, styles } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
+import { formatSar } from '@sallah/i18n';
+import { useLocale } from '@/providers/locale-provider';
 
 const offerSchema = z.object({
   id: z.uuid(),
@@ -26,6 +28,7 @@ const offerSchema = z.object({
 });
 
 export default function Offers() {
+  const { locale, t } = useLocale();
   const { requestId } = useLocalSearchParams<{ requestId?: string }>();
   const [error, setError] = useState('');
   const queryClient = useQueryClient();
@@ -52,46 +55,49 @@ export default function Offers() {
     },
     onSuccess: async (jobId) => {
       await queryClient.invalidateQueries({ queryKey: ['customer-requests'] });
-      Alert.alert('تم اختيار مقدم الخدمة', 'أُنشئ العمل والمحادثة وكشف العنوان للطرف المختار فقط.');
+      Alert.alert(t('offerSelectedTitle'), t('offerSelectedBody'));
       router.replace({ pathname: '/jobs', params: { jobId } });
     },
-    onError: () => setError('تعذر اختيار العرض؛ ربما انتهت صلاحيته أو تغيّرت حالة الطلب.'),
+    onError: () => setError(t('offerSelectFailed')),
   });
   return (
     <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
       <Screen>
-        <Text style={styles.title}>مقارنة العروض الخاصة</Text>
-        <Text style={styles.lead}>
-          لا نضع شارة «الأفضل» المضللة؛ قارن السعر والوقت والخبرة والضمان.
-        </Text>
-        {!requestId && <Text style={styles.error}>معرّف الطلب مفقود.</Text>}
-        {query.isPending && <Text style={styles.lead}>جارٍ تحميل العروض…</Text>}
-        {query.isError && <Text style={styles.error}>تعذر تحميل العروض.</Text>}
+        <Text style={styles.title}>{t('privateOffersTitle')}</Text>
+        <Text style={styles.lead}>{t('privateOffersLead')}</Text>
+        {!requestId && <Text style={styles.error}>{t('missingRequestId')}</Text>}
+        {query.isPending && <Text style={styles.lead}>{t('loadingOffers')}</Text>}
+        {query.isError && <Text style={styles.error}>{t('loadOffersFailed')}</Text>}
         {query.data?.map((offer) => (
           <Card key={offer.id}>
-            <Text style={styles.badge}>{(offer.totalAmountMinor / 100).toFixed(2)} ر.س</Text>
+            <Text style={styles.badge}>{formatSar(offer.totalAmountMinor, locale)}</Text>
             <Text>{offer.providerName}</Text>
             <Text style={styles.lead}>
-              تقييم {offer.rating.toFixed(1)} ({offer.ratingCount}) · {offer.completedJobs} أعمال
-              مكتملة
+              {t('offerRatingSummary', {
+                rating: offer.rating.toFixed(1),
+                count: offer.ratingCount,
+                jobs: offer.completedJobs,
+              })}
             </Text>
             <Text style={styles.lead}>
-              وصول خلال {offer.estimatedArrivalMinutes} دقيقة · مدة {offer.estimatedDurationMinutes}{' '}
-              دقيقة
+              {t('offerTimingSummary', {
+                arrival: offer.estimatedArrivalMinutes,
+                duration: offer.estimatedDurationMinutes,
+              })}
             </Text>
             <Text style={styles.lead}>
-              {offer.materialsIncluded ? 'المواد مشمولة' : 'المواد غير مشمولة'} · ضمان{' '}
-              {offer.warrantyDays} يومًا
+              {offer.materialsIncluded ? t('materialsIncluded') : t('materialsNotIncluded')} ·{' '}
+              {t('warrantyDaysSummary', { days: offer.warrantyDays })}
             </Text>
             {offer.note.length > 0 && <Text>{offer.note}</Text>}
             <Button
               disabled={selectOffer.isPending}
-              label="اختيار هذا العرض"
+              label={t('selectThisOffer')}
               onPress={() => selectOffer.mutate(offer.id)}
             />
           </Card>
         ))}
-        {query.data?.length === 0 && <Text style={styles.lead}>لا توجد عروض سارية حتى الآن.</Text>}
+        {query.data?.length === 0 && <Text style={styles.lead}>{t('noActiveOffers')}</Text>}
         {error.length > 0 && <Text style={styles.error}>{error}</Text>}
       </Screen>
     </ScrollView>

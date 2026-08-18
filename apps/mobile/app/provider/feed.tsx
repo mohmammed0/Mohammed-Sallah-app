@@ -5,6 +5,7 @@ import { ScrollView, Text } from 'react-native';
 import { z } from 'zod';
 import { Button, Card, Screen, styles } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
+import { useLocale } from '@/providers/locale-provider';
 
 const feedSchema = z.object({
   id: z.uuid(),
@@ -47,6 +48,7 @@ const translationSchema = z.object({
 type Translation = z.infer<typeof translationSchema>;
 
 export default function ProviderFeed() {
+  const { t } = useLocale();
   const [translations, setTranslations] = useState<Record<string, Translation>>({});
   const [translating, setTranslating] = useState<string | null>(null);
   const [translationError, setTranslationError] = useState<Record<string, string>>({});
@@ -78,7 +80,7 @@ export default function ProviderFeed() {
     } catch {
       setTranslationError((current) => ({
         ...current,
-        [requestId]: 'تعذرت الترجمة. بقي النص الأصلي متاحًا دون تغيير.',
+        [requestId]: t('translationFailedOriginalPreserved'),
       }));
     } finally {
       setTranslating(null);
@@ -87,22 +89,24 @@ export default function ProviderFeed() {
   return (
     <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
       <Screen>
-        <Text style={styles.title}>الطلبات المؤهلة</Text>
-        <Text style={styles.lead}>
-          لا يظهر العنوان الدقيق قبل اختيارك. المطابقة تراعي الخدمة والمنطقة والتحقق والحمل والأداء.
-        </Text>
-        {query.isPending && <Text style={styles.lead}>جارٍ تحميل الموجزات…</Text>}
-        {query.isError && <Text style={styles.error}>تعذر تحميل موجز مقدم الخدمة.</Text>}
+        <Text style={styles.title}>{t('eligibleRequests')}</Text>
+        <Text style={styles.lead}>{t('eligibleFeedPrivacyNotice')}</Text>
+        {query.isPending && <Text style={styles.lead}>{t('loadingSummaries')}</Text>}
+        {query.isError && <Text style={styles.error}>{t('providerFeedLoadFailed')}</Text>}
         {query.data?.map((match) => (
           <Card key={match.id}>
             <Text style={styles.badge}>{match.service_requests.urgency}</Text>
             <Text>{match.service_requests.title}</Text>
-            <Text style={styles.badge}>النص الأصلي · {match.service_requests.original_locale}</Text>
+            <Text style={styles.badge}>
+              {t('originalTextLabel', { locale: match.service_requests.original_locale })}
+            </Text>
             <Text style={styles.lead}>{match.service_requests.original_text}</Text>
             {translations[match.service_requests.id]?.translated && (
               <Card>
                 <Text style={styles.badge}>
-                  موجز مترجم · {translations[match.service_requests.id]?.targetLocale}
+                  {t('translatedSummaryLabel', {
+                    locale: translations[match.service_requests.id]?.targetLocale ?? '',
+                  })}
                 </Text>
                 <Text>{translations[match.service_requests.id]?.translated?.title}</Text>
                 <Text style={styles.lead}>
@@ -111,10 +115,10 @@ export default function ProviderFeed() {
                 <Text style={styles.lead}>
                   {translations[match.service_requests.id]?.metadata.provider}
                   {translations[match.service_requests.id]?.metadata.testProvider
-                    ? ' · مزود اختبار محلي'
+                    ? ` · ${t('localTestProvider')}`
                     : ''}
                   {translations[match.service_requests.id]?.metadata.cached
-                    ? ' · مخزنة مؤقتًا'
+                    ? ` · ${t('cachedTranslation')}`
                     : ''}
                 </Text>
               </Card>
@@ -123,7 +127,7 @@ export default function ProviderFeed() {
               translations[match.service_requests.id]?.status === 'failed') && (
               <Text style={styles.error}>
                 {translationError[match.service_requests.id] ||
-                  'لا يوجد معالج ترجمة معتمد للإنتاج؛ استخدم النص الأصلي أعلاه.'}
+                  t('noProductionTranslationProvider')}
               </Text>
             )}
             <Button
@@ -131,10 +135,10 @@ export default function ProviderFeed() {
               disabled={translating === match.service_requests.id}
               label={
                 translating === match.service_requests.id
-                  ? 'جارٍ فحص الموجز…'
+                  ? t('checkingSummary')
                   : translations[match.service_requests.id]
-                    ? 'إعادة فحص الترجمة'
-                    : 'إظهار حالة الترجمة'
+                    ? t('retryTranslation')
+                    : t('showTranslationStatus')
               }
               onPress={() =>
                 void translateBrief(
@@ -143,7 +147,9 @@ export default function ProviderFeed() {
                 )
               }
             />
-            <Text style={styles.lead}>درجة مطابقة {Math.round(match.score * 100)}%</Text>
+            <Text style={styles.lead}>
+              {t('matchScore', { score: Math.round(match.score * 100) })}
+            </Text>
             <Link
               href={{
                 pathname: '/provider/offer',
@@ -154,13 +160,15 @@ export default function ProviderFeed() {
               }}
               asChild
             >
-              <Button label={match.status === 'offered' ? 'تعديل العرض' : 'إرسال عرض مختوم'} />
+              <Button
+                label={match.status === 'offered' ? t('editOffer') : t('submitSealedOffer')}
+              />
             </Link>
           </Card>
         ))}
         {!query.isPending && query.data?.length === 0 && (
           <Card>
-            <Text style={styles.lead}>لا توجد دعوات سارية لحسابك الآن.</Text>
+            <Text style={styles.lead}>{t('noEligibleInvites')}</Text>
           </Card>
         )}
       </Screen>

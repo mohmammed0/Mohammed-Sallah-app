@@ -30,33 +30,48 @@ export type Database = {
     Tables: {
       account_deletion_requests: {
         Row: {
+          attempts: number;
           completed_at: string | null;
           failure_category: string | null;
           id: string;
+          last_attempt_at: string | null;
+          last_error_at: string | null;
+          locked_at: string | null;
           requested_at: string;
           retention_snapshot: Json;
+          scheduled_at: string;
           status: string;
           user_id: string;
           verified_at: string | null;
           version: number;
         };
         Insert: {
+          attempts?: number;
           completed_at?: string | null;
           failure_category?: string | null;
           id?: string;
+          last_attempt_at?: string | null;
+          last_error_at?: string | null;
+          locked_at?: string | null;
           requested_at?: string;
           retention_snapshot?: Json;
+          scheduled_at?: string;
           status?: string;
           user_id: string;
           verified_at?: string | null;
           version?: number;
         };
         Update: {
+          attempts?: number;
           completed_at?: string | null;
           failure_category?: string | null;
           id?: string;
+          last_attempt_at?: string | null;
+          last_error_at?: string | null;
+          locked_at?: string | null;
           requested_at?: string;
           retention_snapshot?: Json;
+          scheduled_at?: string;
           status?: string;
           user_id?: string;
           verified_at?: string | null;
@@ -725,33 +740,45 @@ export type Database = {
       cancellation_requests: {
         Row: {
           created_at: string;
+          expected_job_version: number | null;
           id: string;
+          idempotency_key: string | null;
           job_id: string | null;
           lifecycle_state: string;
           reason: string;
           request_id: string | null;
           requester_id: string;
+          resolved_at: string | null;
           status: string;
+          updated_at: string;
         };
         Insert: {
           created_at?: string;
+          expected_job_version?: number | null;
           id?: string;
+          idempotency_key?: string | null;
           job_id?: string | null;
           lifecycle_state: string;
           reason: string;
           request_id?: string | null;
           requester_id: string;
+          resolved_at?: string | null;
           status?: string;
+          updated_at?: string;
         };
         Update: {
           created_at?: string;
+          expected_job_version?: number | null;
           id?: string;
+          idempotency_key?: string | null;
           job_id?: string | null;
           lifecycle_state?: string;
           reason?: string;
           request_id?: string | null;
           requester_id?: string;
+          resolved_at?: string | null;
           status?: string;
+          updated_at?: string;
         };
         Relationships: [
           {
@@ -1117,34 +1144,55 @@ export type Database = {
       };
       data_export_requests: {
         Row: {
+          attempts: number;
           completed_at: string | null;
           expires_at: string | null;
           failure_category: string | null;
           id: string;
+          last_attempt_at: string | null;
+          last_error_at: string | null;
+          locked_at: string | null;
           private_storage_path: string | null;
           requested_at: string;
+          scheduled_at: string;
+          signed_download_url: string | null;
           status: string;
           user_id: string;
+          version: number;
         };
         Insert: {
+          attempts?: number;
           completed_at?: string | null;
           expires_at?: string | null;
           failure_category?: string | null;
           id?: string;
+          last_attempt_at?: string | null;
+          last_error_at?: string | null;
+          locked_at?: string | null;
           private_storage_path?: string | null;
           requested_at?: string;
+          scheduled_at?: string;
+          signed_download_url?: string | null;
           status?: string;
           user_id: string;
+          version?: number;
         };
         Update: {
+          attempts?: number;
           completed_at?: string | null;
           expires_at?: string | null;
           failure_category?: string | null;
           id?: string;
+          last_attempt_at?: string | null;
+          last_error_at?: string | null;
+          locked_at?: string | null;
           private_storage_path?: string | null;
           requested_at?: string;
+          scheduled_at?: string;
+          signed_download_url?: string | null;
           status?: string;
           user_id?: string;
+          version?: number;
         };
         Relationships: [
           {
@@ -1249,35 +1297,47 @@ export type Database = {
         Row: {
           assigned_to: string | null;
           created_at: string;
+          expected_job_version: number | null;
           id: string;
+          idempotency_key: string | null;
           job_id: string;
           opened_by: string;
           priority: string;
           reason: string;
           resolved_at: string | null;
           status: Database['public']['Enums']['case_status'];
+          updated_at: string;
+          version: number;
         };
         Insert: {
           assigned_to?: string | null;
           created_at?: string;
+          expected_job_version?: number | null;
           id?: string;
+          idempotency_key?: string | null;
           job_id: string;
           opened_by: string;
           priority?: string;
           reason: string;
           resolved_at?: string | null;
           status?: Database['public']['Enums']['case_status'];
+          updated_at?: string;
+          version?: number;
         };
         Update: {
           assigned_to?: string | null;
           created_at?: string;
+          expected_job_version?: number | null;
           id?: string;
+          idempotency_key?: string | null;
           job_id?: string;
           opened_by?: string;
           priority?: string;
           reason?: string;
           resolved_at?: string | null;
           status?: Database['public']['Enums']['case_status'];
+          updated_at?: string;
+          version?: number;
         };
         Relationships: [
           {
@@ -1403,11 +1463,200 @@ export type Database = {
           },
         ];
       };
+      file_uploads: {
+        Row: {
+          attempts: number;
+          content_sha256: string | null;
+          created_at: string;
+          declared_mime_type: string;
+          detected_mime_type: string | null;
+          expires_at: string;
+          extension: string;
+          failure_category: string | null;
+          final_path: string | null;
+          id: string;
+          locked_at: string | null;
+          max_size_bytes: number;
+          original_filename: string;
+          purpose: string;
+          quarantine_bucket: string;
+          quarantine_cleaned_at: string | null;
+          quarantine_cleanup_attempts: number;
+          quarantine_cleanup_claimed_at: string | null;
+          quarantine_cleanup_worker_id: string | null;
+          quarantine_path: string;
+          resource_id: string | null;
+          sanitized: boolean;
+          scanned_at: string | null;
+          scanner: string | null;
+          size_bytes: number;
+          status: string;
+          target_bucket: string;
+          target_path: string;
+          user_id: string;
+        };
+        Insert: {
+          attempts?: number;
+          content_sha256?: string | null;
+          created_at?: string;
+          declared_mime_type: string;
+          detected_mime_type?: string | null;
+          expires_at?: string;
+          extension: string;
+          failure_category?: string | null;
+          final_path?: string | null;
+          id?: string;
+          locked_at?: string | null;
+          max_size_bytes: number;
+          original_filename: string;
+          purpose: string;
+          quarantine_bucket?: string;
+          quarantine_cleaned_at?: string | null;
+          quarantine_cleanup_attempts?: number;
+          quarantine_cleanup_claimed_at?: string | null;
+          quarantine_cleanup_worker_id?: string | null;
+          quarantine_path: string;
+          resource_id?: string | null;
+          sanitized?: boolean;
+          scanned_at?: string | null;
+          scanner?: string | null;
+          size_bytes: number;
+          status?: string;
+          target_bucket: string;
+          target_path: string;
+          user_id: string;
+        };
+        Update: {
+          attempts?: number;
+          content_sha256?: string | null;
+          created_at?: string;
+          declared_mime_type?: string;
+          detected_mime_type?: string | null;
+          expires_at?: string;
+          extension?: string;
+          failure_category?: string | null;
+          final_path?: string | null;
+          id?: string;
+          locked_at?: string | null;
+          max_size_bytes?: number;
+          original_filename?: string;
+          purpose?: string;
+          quarantine_bucket?: string;
+          quarantine_cleaned_at?: string | null;
+          quarantine_cleanup_attempts?: number;
+          quarantine_cleanup_claimed_at?: string | null;
+          quarantine_cleanup_worker_id?: string | null;
+          quarantine_path?: string;
+          resource_id?: string | null;
+          sanitized?: boolean;
+          scanned_at?: string | null;
+          scanner?: string | null;
+          size_bytes?: number;
+          status?: string;
+          target_bucket?: string;
+          target_path?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'file_uploads_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      financial_action_intents: {
+        Row: {
+          action_type: string;
+          amount_minor: number;
+          completed_at: string | null;
+          confirmed_by: string | null;
+          created_at: string;
+          created_by: string;
+          failure_category: string | null;
+          id: string;
+          idempotency_key: string;
+          payment_id: string;
+          provider_reference: string | null;
+          refund_id: string | null;
+          source_id: string;
+          source_type: string;
+          status: string;
+        };
+        Insert: {
+          action_type: string;
+          amount_minor?: number;
+          completed_at?: string | null;
+          confirmed_by?: string | null;
+          created_at?: string;
+          created_by: string;
+          failure_category?: string | null;
+          id?: string;
+          idempotency_key: string;
+          payment_id: string;
+          provider_reference?: string | null;
+          refund_id?: string | null;
+          source_id: string;
+          source_type: string;
+          status?: string;
+        };
+        Update: {
+          action_type?: string;
+          amount_minor?: number;
+          completed_at?: string | null;
+          confirmed_by?: string | null;
+          created_at?: string;
+          created_by?: string;
+          failure_category?: string | null;
+          id?: string;
+          idempotency_key?: string;
+          payment_id?: string;
+          provider_reference?: string | null;
+          refund_id?: string | null;
+          source_id?: string;
+          source_type?: string;
+          status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'financial_action_intents_confirmed_by_fkey';
+            columns: ['confirmed_by'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'financial_action_intents_created_by_fkey';
+            columns: ['created_by'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'financial_action_intents_payment_id_fkey';
+            columns: ['payment_id'];
+            isOneToOne: false;
+            referencedRelation: 'payments';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'financial_action_intents_refund_id_fkey';
+            columns: ['refund_id'];
+            isOneToOne: false;
+            referencedRelation: 'refunds';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       financial_holds: {
         Row: {
           amount_minor: number;
+          cancellation_request_id: string | null;
           created_at: string;
           created_by: string;
+          dispute_id: string | null;
           id: string;
           job_id: string;
           payment_id: string | null;
@@ -1418,8 +1667,10 @@ export type Database = {
         };
         Insert: {
           amount_minor: number;
+          cancellation_request_id?: string | null;
           created_at?: string;
           created_by: string;
+          dispute_id?: string | null;
           id?: string;
           job_id: string;
           payment_id?: string | null;
@@ -1430,8 +1681,10 @@ export type Database = {
         };
         Update: {
           amount_minor?: number;
+          cancellation_request_id?: string | null;
           created_at?: string;
           created_by?: string;
+          dispute_id?: string | null;
           id?: string;
           job_id?: string;
           payment_id?: string | null;
@@ -1442,10 +1695,24 @@ export type Database = {
         };
         Relationships: [
           {
+            foreignKeyName: 'financial_holds_cancellation_request_id_fkey';
+            columns: ['cancellation_request_id'];
+            isOneToOne: false;
+            referencedRelation: 'cancellation_requests';
+            referencedColumns: ['id'];
+          },
+          {
             foreignKeyName: 'financial_holds_created_by_fkey';
             columns: ['created_by'];
             isOneToOne: false;
             referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'financial_holds_dispute_id_fkey';
+            columns: ['dispute_id'];
+            isOneToOne: false;
+            referencedRelation: 'disputes';
             referencedColumns: ['id'];
           },
           {
@@ -3075,6 +3342,54 @@ export type Database = {
           },
         ];
       };
+      privacy_events: {
+        Row: {
+          actor_id: string | null;
+          created_at: string;
+          event_type: string;
+          id: string;
+          metadata: Json;
+          request_id: string;
+          request_type: string;
+          user_id: string;
+        };
+        Insert: {
+          actor_id?: string | null;
+          created_at?: string;
+          event_type: string;
+          id?: string;
+          metadata?: Json;
+          request_id: string;
+          request_type: string;
+          user_id: string;
+        };
+        Update: {
+          actor_id?: string | null;
+          created_at?: string;
+          event_type?: string;
+          id?: string;
+          metadata?: Json;
+          request_id?: string;
+          request_type?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'privacy_events_actor_id_fkey';
+            columns: ['actor_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'privacy_events_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       profiles: {
         Row: {
           anonymized_at: string | null;
@@ -4500,31 +4815,37 @@ export type Database = {
           action_type: string;
           actor_id: string;
           amount_minor: number | null;
+          completed_at: string | null;
           created_at: string;
           dispute_id: string;
           id: string;
           idempotency_key: string;
           reason: string;
+          status: string;
         };
         Insert: {
           action_type: string;
           actor_id: string;
           amount_minor?: number | null;
+          completed_at?: string | null;
           created_at?: string;
           dispute_id: string;
           id?: string;
           idempotency_key: string;
           reason: string;
+          status?: string;
         };
         Update: {
           action_type?: string;
           actor_id?: string;
           amount_minor?: number | null;
+          completed_at?: string | null;
           created_at?: string;
           dispute_id?: string;
           id?: string;
           idempotency_key?: string;
           reason?: string;
+          status?: string;
         };
         Relationships: [
           {
@@ -4550,10 +4871,12 @@ export type Database = {
           error_category: string | null;
           id: string;
           job_type: string;
+          last_error_at: string | null;
           locked_at: string | null;
           payload: Json;
           scheduled_at: string;
           status: string;
+          worker_id: string | null;
         };
         Insert: {
           attempts?: number;
@@ -4561,10 +4884,12 @@ export type Database = {
           error_category?: string | null;
           id?: string;
           job_type: string;
+          last_error_at?: string | null;
           locked_at?: string | null;
           payload: Json;
           scheduled_at: string;
           status?: string;
+          worker_id?: string | null;
         };
         Update: {
           attempts?: number;
@@ -4572,10 +4897,12 @@ export type Database = {
           error_category?: string | null;
           id?: string;
           job_type?: string;
+          last_error_at?: string | null;
           locked_at?: string | null;
           payload?: Json;
           scheduled_at?: string;
           status?: string;
+          worker_id?: string | null;
         };
         Relationships: [];
       };
@@ -5497,6 +5824,51 @@ export type Database = {
         };
         Relationships: [];
       };
+      upload_security_events: {
+        Row: {
+          created_at: string;
+          event_type: string;
+          id: string;
+          metadata: Json;
+          scanner: string | null;
+          upload_id: string;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          event_type: string;
+          id?: string;
+          metadata?: Json;
+          scanner?: string | null;
+          upload_id: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          event_type?: string;
+          id?: string;
+          metadata?: Json;
+          scanner?: string | null;
+          upload_id?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'upload_security_events_upload_id_fkey';
+            columns: ['upload_id'];
+            isOneToOne: false;
+            referencedRelation: 'file_uploads';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'upload_security_events_user_id_fkey';
+            columns: ['user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       user_devices: {
         Row: {
           app_version: string | null;
@@ -5792,6 +6164,59 @@ export type Database = {
         };
         Returns: undefined;
       };
+      build_data_export: {
+        Args: { p_request_id: string; p_user_id: string };
+        Returns: Json;
+      };
+      claim_file_upload: {
+        Args: { p_upload_id: string; p_user_id: string };
+        Returns: Json;
+      };
+      claim_privacy_job: { Args: { p_worker_id: string }; Returns: Json };
+      claim_upload_quarantine_cleanup: {
+        Args: { p_worker_id: string };
+        Returns: Json;
+      };
+      complete_account_deletion: {
+        Args: { p_job_id: string; p_request_id: string };
+        Returns: undefined;
+      };
+      complete_data_export: {
+        Args: {
+          p_expires_at: string;
+          p_job_id: string;
+          p_private_storage_path: string;
+          p_request_id: string;
+          p_signed_download_url: string;
+        };
+        Returns: undefined;
+      };
+      complete_file_upload: {
+        Args: {
+          p_content_sha256: string;
+          p_detected_mime_type: string;
+          p_final_path: string;
+          p_sanitized: boolean;
+          p_scanner: string;
+          p_size_bytes: number;
+          p_upload_id: string;
+          p_user_id: string;
+        };
+        Returns: Json;
+      };
+      complete_upload_quarantine_cleanup: {
+        Args: { p_upload_id: string; p_worker_id: string };
+        Returns: undefined;
+      };
+      confirm_financial_action: {
+        Args: {
+          p_idempotency_key: string;
+          p_intent_id: string;
+          p_provider_reference: string;
+          p_reason: string;
+        };
+        Returns: Json;
+      };
       consume_rate_limit: {
         Args: {
           p_key_hash: string;
@@ -5802,6 +6227,46 @@ export type Database = {
         Returns: boolean;
       };
       create_change_order: { Args: { payload: Json }; Returns: string };
+      create_file_upload: {
+        Args: {
+          p_declared_mime_type: string;
+          p_filename: string;
+          p_purpose: string;
+          p_resource_id: string;
+          p_size_bytes: number;
+        };
+        Returns: Json;
+      };
+      create_resource_file_upload: {
+        Args: {
+          p_declared_mime_type: string;
+          p_filename: string;
+          p_purpose: string;
+          p_resource_id: string;
+          p_size_bytes: number;
+        };
+        Returns: Json;
+      };
+      create_unbound_file_upload: {
+        Args: {
+          p_declared_mime_type: string;
+          p_filename: string;
+          p_purpose: string;
+          p_size_bytes: number;
+        };
+        Returns: Json;
+      };
+      decide_cancellation: {
+        Args: {
+          p_approve: boolean;
+          p_cancellation_id: string;
+          p_expected_job_version: number;
+          p_fee_minor: number;
+          p_idempotency_key: string;
+          p_reason: string;
+        };
+        Returns: Json;
+      };
       decide_change_order: {
         Args: {
           p_approve: boolean;
@@ -5811,11 +6276,52 @@ export type Database = {
         };
         Returns: Json;
       };
-      get_customer_offers: { Args: { p_request_id: string }; Returns: Json };
-      open_dispute: {
-        Args: { p_idempotency_key: string; p_job_id: string; p_reason: string };
-        Returns: string;
+      expire_data_export: { Args: { p_request_id: string }; Returns: undefined };
+      fail_file_upload: {
+        Args: {
+          p_failure_category: string;
+          p_scanner: string;
+          p_upload_id: string;
+          p_user_id: string;
+        };
+        Returns: undefined;
       };
+      fail_privacy_job: {
+        Args: {
+          p_error_category: string;
+          p_job_id: string;
+          p_request_id: string;
+        };
+        Returns: Json;
+      };
+      fail_upload_quarantine_cleanup: {
+        Args: {
+          p_error_category: string;
+          p_upload_id: string;
+          p_worker_id: string;
+        };
+        Returns: undefined;
+      };
+      get_customer_offers: { Args: { p_request_id: string }; Returns: Json };
+      get_privacy_retention_config: { Args: never; Returns: Json };
+      open_dispute:
+        | {
+            Args: {
+              p_expected_version: number;
+              p_idempotency_key: string;
+              p_job_id: string;
+              p_reason: string;
+            };
+            Returns: Json;
+          }
+        | {
+            Args: {
+              p_idempotency_key: string;
+              p_job_id: string;
+              p_reason: string;
+            };
+            Returns: string;
+          };
       publish_service_request: { Args: { payload: Json }; Returns: string };
       record_job_location: {
         Args: {
@@ -5827,14 +6333,34 @@ export type Database = {
         };
         Returns: string;
       };
+      reject_file_upload: {
+        Args: {
+          p_failure_category: string;
+          p_scanner: string;
+          p_upload_id: string;
+          p_user_id: string;
+        };
+        Returns: undefined;
+      };
       request_account_deletion: {
         Args: { p_reauthentication_token?: string };
         Returns: string;
       };
-      request_cancellation: {
-        Args: { p_job_id: string; p_reason: string; p_request_id: string };
-        Returns: string;
-      };
+      request_cancellation:
+        | {
+            Args: { p_job_id: string; p_reason: string; p_request_id: string };
+            Returns: string;
+          }
+        | {
+            Args: {
+              p_expected_version: number;
+              p_idempotency_key: string;
+              p_job_id: string;
+              p_reason: string;
+              p_request_id: string;
+            };
+            Returns: Json;
+          };
       request_data_export: {
         Args: { p_reauthentication_token?: string };
         Returns: string;
@@ -5842,6 +6368,35 @@ export type Database = {
       request_external_account_deletion: {
         Args: { p_email: string; p_reason?: string };
         Returns: undefined;
+      };
+      request_job_cancellation: {
+        Args: {
+          p_expected_version: number;
+          p_idempotency_key: string;
+          p_job_id: string;
+          p_reason: string;
+        };
+        Returns: Json;
+      };
+      request_service_request_cancellation: {
+        Args: {
+          p_expected_version: number;
+          p_idempotency_key: string;
+          p_reason: string;
+          p_request_id: string;
+        };
+        Returns: Json;
+      };
+      resolve_dispute: {
+        Args: {
+          p_action: string;
+          p_amount_minor: number;
+          p_dispute_id: string;
+          p_expected_job_version: number;
+          p_idempotency_key: string;
+          p_reason: string;
+        };
+        Returns: Json;
       };
       review_provider: {
         Args: {

@@ -7,7 +7,14 @@ insert into auth.users(
   raw_app_meta_data,raw_user_meta_data,created_at,updated_at
 )
 select id,'00000000-0000-0000-0000-000000000000','authenticated','authenticated',email,
-  crypt(gen_random_uuid()::text,gen_salt('bf')),now(),'','','','',now(),
+  crypt(
+    case
+      -- Known only to local Playwright runs. This seed file is never used by production config.
+      when email='admin.demo@example.invalid' then 'LocalE2E-Only!2026'
+      else gen_random_uuid()::text
+    end,
+    gen_salt('bf')
+  ),now(),'','','','',now(),
   '{"provider":"email","providers":["email"]}'::jsonb,
   jsonb_build_object('display_name',display_name,'preferred_locale',locale),now(),now()
 from (values
@@ -145,6 +152,20 @@ insert into public.change_orders(
 );
 insert into public.change_order_items(change_order_id,description,quantity,unit_amount_minor)
 values('df000000-0000-4000-8000-000000000001','مكثف بديل وتركيب',1,7000);
+insert into public.file_uploads(
+  id,user_id,purpose,resource_id,original_filename,extension,declared_mime_type,
+  detected_mime_type,size_bytes,max_size_bytes,quarantine_path,target_bucket,target_path,
+  final_path,content_sha256,status,scanner,sanitized,scanned_at
+)
+values(
+  'dd000000-0000-4000-8000-000000000099','d2000000-0000-4000-8000-000000000001',
+  'completion_proof','de000000-0000-4000-8000-000000000002','completion.jpg','jpg',
+  'image/jpeg','image/jpeg',1024,20971520,
+  'd2000000-0000-4000-8000-000000000001/dd000000-0000-4000-8000-000000000099/completion.jpg',
+  'completion-proofs','d2000000-0000-4000-8000-000000000001/jobs/demo/completion.jpg',
+  'd2000000-0000-4000-8000-000000000001/jobs/demo/completion.jpg',repeat('0',64),
+  'clean','deterministic-demo-fixture',true,now()-interval '3 days'
+);
 insert into public.completion_proofs(job_id,provider_id,storage_path,mime_type,size_bytes,description,captured_at)
 values('de000000-0000-4000-8000-000000000002','d2000000-0000-4000-8000-000000000001','d2000000-0000-4000-8000-000000000001/jobs/demo/completion.jpg','image/jpeg',1024,'إثبات محلي غير مرفوع',now()-interval '3 days');
 insert into public.customer_acceptances(job_id,customer_id,accepted,reason,accepted_total_minor)
@@ -176,6 +197,13 @@ insert into public.support_case_assignments(case_id,assignee_id,assigned_by)
 values('e2000000-0000-4000-8000-000000000001','d3000000-0000-4000-8000-000000000002','d3000000-0000-4000-8000-000000000001');
 insert into public.support_case_messages(case_id,sender_id,body,visible_to_user)
 values('e2000000-0000-4000-8000-000000000001','d1000000-0000-4000-8000-000000000001','أحتاج توضيح القطعة الإضافية.',true);
+insert into public.cancellation_requests(
+  id,job_id,requester_id,lifecycle_state,reason,status,expected_job_version,idempotency_key
+) values(
+  'e2500000-0000-4000-8000-000000000001','de000000-0000-4000-8000-000000000001',
+  'd1000000-0000-4000-8000-000000000001','awaiting_change_order_approval',
+  'طلب إلغاء تجريبي للاختبار المتكامل','pending',1,'demo-cancellation-request'
+);
 insert into public.disputes(id,job_id,opened_by,reason,priority,status,assigned_to)
 values('e3000000-0000-4000-8000-000000000001','de000000-0000-4000-8000-000000000001','d1000000-0000-4000-8000-000000000001','نزاع عرض محلي غير نهائي','normal','open','d3000000-0000-4000-8000-000000000002');
 insert into public.dispute_events(dispute_id,actor_id,event_type,reason)

@@ -6,8 +6,11 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { z } from 'zod';
 import { MarketplaceApi } from '@sallah/api';
+import { formatSar, type TranslationKey } from '@sallah/i18n';
 import { Button, Card, Screen, styles } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
+import { secureUpload } from '@/lib/secure-upload';
+import { useLocale } from '@/providers/locale-provider';
 
 const changeOrderSchema = z.object({
   id: z.uuid(),
@@ -31,6 +34,27 @@ const jobSchema = z.object({
     .array(z.object({ captured_at: z.string(), expires_at: z.string() }))
     .default([]),
   change_orders: z.array(changeOrderSchema),
+  cancellation_requests: z
+    .array(
+      z.object({
+        id: z.uuid(),
+        status: z.string(),
+        reason: z.string(),
+        created_at: z.string(),
+      }),
+    )
+    .default([]),
+  disputes: z
+    .array(
+      z.object({
+        id: z.uuid(),
+        status: z.string(),
+        reason: z.string(),
+        created_at: z.string(),
+        resolved_at: z.string().nullable(),
+      }),
+    )
+    .default([]),
 });
 type Job = z.infer<typeof jobSchema>;
 const providerNext: Record<string, string | undefined> = {
@@ -39,16 +63,31 @@ const providerNext: Record<string, string | undefined> = {
   arrived: 'diagnosing',
   diagnosing: 'in_progress',
 };
-const actionLabels: Record<string, string> = {
-  scheduled: 'تأكيد الجدولة',
-  en_route: 'بدء التوجه',
-  arrived: 'تأكيد الوصول',
-  diagnosing: 'بدء المعاينة',
-  in_progress: 'بدء التنفيذ',
+const actionLabelKeys: Record<string, TranslationKey> = {
+  scheduled: 'jobActionSchedule',
+  en_route: 'jobActionEnRoute',
+  arrived: 'jobActionArrived',
+  diagnosing: 'jobActionDiagnose',
+  in_progress: 'jobActionStart',
+};
+const cancellationStatusKeys: Record<string, TranslationKey> = {
+  pending: 'cancellationPending',
+  approved: 'cancellationApproved',
+  rejected: 'cancellationRejected',
+  financial_pending: 'cancellationFinancialPending',
+};
+const disputeStatusKeys: Record<string, TranslationKey> = {
+  open: 'disputeOpen',
+  waiting_customer: 'disputeWaitingCustomer',
+  waiting_provider: 'disputeWaitingProvider',
+  waiting_operations: 'disputeWaitingOperations',
+  resolved: 'disputeResolved',
+  closed: 'disputeClosed',
 };
 
 export default function Jobs() {
-  const [reason, setReason] = useState('تحديث حالة العمل');
+  const { locale, t } = useLocale();
+  const [reason, setReason] = useState('');
   const [rating, setRating] = useState('5');
   const [review, setReview] = useState('');
   const [changeDescription, setChangeDescription] = useState('');
@@ -61,7 +100,7 @@ export default function Jobs() {
       const { data, error } = await supabase
         .from('jobs')
         .select(
-          'id,customer_id,provider_id,status,approved_total_minor,version,created_at,conversations(id),addresses(formatted_address),job_location_updates(captured_at,expires_at),change_orders(id,reason,description,revised_total_minor,status,expires_at)',
+          'id,customer_id,provider_id,status,approved_total_minor,version,created_at,conversations(id),addresses(formatted_address),job_location_updates(captured_at,expires_at),change_orders(id,reason,description,revised_total_minor,status,expires_at),cancellation_requests(id,status,reason,created_at),disputes(id,status,reason,created_at,resolved_at)',
         )
         .order('created_at', { ascending: false })
         .limit(50);
@@ -74,14 +113,14 @@ export default function Jobs() {
     onSuccess: async () => {
       await query.refetch();
     },
-    onError: () => Alert.alert('تعذر تنفيذ الأمر', 'تحقق من دور الطرف والحالة الحالية والاتصال.'),
+    onError: () => Alert.alert(t('commandFailedTitle'), t('commandFailedBody')),
   });
   function transition(job: Job, status: string) {
     command.mutate(() =>
       new MarketplaceApi(supabase).transitionJob(
         job.id,
         status,
-        reason.trim() || 'تحديث حالة العمل',
+        reason.trim() || t('jobStatusUpdateReason'),
         globalThis.crypto.randomUUID(),
       ),
     );
@@ -95,21 +134,26 @@ export default function Jobs() {
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
     if ((asset.fileSize ?? 0) > 20 * 1024 * 1024) throw new Error('PROOF_TOO_LARGE');
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) throw new Error('AUTH_REQUIRED');
     const response = await fetch(asset.uri);
     const bytes = new Uint8Array(await response.arrayBuffer());
     const mimeType = asset.mimeType ?? 'image/jpeg';
     const extension = mimeType === 'video/mp4' ? 'mp4' : mimeType === 'image/png' ? 'png' : 'jpg';
-    const storagePath = `${userData.user.id}/jobs/${job.id}/${globalThis.crypto.randomUUID()}.${extension}`;
-    const { error: uploadError } = await supabase.storage
-      .from('completion-proofs')
-      .upload(storagePath, bytes, { contentType: mimeType, upsert: false });
-    if (uploadError) throw uploadError;
+    const upload = await secureUpload({
+      bytes,
+      filename: `${globalThis.crypto.randomUUID()}.${extension}`,
+      mimeType,
+      purpose: 'completion_proof',
+      resourceId: job.id,
+    });
     const { error } = await supabase.rpc('submit_completion', {
       p_job_id: job.id,
       p_proofs: [
-        { storagePath, mimeType, sizeBytes: bytes.byteLength, description: 'إثبات إتمام العمل' },
+        {
+          storagePath: upload.storagePath,
+          mimeType: upload.mimeType,
+          sizeBytes: upload.sizeBytes,
+          description: t('completionEvidenceDescription'),
+        },
       ],
       p_idempotency_key: globalThis.crypto.randomUUID(),
     });
@@ -129,23 +173,16 @@ export default function Jobs() {
       p_consent: true,
     });
     if (error) throw error;
-    Alert.alert(
-      'تمت مشاركة الموقع',
-      'التحديث متاح لطرفي العمل فقط وينتهي تلقائيًا خلال أربع ساعات.',
-    );
+    Alert.alert(t('locationSharedTitle'), t('locationSharedBody'));
   }
   function confirmLocationShare(job: Job) {
-    Alert.alert(
-      'مشاركة موقع أمامية',
-      'سيُرسل موقعك الحالي مرة واحدة للعميل في هذا العمل. لا يعمل أي تتبع في الخلفية.',
-      [
-        { text: 'إلغاء', style: 'cancel' },
-        {
-          text: 'مشاركة الآن',
-          onPress: () => command.mutate(() => shareCurrentLocation(job)),
-        },
-      ],
-    );
+    Alert.alert(t('foregroundLocationTitle'), t('foregroundLocationBody'), [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('shareNow'),
+        onPress: () => command.mutate(() => shareCurrentLocation(job)),
+      },
+    ]);
   }
   async function openNativeMaps(job: Job) {
     const address = job.addresses?.formatted_address;
@@ -160,7 +197,9 @@ export default function Jobs() {
     const { error } = await supabase.rpc('accept_completion', {
       p_job_id: job.id,
       p_accept: accepted,
-      p_reason: accepted ? 'العميل قبل الإنجاز' : reason.trim() || 'الإنجاز غير مقبول',
+      p_reason: accepted
+        ? t('customerAcceptedCompletionReason')
+        : reason.trim() || t('completionNotAcceptedReason'),
       p_score: accepted ? score : 1,
       p_review: review,
       p_idempotency_key: globalThis.crypto.randomUUID(),
@@ -174,7 +213,7 @@ export default function Jobs() {
     const { error } = await supabase.rpc('create_change_order', {
       payload: {
         jobId: job.id,
-        reason: 'تغير النطاق بعد المعاينة',
+        reason: t('scopeChangedReason'),
         description: changeDescription.trim(),
         lineItems: [{ description: changeDescription.trim(), quantity: 1, amountMinor }],
         expiresAt: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
@@ -187,7 +226,7 @@ export default function Jobs() {
     const { error } = await supabase.rpc('decide_change_order', {
       p_change_order_id: orderId,
       p_approve: approve,
-      p_reason: approve ? 'وافق العميل على التغيير' : 'رفض العميل التغيير',
+      p_reason: approve ? t('customerApprovedChangeReason') : t('customerRejectedChangeReason'),
       p_idempotency_key: globalThis.crypto.randomUUID(),
     });
     if (error) throw error;
@@ -195,7 +234,17 @@ export default function Jobs() {
   async function openDispute(job: Job) {
     const { error } = await supabase.rpc('open_dispute', {
       p_job_id: job.id,
-      p_reason: reason.trim() || 'نزاع على العمل',
+      p_reason: reason.trim() || t('jobDisputeReason'),
+      p_expected_version: job.version,
+      p_idempotency_key: globalThis.crypto.randomUUID(),
+    });
+    if (error) throw error;
+  }
+  async function requestCancellation(job: Job) {
+    const { error } = await supabase.rpc('request_job_cancellation', {
+      p_job_id: job.id,
+      p_reason: reason.trim() || t('jobCancellationReason'),
+      p_expected_version: job.version,
       p_idempotency_key: globalThis.crypto.randomUUID(),
     });
     if (error) throw error;
@@ -203,17 +252,25 @@ export default function Jobs() {
   return (
     <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
       <Screen>
-        <Text style={styles.title}>الأعمال</Text>
+        <Text style={styles.title}>{t('jobs')}</Text>
         <TextInput
           style={styles.input}
           value={reason}
           onChangeText={setReason}
-          placeholder="سبب الإجراء أو النزاع"
+          placeholder={t('actionReasonPlaceholder')}
         />
-        {query.isPending && <Text style={styles.lead}>جارٍ تحميل الأعمال…</Text>}
-        {query.isError && <Text style={styles.error}>سجّل الدخول لتحميل أعمالك.</Text>}
+        {query.isPending && <Text style={styles.lead}>{t('loadingJobs')}</Text>}
+        {query.isError && <Text style={styles.error}>{t('signInToLoadJobs')}</Text>}
         {query.data?.jobs.map((job) => {
           const customer = job.customer_id === query.data?.userId;
+          const openCancellation = job.cancellation_requests.find((item) =>
+            ['pending', 'financial_pending'].includes(item.status),
+          );
+          const latestCancellation = openCancellation ?? job.cancellation_requests[0];
+          const openDisputeCase = job.disputes.find(
+            (item) => !['resolved', 'closed'].includes(item.status),
+          );
+          const latestDispute = openDisputeCase ?? job.disputes[0];
           const next =
             customer && job.status === 'provider_selected'
               ? 'scheduled'
@@ -223,14 +280,31 @@ export default function Jobs() {
           return (
             <Card key={job.id}>
               <Text style={styles.badge}>{job.status}</Text>
-              <Text>الإجمالي المعتمد {(job.approved_total_minor / 100).toFixed(2)} ر.س</Text>
+              <Text>
+                {t('approvedTotal', { amount: formatSar(job.approved_total_minor, locale) })}
+              </Text>
               <Text style={styles.lead}>
-                نسخة {job.version} · {customer ? 'عميل' : 'مقدم خدمة'}
+                {t('jobRoleSummary', {
+                  version: job.version,
+                  role: customer ? t('customer') : t('provider'),
+                })}
+              </Text>
+              <Text style={styles.lead} accessibilityLiveRegion="polite">
+                {t('cancellationStatus')}:{' '}
+                {latestCancellation
+                  ? t(cancellationStatusKeys[latestCancellation.status] ?? 'noOpenCancellation')
+                  : t('noOpenCancellation')}
+              </Text>
+              <Text style={styles.lead} accessibilityLiveRegion="polite">
+                {t('disputeStatus')}:{' '}
+                {latestDispute
+                  ? t(disputeStatusKeys[latestDispute.status] ?? 'noOpenDispute')
+                  : t('noOpenDispute')}
               </Text>
               {next && (
                 <Button
                   disabled={command.isPending}
-                  label={actionLabels[next] ?? next}
+                  label={actionLabelKeys[next] ? t(actionLabelKeys[next]) : next}
                   onPress={() => transition(job, next)}
                 />
               )}
@@ -238,24 +312,26 @@ export default function Jobs() {
                 <Button
                   kind="secondary"
                   disabled={command.isPending}
-                  label="مشاركة موقعي الحالي مرة واحدة"
+                  label={t('shareLocationOnce')}
                   onPress={() => confirmLocationShare(job)}
                 />
               )}
               {job.addresses?.formatted_address && (
                 <Button
                   kind="secondary"
-                  label="فتح وجهة العمل في خرائط الجهاز"
+                  label={t('openJobMaps')}
                   onPress={() => command.mutate(() => openNativeMaps(job))}
                 />
               )}
               {customer && job.status === 'en_route' && (
                 <Text style={styles.lead} accessibilityLiveRegion="polite">
                   {job.job_location_updates[0]
-                    ? `آخر تحديث موقع مصرح: ${new Date(
-                        job.job_location_updates[0].captured_at,
-                      ).toLocaleTimeString('ar-SA')}`
-                    : 'لم يشارك مقدم الخدمة تحديث موقع بعد.'}
+                    ? t('latestLocationUpdate', {
+                        time: new Date(job.job_location_updates[0].captured_at).toLocaleTimeString(
+                          locale === 'ar' ? 'ar-SA' : locale,
+                        ),
+                      })
+                    : t('noProviderLocationUpdate')}
                 </Text>
               )}
               {!customer && job.status === 'diagnosing' && (
@@ -264,18 +340,18 @@ export default function Jobs() {
                     style={styles.input}
                     value={changeDescription}
                     onChangeText={setChangeDescription}
-                    placeholder="وصف تغيير النطاق"
+                    placeholder={t('changeScopeDescription')}
                   />
                   <TextInput
                     style={styles.input}
                     value={changeAmount}
                     onChangeText={setChangeAmount}
                     keyboardType="decimal-pad"
-                    placeholder="القيمة الإضافية بالريال"
+                    placeholder={t('additionalAmountSar')}
                   />
                   <Button
                     kind="secondary"
-                    label="إرسال تغيير نطاق للموافقة"
+                    label={t('sendChangeOrder')}
                     onPress={() => command.mutate(() => createChangeOrder(job))}
                   />
                 </>
@@ -287,16 +363,18 @@ export default function Jobs() {
                     <Card key={order.id}>
                       <Text>{order.description}</Text>
                       <Text style={styles.lead}>
-                        الإجمالي المعدل {(order.revised_total_minor / 100).toFixed(2)} ر.س
+                        {t('revisedTotal', {
+                          amount: formatSar(order.revised_total_minor, locale),
+                        })}
                       </Text>
                       <View style={styles.row}>
                         <Button
-                          label="موافقة"
+                          label={t('approve')}
                           onPress={() => command.mutate(() => decideChangeOrder(order.id, true))}
                         />
                         <Button
                           kind="danger"
-                          label="رفض"
+                          label={t('reject')}
                           onPress={() => command.mutate(() => decideChangeOrder(order.id, false))}
                         />
                       </View>
@@ -304,7 +382,7 @@ export default function Jobs() {
                   ))}
               {!customer && job.status === 'in_progress' && (
                 <Button
-                  label="رفع إثبات الإنجاز"
+                  label={t('uploadCompletionProof')}
                   onPress={() => command.mutate(() => submitCompletion(job))}
                 />
               )}
@@ -315,22 +393,22 @@ export default function Jobs() {
                     value={rating}
                     onChangeText={setRating}
                     keyboardType="number-pad"
-                    placeholder="التقييم من 1 إلى 5"
+                    placeholder={t('ratingPlaceholder')}
                   />
                   <TextInput
                     style={styles.input}
                     value={review}
                     onChangeText={setReview}
-                    placeholder="مراجعة اختيارية"
+                    placeholder={t('optionalReview')}
                   />
                   <View style={styles.row}>
                     <Button
-                      label="قبول الإنجاز"
+                      label={t('acceptCompletion')}
                       onPress={() => command.mutate(() => accept(job, true))}
                     />
                     <Button
                       kind="danger"
-                      label="رفض وفتح نزاع"
+                      label={t('rejectAndOpenDispute')}
                       onPress={() => command.mutate(() => accept(job, false))}
                     />
                   </View>
@@ -344,20 +422,30 @@ export default function Jobs() {
                   }}
                   asChild
                 >
-                  <Button kind="secondary" label="فتح المحادثة" />
+                  <Button kind="secondary" label={t('openConversation')} />
                 </Link>
               )}
-              <Button
-                kind="danger"
-                label="فتح نزاع"
-                onPress={() => command.mutate(() => openDispute(job))}
-              />
+              {!['completed', 'cancelled', 'disputed'].includes(job.status) &&
+                !openCancellation && (
+                  <Button
+                    kind="danger"
+                    label={t('requestCancellation')}
+                    onPress={() => command.mutate(() => requestCancellation(job))}
+                  />
+                )}
+              {!openDisputeCase && (
+                <Button
+                  kind="danger"
+                  label={t('dispute')}
+                  onPress={() => command.mutate(() => openDispute(job))}
+                />
+              )}
             </Card>
           );
         })}
         {!query.isPending && query.data?.jobs.length === 0 && (
           <Card>
-            <Text style={styles.lead}>لا توجد أعمال نشطة أو سابقة.</Text>
+            <Text style={styles.lead}>{t('noJobs')}</Text>
           </Card>
         )}
       </Screen>

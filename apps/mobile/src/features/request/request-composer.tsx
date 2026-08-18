@@ -14,6 +14,7 @@ import { DeterministicAiProvider, aiDiagnosticSchema, type AiDiagnostic } from '
 import { z } from 'zod';
 import { Button, Card, Screen, styles } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
+import { secureUpload } from '@/lib/secure-upload';
 import { useLocale } from '@/providers/locale-provider';
 
 const MAX_MEDIA_BYTES = 10 * 1024 * 1024;
@@ -97,22 +98,16 @@ export function RequestComposer() {
   function invalidateApproval() {
     setApproved(false);
   }
-  async function currentUser() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error('AUTH_REQUIRED');
-    return user;
-  }
-  async function uploadPrivate(uri: string, path: string, mimeType: string) {
+  async function uploadPrivate(
+    uri: string,
+    filename: string,
+    mimeType: string,
+    purpose: 'request_media' | 'request_audio',
+  ) {
     const response = await fetch(uri);
     if (!response.ok) throw new Error('LOCAL_MEDIA_READ_FAILED');
-    const blob = await response.blob();
-    const { error: uploadError } = await supabase.storage
-      .from('request-media')
-      .upload(path, blob, { contentType: mimeType, upsert: false });
-    if (uploadError) throw new Error('PRIVATE_MEDIA_UPLOAD_FAILED');
-    return blob.size;
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    return await secureUpload({ bytes, filename, mimeType, purpose });
   }
   async function pickImage() {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -128,7 +123,7 @@ export function RequestComposer() {
       (asset.fileSize ?? 0) > MAX_MEDIA_BYTES ||
       !(asset.mimeType ?? 'image/jpeg').match(/^image\/(jpeg|png|webp)$/)
     ) {
-      Alert.alert('ملف غير مدعوم', 'استخدم JPEG أو PNG أو WebP بحجم لا يتجاوز 10MB.');
+      Alert.alert(t('unsupportedFileTitle'), t('unsupportedRequestMedia'));
       return;
     }
     setImage(asset);
@@ -137,7 +132,7 @@ export function RequestComposer() {
   async function locate() {
     const permission = await Location.requestForegroundPermissionsAsync();
     if (!permission.granted) {
-      setError('لم تُمنح صلاحية الموقع. يمكنك المحاولة لاحقًا؛ لا نطلب موقع الخلفية.');
+      setError(t('locationPermissionDenied'));
       return;
     }
     const current = await Location.getCurrentPositionAsync({
@@ -149,7 +144,7 @@ export function RequestComposer() {
   async function startRecording() {
     const permission = await AudioModule.requestRecordingPermissionsAsync();
     if (!permission.granted) {
-      setError('لم تُمنح صلاحية الميكروفون. استخدم الوصف النصي.');
+      setError(t('microphonePermissionDenied'));
       return;
     }
     await setAudioModeAsync({
@@ -165,11 +160,14 @@ export function RequestComposer() {
     await setAudioModeAsync({ allowsRecording: false });
     if (!recorder.uri) return;
     try {
-      const user = await currentUser();
-      const storagePath = `${user.id}/voice/${globalThis.crypto.randomUUID()}.m4a`;
-      await uploadPrivate(recorder.uri, storagePath, 'audio/mp4');
+      const upload = await uploadPrivate(
+        recorder.uri,
+        `${globalThis.crypto.randomUUID()}.m4a`,
+        'audio/mp4',
+        'request_audio',
+      );
       const raw: unknown = await supabase.functions.invoke<unknown>('transcribe', {
-        body: { storagePath, locale },
+        body: { storagePath: upload.storagePath, locale },
       });
       const invoked = functionResultSchema.parse(raw);
       const transcript = z.object({ transcript: z.string() }).safeParse(invoked.data);
@@ -179,14 +177,12 @@ export function RequestComposer() {
       );
       invalidateApproval();
     } catch {
-      setError(
-        'تعذر النسخ الصوتي. يمكنك متابعة الوصف يدويًا؛ سيُنظف التسجيل المؤقت وفق سياسة الاحتفاظ.',
-      );
+      setError(t('transcriptionFailed'));
     }
   }
   async function analyze() {
     if (description.trim().length < 10) {
-      setError('اكتب وصفًا من 10 أحرف على الأقل.');
+      setError(t('descriptionTooShort'));
       return;
     }
     setBusy(true);
@@ -222,7 +218,7 @@ export function RequestComposer() {
       setDiagnostic(result);
       setTitle(result.customerSummary.slice(0, 120));
       setSummary(result.customerSummary);
-      setError('خدمة الذكاء الاصطناعي غير متاحة؛ أُنشئت مسودة حتمية قابلة للتعديل.');
+      setError(t('aiUnavailableDraftCreated'));
     } finally {
       invalidateApproval();
       setBusy(false);
@@ -235,12 +231,19 @@ export function RequestComposer() {
     try {
       const media: Array<{ storage_path: string; mime_type: string; size: number }> = [];
       if (image) {
-        const user = await currentUser();
         const extension =
           image.mimeType === 'image/png' ? 'png' : image.mimeType === 'image/webp' ? 'webp' : 'jpg';
-        const storagePath = `${user.id}/requests/${globalThis.crypto.randomUUID()}.${extension}`;
-        const size = await uploadPrivate(image.uri, storagePath, image.mimeType ?? 'image/jpeg');
-        media.push({ storage_path: storagePath, mime_type: image.mimeType ?? 'image/jpeg', size });
+        const upload = await uploadPrivate(
+          image.uri,
+          `${globalThis.crypto.randomUUID()}.${extension}`,
+          image.mimeType ?? 'image/jpeg',
+          'request_media',
+        );
+        media.push({
+          storage_path: upload.storagePath,
+          mime_type: upload.mimeType,
+          size: upload.sizeBytes,
+        });
       }
       const now = Date.now();
       const requestedStart =
@@ -268,11 +271,12 @@ export function RequestComposer() {
         },
       });
       if (rpcError) throw rpcError;
-      Alert.alert('تم نشر الطلب', `رقم الطلب: ${z.string().uuid().parse(data)}`);
-    } catch {
-      setError(
-        'تعذر النشر أو رفع الوسائط الخاصة. بقيت المسودة محفوظة على هذه الشاشة؛ تحقق من الحساب والاتصال.',
+      Alert.alert(
+        t('requestPublishedTitle'),
+        t('requestNumber', { id: z.string().uuid().parse(data) }),
       );
+    } catch {
+      setError(t('publishOrUploadFailed'));
     } finally {
       setBusy(false);
     }
@@ -291,39 +295,41 @@ export function RequestComposer() {
             setDescription(value);
             invalidateApproval();
           }}
-          placeholder="مثال: المكيف لا يبرد وبدأ يصدر صوتًا…"
+          placeholder={t('problemDescriptionPlaceholder')}
         />
         <View style={styles.row}>
           <Button
             kind="secondary"
-            label={image ? 'تغيير الصورة' : t('addPhoto')}
+            label={image ? t('changePhoto') : t('addPhoto')}
             onPress={() => void pickImage()}
           />
           <Button
             kind="secondary"
             label={
               recorderState.isRecording
-                ? `إيقاف ${Math.ceil(recorderState.durationMillis / 1000)}ث`
+                ? t('stopRecordingSeconds', {
+                    seconds: Math.ceil(recorderState.durationMillis / 1000),
+                  })
                 : t('recordVoice')
             }
             onPress={() => void (recorderState.isRecording ? stopRecording() : startRecording())}
           />
           <Button
             kind="secondary"
-            label={coordinates ? 'تم تحديد الموقع' : t('chooseLocation')}
+            label={coordinates ? t('locationSelected') : t('chooseLocation')}
             onPress={() => void locate()}
           />
         </View>
         {image && (
           <Image
             source={{ uri: image.uri }}
-            accessibilityLabel="الصورة المرفقة"
+            accessibilityLabel={t('attachedImageA11y')}
             style={{ width: '100%', height: 180, borderRadius: 16 }}
           />
         )}
         <Button
           disabled={busy}
-          label={busy ? 'جارٍ التحليل…' : 'تحليل وإنشاء مسودة'}
+          label={busy ? t('analyzing') : t('analyzeCreateDraft')}
           onPress={() => void analyze()}
         />
         {diagnostic && (
@@ -334,8 +340,10 @@ export function RequestComposer() {
               </Text>
             )}
             <Text style={styles.badge}>
-              ثقة {Math.round(diagnostic.confidence * 100)}% ·{' '}
-              {diagnostic.metadata.fallback ? 'Fallback' : 'AI'}
+              {t('confidenceSummary', {
+                confidence: Math.round(diagnostic.confidence * 100),
+              })}{' '}
+              · {diagnostic.metadata.fallback ? 'Fallback' : 'AI'}
             </Text>
             {diagnostic.followUpQuestions.map((question) => (
               <Text key={question} style={styles.lead}>
@@ -352,7 +360,7 @@ export function RequestComposer() {
             setTitle(value);
             invalidateApproval();
           }}
-          placeholder="عنوان الطلب"
+          placeholder={t('requestTitlePlaceholder')}
         />
         <TextInput
           style={[styles.input, { minHeight: 130, textAlignVertical: 'top' }]}
@@ -363,9 +371,9 @@ export function RequestComposer() {
             setSummary(value);
             invalidateApproval();
           }}
-          placeholder="الموجز الذي سيراه مقدمو الخدمة"
+          placeholder={t('providerSummaryPlaceholder')}
         />
-        <Text style={styles.lead}>الفئة — اقتراح AI قابل للتعديل</Text>
+        <Text style={styles.lead}>{t('editableAiCategory')}</Text>
         <View style={styles.row}>
           {catalog.data?.categories.map((category) => (
             <Button
@@ -379,7 +387,7 @@ export function RequestComposer() {
             />
           ))}
         </View>
-        <Text style={styles.lead}>المدينة</Text>
+        <Text style={styles.lead}>{t('city')}</Text>
         <View style={styles.row}>
           {catalog.data?.cities.map((city) => (
             <Button
@@ -393,13 +401,19 @@ export function RequestComposer() {
             />
           ))}
         </View>
-        <Text style={styles.lead}>الأولوية</Text>
+        <Text style={styles.lead}>{t('priority')}</Text>
         <View style={styles.row}>
           {(['flexible', 'normal', 'urgent'] as const).map((value) => (
             <Button
               key={value}
               kind={urgency === value ? 'primary' : 'secondary'}
-              label={value === 'flexible' ? 'مرن' : value === 'normal' ? 'عادي' : 'عاجل'}
+              label={
+                value === 'flexible'
+                  ? t('priorityFlexible')
+                  : value === 'normal'
+                    ? t('priorityNormal')
+                    : t('priorityUrgent')
+              }
               onPress={() => {
                 setUrgency(value);
                 invalidateApproval();
@@ -407,13 +421,19 @@ export function RequestComposer() {
             />
           ))}
         </View>
-        <Text style={styles.lead}>التوقيت المفضل</Text>
+        <Text style={styles.lead}>{t('preferredTiming')}</Text>
         <View style={styles.row}>
           {(['asap', 'today', 'flexible'] as const).map((value) => (
             <Button
               key={value}
               kind={schedule === value ? 'primary' : 'secondary'}
-              label={value === 'asap' ? 'بأقرب وقت' : value === 'today' ? 'اليوم' : 'مرن'}
+              label={
+                value === 'asap'
+                  ? t('timingAsap')
+                  : value === 'today'
+                    ? t('timingToday')
+                    : t('timingFlexible')
+              }
               onPress={() => {
                 setSchedule(value);
                 invalidateApproval();
@@ -422,12 +442,10 @@ export function RequestComposer() {
           ))}
         </View>
         <Card>
-          <Text style={styles.lead}>
-            راجع العنوان والموجز والفئة والموقع. لن يُنشر شيء حتى تؤكد الموافقة ثم تضغط النشر.
-          </Text>
+          <Text style={styles.lead}>{t('draftReviewNotice')}</Text>
           <Button
             kind={approved ? 'primary' : 'secondary'}
-            label={approved ? 'تمت الموافقة على المسودة' : 'أوافق على نشر هذه المسودة'}
+            label={approved ? t('draftApproved') : t('approveDraftPublish')}
             onPress={() => setApproved((value) => !value)}
           />
         </Card>

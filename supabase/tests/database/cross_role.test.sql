@@ -43,6 +43,18 @@ insert into public.conversations(id,job_id) values('ffffffff-ffff-4fff-8fff-ffff
 insert into public.conversation_members(conversation_id,user_id,member_role) values
  ('ffffffff-ffff-4fff-8fff-ffffffffffff','11111111-1111-4111-8111-111111111111','customer'),('ffffffff-ffff-4fff-8fff-ffffffffffff','22222222-2222-4222-8222-222222222222','provider');
 insert into public.messages(conversation_id,sender_id,body) values('ffffffff-ffff-4fff-8fff-ffffffffffff','11111111-1111-4111-8111-111111111111','Private job message');
+insert into public.file_uploads(
+  id,user_id,purpose,original_filename,extension,declared_mime_type,detected_mime_type,
+  size_bytes,max_size_bytes,quarantine_path,target_bucket,target_path,final_path,
+  content_sha256,status,scanner,sanitized,scanned_at
+) values(
+  'abababab-abab-4aba-8aba-abababababab','33333333-3333-4333-8333-333333333333',
+  'provider_document','id.pdf','pdf','application/pdf','application/pdf',100,20971520,
+  '33333333-3333-4333-8333-333333333333/abababab-abab-4aba-8aba-abababababab/id.pdf',
+  'provider-documents','33333333-3333-4333-8333-333333333333/id.pdf',
+  '33333333-3333-4333-8333-333333333333/id.pdf',repeat('a',64),
+  'clean','deterministic-test-fixture',false,now()
+);
 insert into public.provider_documents(provider_id,document_type,storage_path,content_hash,mime_type,size_bytes)
 values('33333333-3333-4333-8333-333333333333','identity','33333333-3333-4333-8333-333333333333/id.pdf','hash','application/pdf',100);
 

@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { Button, Card, Screen, styles } from '@/components/ui';
 import { MarketplaceApi } from '@sallah/api';
 import { supabase } from '@/lib/supabase';
+import { useLocale } from '@/providers/locale-provider';
 
 const offerFormSchema = z.object({
   amount: z.coerce.number().positive().max(1_000_000),
@@ -18,6 +19,7 @@ const offerFormSchema = z.object({
 type OfferForm = z.input<typeof offerFormSchema>;
 
 export default function ProviderOffer() {
+  const { t } = useLocale();
   const params = useLocalSearchParams<{ requestId?: string; requestVersion?: string }>();
   const [materialsIncluded, setMaterialsIncluded] = useState(false);
   const [done, setDone] = useState(false);
@@ -34,7 +36,7 @@ export default function ProviderOffer() {
   async function submit(raw: OfferForm) {
     const parsed = offerFormSchema.safeParse(raw);
     if (!parsed.success || !params.requestId || !params.requestVersion) {
-      setError('root', { message: 'تحقق من جميع الحقول وافتح الشاشة من طلب مؤهل.' });
+      setError('root', { message: t('providerOfferInvalid') });
       return;
     }
     try {
@@ -57,7 +59,7 @@ export default function ProviderOffer() {
       setDone(true);
     } catch {
       setError('root', {
-        message: 'تعذر إرسال العرض؛ يلزم تحقق ساري ودعوة مطابقة ونسخة طلب حديثة.',
+        message: t('providerOfferFailed'),
       });
     }
   }
@@ -65,20 +67,18 @@ export default function ProviderOffer() {
     name: 'amount' | 'visitFee' | 'arrivalMinutes' | 'durationMinutes' | 'warrantyDays';
     label: string;
   }> = [
-    { name: 'amount', label: 'السعر الإجمالي بالريال' },
-    { name: 'visitFee', label: 'رسوم الزيارة بالريال' },
-    { name: 'arrivalMinutes', label: 'الوصول بالدقائق' },
-    { name: 'durationMinutes', label: 'مدة العمل بالدقائق' },
-    { name: 'warrantyDays', label: 'الضمان بالأيام' },
+    { name: 'amount', label: t('totalPriceSar') },
+    { name: 'visitFee', label: t('visitFeeSar') },
+    { name: 'arrivalMinutes', label: t('arrivalMinutes') },
+    { name: 'durationMinutes', label: t('workDurationMinutes') },
+    { name: 'warrantyDays', label: t('warrantyDays') },
   ];
   return (
     <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
       <Screen>
-        <Text style={styles.title}>عرض خاص ومختوم</Text>
+        <Text style={styles.title}>{t('privateSealedOfferTitle')}</Text>
         <Card>
-          <Text style={styles.lead}>
-            لا يرى مقدمو الخدمة الآخرون هذا العرض. القيم المالية تحفظ كهللات صحيحة.
-          </Text>
+          <Text style={styles.lead}>{t('privateSealedOfferNotice')}</Text>
         </Card>
         {fields.map((item) => (
           <Controller
@@ -100,7 +100,7 @@ export default function ProviderOffer() {
         ))}
         <View style={styles.row}>
           <Button
-            label={materialsIncluded ? 'المواد مشمولة' : 'المواد غير مشمولة'}
+            label={materialsIncluded ? t('materialsIncluded') : t('materialsNotIncluded')}
             kind={materialsIncluded ? 'primary' : 'secondary'}
             onPress={() => setMaterialsIncluded((value) => !value)}
           />
@@ -112,8 +112,8 @@ export default function ProviderOffer() {
             <TextInput
               style={[styles.input, { minHeight: 110, textAlignVertical: 'top' }]}
               multiline
-              accessibilityLabel="ملاحظة العرض"
-              placeholder="النطاق والاستثناءات"
+              accessibilityLabel={t('offerNoteA11y')}
+              placeholder={t('offerScopePlaceholder')}
               value={field.value}
               onBlur={field.onBlur}
               onChangeText={field.onChange}
@@ -123,8 +123,8 @@ export default function ProviderOffer() {
         {formState.errors.root?.message && (
           <Text style={styles.error}>{formState.errors.root.message}</Text>
         )}
-        {done && <Text>تم إرسال العرض وتسجيله.</Text>}
-        <Button label="إرسال العرض" onPress={() => void handleSubmit(submit)()} />
+        {done && <Text>{t('offerSubmitted')}</Text>}
+        <Button label={t('submitOfferAction')} onPress={() => void handleSubmit(submit)()} />
       </Screen>
     </ScrollView>
   );

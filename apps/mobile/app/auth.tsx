@@ -3,7 +3,9 @@ import { Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { Button, Screen, styles } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
+import { useLocale } from '@/providers/locale-provider';
 export default function Auth() {
+  const { t } = useLocale();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -23,19 +25,17 @@ export default function Auth() {
           : await supabase.auth.resetPasswordForEmail(email, { redirectTo: 'sallah://auth/reset' });
     setPending(false);
     if (result.error) {
-      setError('تعذر إكمال العملية. تحقق من البيانات والاتصال.');
+      setError(t('authFailed'));
       return;
     }
     if (mode === 'signin') router.replace('/home');
   }
   return (
     <Screen>
-      <Text style={styles.title}>حسابك</Text>
-      <Text style={styles.lead}>
-        البريد الإلكتروني وكلمة المرور. يجب تأكيد البريد قبل نشر الطلبات.
-      </Text>
+      <Text style={styles.title}>{t('authTitle')}</Text>
+      <Text style={styles.lead}>{t('authLead')}</Text>
       <TextInput
-        accessibilityLabel="البريد الإلكتروني"
+        accessibilityLabel={t('email')}
         style={styles.input}
         value={email}
         onChangeText={setEmail}
@@ -44,7 +44,7 @@ export default function Auth() {
         autoComplete="email"
       />
       <TextInput
-        accessibilityLabel="كلمة المرور"
+        accessibilityLabel={t('password')}
         style={styles.input}
         value={password}
         onChangeText={setPassword}
@@ -57,17 +57,17 @@ export default function Auth() {
         </Text>
       )}
       <View style={{ gap: 10 }}>
-        <Button disabled={pending} label="تسجيل الدخول" onPress={() => void act('signin')} />
+        <Button disabled={pending} label={t('signIn')} onPress={() => void act('signin')} />
         <Button
           disabled={pending}
           kind="secondary"
-          label="إنشاء حساب"
+          label={t('signUp')}
           onPress={() => void act('signup')}
         />
         <Button
           disabled={pending || !email}
           kind="secondary"
-          label="استعادة كلمة المرور"
+          label={t('resetPassword')}
           onPress={() => void act('reset')}
         />
       </View>

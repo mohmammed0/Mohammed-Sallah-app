@@ -1,5 +1,6 @@
 import type { ConfigContext, ExpoConfig } from 'expo/config';
 import { branding } from '@sallah/config/branding';
+import { translate } from '@sallah/i18n';
 
 export default ({ config }: ConfigContext): ExpoConfig => {
   const environment = process.env.EXPO_PUBLIC_APP_ENV ?? 'local';
@@ -41,21 +42,21 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         'expo-secure-store',
         {
           configureAndroidBackup: true,
-          faceIDPermission: 'السماح لصلّح باستخدام Face ID لحماية جلسة الحساب.',
+          faceIDPermission: translate('ar', 'permissionFaceId'),
         },
       ],
       [
         'expo-image-picker',
         {
-          photosPermission: 'نحتاج الوصول للصورة التي تختارها لإرفاقها بطلب الخدمة.',
-          cameraPermission: 'نحتاج الكاميرا لالتقاط صورة للمشكلة.',
+          photosPermission: translate('ar', 'permissionPhotos'),
+          cameraPermission: translate('ar', 'permissionCamera'),
           microphonePermission: false,
         },
       ],
       [
         'expo-audio',
         {
-          microphonePermission: 'نحتاج الميكروفون فقط عند تسجيل وصف صوتي للمشكلة.',
+          microphonePermission: translate('ar', 'permissionMicrophone'),
           enableBackgroundRecording: false,
           enableBackgroundPlayback: false,
         },
@@ -63,7 +64,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       [
         'expo-location',
         {
-          locationWhenInUsePermission: 'نستخدم موقعك أثناء إنشاء الطلب فقط لتحديد منطقة الخدمة.',
+          locationWhenInUsePermission: translate('ar', 'permissionLocation'),
           isIosBackgroundLocationEnabled: false,
           isAndroidBackgroundLocationEnabled: false,
         },
