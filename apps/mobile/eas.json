@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json.schemastore.org/eas.json",
+  "cli": { "version": ">= 16.0.0", "appVersionSource": "remote" },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "channel": "development",
+      "env": { "EXPO_PUBLIC_APP_ENV": "local" }
+    },
+    "preview": {
+      "distribution": "internal",
+      "channel": "preview",
+      "autoIncrement": true,
+      "env": { "EXPO_PUBLIC_APP_ENV": "preview" }
+    },
+    "production": {
+      "channel": "production",
+      "autoIncrement": true,
+      "env": { "EXPO_PUBLIC_APP_ENV": "production" }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": { "ascAppId": "REQUIRES_HUMAN_INPUT" },
+      "android": { "serviceAccountKeyPath": "./REQUIRES_HUMAN_INPUT.json", "track": "internal" }
+    }
+  }
+}
