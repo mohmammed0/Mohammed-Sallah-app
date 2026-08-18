@@ -1,6 +1,10 @@
 export interface ConversationMessage {
   role: 'user' | 'assistant';
   text: string;
+  clientMessageId?: string | undefined;
+  authoritative?: boolean | undefined;
+  temporary?: boolean | undefined;
+  mediaUploadIds?: string[] | undefined;
 }
 
 export interface PublishableRequestDraft {

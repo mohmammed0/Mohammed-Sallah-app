@@ -148,6 +148,21 @@ async function createUser(config, prefix) {
   return { id: created.id, token: session.access_token };
 }
 
+async function signInUser(config, email, password) {
+  const session = await expectOk(
+    await fetch(`${config.apiUrl}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: headers(config.publishableKey, config.publishableKey, {
+        'content-type': 'application/json',
+      }),
+      body: JSON.stringify({ email, password }),
+    }),
+    'fixture_sign_in',
+  );
+  if (!session?.access_token || !session?.user?.id) fail('fixture_session_invalid');
+  return { id: session.user.id, token: session.access_token };
+}
+
 async function rpc(config, user, name, body) {
   return await fetch(`${config.apiUrl}/rest/v1/rpc/${name}`, {
     method: 'POST',
@@ -165,6 +180,16 @@ async function invoke(config, user, name, body) {
       'content-type': 'application/json',
     }),
     body: JSON.stringify(body),
+  });
+}
+
+async function userRequest(config, user, path, init = {}) {
+  return await fetch(`${config.apiUrl}/rest/v1/${path}`, {
+    ...init,
+    headers: headers(config.publishableKey, user.token, {
+      'content-type': 'application/json',
+      ...(init.headers ?? {}),
+    }),
   });
 }
 
@@ -246,7 +271,82 @@ async function runStorageFlow(config, owner, outsider) {
   );
 }
 
+async function createCleanCompletionProof(config, provider, jobId) {
+  const png = Uint8Array.from(
+    Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      'base64',
+    ),
+  );
+  const ticket = await expectOk(
+    await rpc(config, provider, 'create_resource_file_upload', {
+      p_purpose: 'completion_proof',
+      p_resource_id: jobId,
+      p_filename: 'completion.png',
+      p_declared_mime_type: 'image/png',
+      p_size_bytes: png.byteLength,
+    }),
+    'completion_proof_ticket',
+  );
+  await expectOk(
+    await fetch(`${config.apiUrl}/storage/v1/object/quarantine/${storagePath(ticket.path)}`, {
+      method: 'POST',
+      headers: headers(config.publishableKey, provider.token, {
+        'content-type': 'image/png',
+        'x-upsert': 'false',
+      }),
+      body: png,
+    }),
+    'completion_proof_quarantine_upload',
+  );
+  const clean = await expectOk(
+    await invoke(config, provider, 'scan-upload', { uploadId: ticket.uploadId }),
+    'completion_proof_scan',
+  );
+  if (clean?.status !== 'clean' || !clean.storagePath) {
+    fail('completion_proof_scan_contract_invalid');
+  }
+  return {
+    uploadId: ticket.uploadId,
+    storagePath: clean.storagePath,
+    mimeType: 'image/png',
+    sizeBytes: png.byteLength,
+    description: 'Concurrent completion rejection fixture proof',
+  };
+}
+
 async function runAiPublicationFlow(config, owner) {
+  const dirtyTicket = await expectOk(
+    await rpc(config, owner, 'create_unbound_file_upload', {
+      p_purpose: 'request_media',
+      p_filename: 'dirty.png',
+      p_declared_mime_type: 'image/png',
+      p_size_bytes: 68,
+    }),
+    'dirty_ai_media_ticket',
+  );
+  const dirtyClientMessageId = `dirty-turn-${crypto.randomUUID()}`;
+  const dirtyResponse = await invoke(config, owner, 'ai-diagnostic', {
+    locale: 'en',
+    clientMessageId: dirtyClientMessageId,
+    confirmedCategorySlug: 'general-handyman',
+    categoryHints: ['general-handyman'],
+    inputKind: 'image',
+    mediaUploadIds: [dirtyTicket.uploadId],
+    messages: [{ role: 'user', text: 'This unscanned image must never reach the AI provider.' }],
+  });
+  if (dirtyResponse.ok) fail('dirty_ai_media_was_accepted');
+  const dirtyMessages = await expectOk(
+    await userRequest(
+      config,
+      owner,
+      `ai_messages?client_message_id=eq.${encodeURIComponent(dirtyClientMessageId)}&select=id`,
+    ),
+    'dirty_ai_media_message_check',
+  );
+  if (!Array.isArray(dirtyMessages) || dirtyMessages.length !== 0) {
+    fail('dirty_ai_media_left_an_unreplayable_customer_turn');
+  }
   const first = await expectOk(
     await invoke(config, owner, 'ai-diagnostic', {
       locale: 'en',
@@ -339,16 +439,229 @@ async function runAiPublicationFlow(config, owner) {
   }
 }
 
+async function runConcurrentIdempotencyFlow(config, owner, provider) {
+  const cityRows = await expectOk(
+    await userRequest(config, provider, 'cities?code=eq.riyadh&select=id'),
+    'provider_city_fixture',
+  );
+  const cityId = cityRows?.[0]?.id;
+  if (typeof cityId !== 'string') fail('provider_city_fixture_invalid');
+  await expectOk(
+    await userRequest(config, provider, `provider_service_areas?provider_id=eq.${provider.id}`, {
+      method: 'DELETE',
+      headers: { prefer: 'return=minimal' },
+    }),
+    'provider_area_cleanup',
+  );
+  await expectOk(
+    await userRequest(config, provider, 'provider_service_areas', {
+      method: 'POST',
+      headers: { prefer: 'return=minimal' },
+      body: JSON.stringify({
+        provider_id: provider.id,
+        city_id: cityId,
+        center: 'SRID=4326;POINT(46.6753 24.7136)',
+        radius_m: 40_000,
+      }),
+    }),
+    'provider_area_fixture',
+  );
+  await expectOk(
+    await userRequest(config, provider, `provider_availability?provider_id=eq.${provider.id}`, {
+      method: 'DELETE',
+      headers: { prefer: 'return=minimal' },
+    }),
+    'provider_availability_cleanup',
+  );
+  await expectOk(
+    await userRequest(config, provider, 'provider_availability', {
+      method: 'POST',
+      headers: { prefer: 'return=minimal' },
+      body: JSON.stringify(
+        Array.from({ length: 7 }, (_, weekday) => ({
+          provider_id: provider.id,
+          weekday,
+          start_time: '00:00:00',
+          end_time: '23:59:59',
+        })),
+      ),
+    }),
+    'provider_availability_fixture',
+  );
+  const publicationKey = `concurrent-publish-${crypto.randomUUID()}`;
+  const publication = {
+    title: 'Concurrent publication fixture',
+    original_text: 'Concurrent publication must create one request.',
+    structured_description: 'Concurrent publication must create one request.',
+    urgency: 'normal',
+    locale: 'en',
+    category_slug: 'air-conditioning',
+    city_code: 'riyadh',
+    exact_location: { latitude: 24.7136, longitude: 46.6753 },
+    media: [],
+    customer_approved: true,
+    idempotency_key: publicationKey,
+  };
+  const publicationResponses = await Promise.all([
+    rpc(config, owner, 'publish_service_request', { payload: publication }),
+    rpc(config, owner, 'publish_service_request', { payload: publication }),
+  ]);
+  const requestIds = await Promise.all(
+    publicationResponses.map((response, index) =>
+      expectOk(response, `concurrent_publication_${index + 1}`),
+    ),
+  );
+  if (typeof requestIds[0] !== 'string' || requestIds[0] !== requestIds[1]) {
+    fail('concurrent_publication_did_not_replay_authoritative_request');
+  }
+  const requestId = requestIds[0];
+  const requestRows = await expectOk(
+    await userRequest(
+      config,
+      owner,
+      `service_requests?id=eq.${requestId}&customer_id=eq.${owner.id}&select=id,status,version`,
+    ),
+    'concurrent_publication_count',
+  );
+  if (!Array.isArray(requestRows) || requestRows.length !== 1) {
+    fail('concurrent_publication_created_duplicate_requests');
+  }
+
+  const offerId = await expectOk(
+    await rpc(config, provider, 'submit_offer', {
+      payload: {
+        requestId,
+        expectedRequestVersion: requestRows[0].version,
+        totalAmountMinor: 12_500,
+        visitFeeMinor: 2_500,
+        laborAmountMinor: 10_000,
+        materialsIncluded: false,
+        materialsEstimateMinor: 0,
+        estimatedArrivalMinutes: 30,
+        estimatedDurationMinutes: 60,
+        warrantyDays: 7,
+        note: 'Concurrent selection fixture offer',
+        expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+        idempotencyKey: `fixture-offer-${crypto.randomUUID()}`,
+      },
+    }),
+    'concurrent_offer_fixture',
+  );
+  if (typeof offerId !== 'string') fail('concurrent_offer_fixture_invalid');
+  const selectionKey = `concurrent-select-${crypto.randomUUID()}`;
+  const selectionResponses = await Promise.all([
+    rpc(config, owner, 'select_offer', {
+      p_offer_id: offerId,
+      p_idempotency_key: selectionKey,
+    }),
+    rpc(config, owner, 'select_offer', {
+      p_offer_id: offerId,
+      p_idempotency_key: selectionKey,
+    }),
+  ]);
+  const jobIds = await Promise.all(
+    selectionResponses.map((response, index) =>
+      expectOk(response, `concurrent_offer_selection_${index + 1}`),
+    ),
+  );
+  if (typeof jobIds[0] !== 'string' || jobIds[0] !== jobIds[1]) {
+    fail('concurrent_offer_selection_did_not_replay_authoritative_job');
+  }
+  const jobId = jobIds[0];
+  const jobRows = await expectOk(
+    await userRequest(config, owner, `jobs?request_id=eq.${requestId}&select=id,status`),
+    'concurrent_job_count',
+  );
+  if (!Array.isArray(jobRows) || jobRows.length !== 1 || jobRows[0]?.id !== jobId) {
+    fail('concurrent_offer_selection_created_duplicate_jobs');
+  }
+
+  for (const [status, reason] of [
+    ['scheduled', 'Provider scheduled the fixture job'],
+    ['en_route', 'Provider started travel for fixture job'],
+    ['arrived', 'Provider arrived for fixture job'],
+    ['diagnosing', 'Provider inspected the fixture job'],
+    ['in_progress', 'Provider started the fixture work'],
+  ]) {
+    await expectOk(
+      await rpc(config, provider, 'transition_job', {
+        p_job_id: jobId,
+        p_to_status: status,
+        p_reason: reason,
+        p_idempotency_key: `fixture-transition-${status}-${crypto.randomUUID()}`,
+      }),
+      `completion_rejection_fixture_${status}`,
+    );
+  }
+  const proof = await createCleanCompletionProof(config, provider, jobId);
+  await expectOk(
+    await rpc(config, provider, 'submit_completion', {
+      p_job_id: jobId,
+      p_proofs: [proof],
+      p_idempotency_key: `fixture-completion-${crypto.randomUUID()}`,
+    }),
+    'completion_rejection_fixture_submission',
+  );
+  const rejectionKey = `concurrent-rejection-${crypto.randomUUID()}`;
+  const rejectionPayload = {
+    p_job_id: jobId,
+    p_accept: false,
+    p_reason: 'Completion evidence does not match the agreed work.',
+    p_score: null,
+    p_review: null,
+    p_idempotency_key: rejectionKey,
+    p_evidence_upload_ids: [],
+  };
+  const rejectionResponses = await Promise.all([
+    rpc(config, owner, 'accept_completion', rejectionPayload),
+    rpc(config, owner, 'accept_completion', rejectionPayload),
+  ]);
+  const rejectionResults = await Promise.all(
+    rejectionResponses.map((response, index) =>
+      expectOk(response, `concurrent_completion_rejection_${index + 1}`),
+    ),
+  );
+  if (
+    !rejectionResults[0]?.disputeId ||
+    rejectionResults[0].disputeId !== rejectionResults[1]?.disputeId
+  ) {
+    fail('concurrent_completion_rejection_did_not_replay_authoritative_dispute');
+  }
+  const disputeRows = await expectOk(
+    await userRequest(config, owner, `disputes?job_id=eq.${jobId}&select=id,status`),
+    'concurrent_dispute_count',
+  );
+  if (
+    !Array.isArray(disputeRows) ||
+    disputeRows.length !== 1 ||
+    disputeRows[0]?.id !== rejectionResults[0].disputeId
+  ) {
+    fail('concurrent_completion_rejection_created_duplicate_disputes');
+  }
+  const conflict = await rpc(config, owner, 'accept_completion', {
+    ...rejectionPayload,
+    p_reason: 'A conflicting completion rejection payload.',
+  });
+  const conflictBody = await readBody(conflict);
+  if (conflict.ok || !JSON.stringify(conflictBody).includes('IDEMPOTENCY_KEY_CONFLICT')) {
+    fail('completion_rejection_idempotency_conflict_not_enforced');
+  }
+}
+
 const config = localEnvironment();
 const functionServer = await ensureFunctions(config);
 try {
   const owner = await createUser(config, 'local-owner');
   const outsider = await createUser(config, 'local-outsider');
+  const provider = await signInUser(
+    config,
+    'provider.demo@example.invalid',
+    'LocalProviderE2E-Only!2026',
+  );
   await runStorageFlow(config, owner, outsider);
   await runAiPublicationFlow(config, owner);
-  console.log(
-    'Local Supabase integration: PASS (storage scan/signing + multi-turn AI publication)',
-  );
+  await runConcurrentIdempotencyFlow(config, owner, provider);
+  console.log('Local Supabase integration: PASS (storage + AI + true concurrent core idempotency)');
 } finally {
   await stopFunctions(functionServer);
 }

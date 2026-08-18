@@ -424,6 +424,7 @@ export default function Jobs() {
       p_score: accepted ? score : 1,
       p_review: review,
       p_idempotency_key: globalThis.crypto.randomUUID(),
+      p_evidence_upload_ids: accepted ? [] : (proofs[job.id] ?? []).map((proof) => proof.uploadId),
     });
     if (error) throw error;
   }

@@ -61,7 +61,7 @@ function ascii(bytes: Uint8Array, start: number, length: number): string {
   return textDecoder.decode(bytes.subarray(start, start + length));
 }
 
-function detectMime(bytes: Uint8Array, declaredMimeType: string): string {
+export function detectMime(bytes: Uint8Array, declaredMimeType: string): string {
   if (startsWith(bytes, [0xff, 0xd8, 0xff])) return 'image/jpeg';
   if (startsWith(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return 'image/png';
   if (ascii(bytes, 0, 4) === 'RIFF' && ascii(bytes, 8, 4) === 'WEBP') return 'image/webp';

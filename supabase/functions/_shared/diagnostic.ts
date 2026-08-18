@@ -8,7 +8,9 @@ export const inputSchema = z.object({
   sessionId: z.uuid().optional(),
   clientMessageId: z.string().min(8).max(128).optional(),
   inputKind: z.enum(['text', 'voice', 'image']).default('text'),
-  mediaUploadIds: z.array(z.uuid()).max(8).default([]),
+  mediaUploadIds: z.array(z.uuid()).max(4).refine((ids) => new Set(ids).size === ids.length, {
+    message: 'duplicate media upload ids',
+  }).default([]),
   confirmedCategorySlug: z.string().min(1).max(120).nullable().optional(),
   summaryRequested: z.boolean().default(false),
 });
@@ -50,6 +52,9 @@ export const diagnosticSchema = z.object({
     turnNumber: z.number().int().positive().optional(),
     historyPreserved: z.boolean().default(true),
     categoryConfirmed: z.boolean().default(false),
+    visionInputCount: z.number().int().min(0).max(4).optional(),
+    visionMode: z.enum(['not_requested', 'provider', 'text_fallback']).optional(),
+    summaryRequested: z.boolean().optional(),
   }),
 });
 export type Diagnostic = z.infer<typeof diagnosticSchema>;
@@ -129,6 +134,12 @@ export const jsonSchema = {
         turnNumber: { type: 'integer', minimum: 1 },
         historyPreserved: { type: 'boolean' },
         categoryConfirmed: { type: 'boolean' },
+        visionInputCount: { type: 'integer', minimum: 0, maximum: 4 },
+        visionMode: {
+          type: 'string',
+          enum: ['not_requested', 'provider', 'text_fallback'],
+        },
+        summaryRequested: { type: 'boolean' },
       },
     },
   },
@@ -226,7 +237,7 @@ export function deterministic(input: z.infer<typeof inputSchema>): Diagnostic {
     metadata: {
       provider: 'deterministic',
       model: 'rules-v1',
-      promptVersion: 'diagnostic-v1',
+      promptVersion: 'diagnostic-v3',
       fallback: true,
       historyPreserved: true,
       categoryConfirmed: input.confirmedCategorySlug !== undefined &&

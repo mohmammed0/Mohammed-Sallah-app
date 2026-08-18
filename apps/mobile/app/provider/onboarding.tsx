@@ -153,6 +153,7 @@ export default function ProviderOnboarding() {
             end: '18:00',
           })),
           locale,
+          idempotencyKey: globalThis.crypto.randomUUID(),
           submit: shouldSubmit,
           documents: uploadedDocuments.map((upload, index) => ({
             documentType:
