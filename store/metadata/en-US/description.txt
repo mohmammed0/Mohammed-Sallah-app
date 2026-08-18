@@ -1,0 +1,1 @@
+SALLAH is an Arabic-first Saudi services marketplace for creating an editable AI-assisted request, comparing sealed provider offers, selecting a verified provider, and managing the job, change orders, completion, messaging, support, and disputes.

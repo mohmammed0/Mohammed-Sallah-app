@@ -1,0 +1,38 @@
+name: Bug report
+description: Report a reproducible defect without personal data or secrets.
+title: '[Bug]: '
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      {
+        value: 'Do not include credentials, exact addresses, documents, messages, or payment data.',
+      }
+  - type: dropdown
+    id: surface
+    attributes:
+      {
+        label: Surface,
+        options:
+          [
+            Mobile customer,
+            Mobile provider,
+            Public web,
+            Admin,
+            Database/RLS,
+            Edge Function,
+            CI/release,
+          ],
+      }
+    validations: { required: true }
+  - type: textarea
+    id: steps
+    attributes: { label: Reproduction, description: Use synthetic/redacted values. }
+    validations: { required: true }
+  - type: textarea
+    id: expected
+    attributes: { label: Expected and actual behavior }
+    validations: { required: true }
+  - type: input
+    id: commit
+    attributes: { label: Commit/app version }

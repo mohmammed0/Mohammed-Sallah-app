@@ -1,0 +1,36 @@
+name: Release readiness
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: release-readiness-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  production-contract:
+    environment: production-readiness
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc }
+      - run: corepack enable && corepack prepare pnpm@11.19.0 --activate
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm config:validate:production
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          SALLAH_PUBLIC_URL: ${{ vars.SALLAH_PUBLIC_URL }}
+          SALLAH_SUPPORT_EMAIL: ${{ vars.SALLAH_SUPPORT_EMAIL }}
+          SALLAH_PRIVACY_URL: ${{ vars.SALLAH_PRIVACY_URL }}
+          SALLAH_TERMS_URL: ${{ vars.SALLAH_TERMS_URL }}
+          SALLAH_LEGAL_ENTITY: ${{ vars.SALLAH_LEGAL_ENTITY }}
+          EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
+          SALLAH_IOS_BUNDLE_ID: ${{ vars.SALLAH_IOS_BUNDLE_ID }}
+          SALLAH_ANDROID_PACKAGE: ${{ vars.SALLAH_ANDROID_PACKAGE }}
+          AI_PROVIDER: openai
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PAYMENT_PROVIDER: offline
+      - run: pnpm build

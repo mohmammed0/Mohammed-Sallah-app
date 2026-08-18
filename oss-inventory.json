@@ -1,0 +1,159 @@
+{
+  "generatedAt": "2026-08-17",
+  "policy": "Exact versions from pnpm lock; ship permissive dependencies. Package-scoped build/data exceptions are documented.",
+  "adopted": [
+    {
+      "project": "expo/expo",
+      "package": "expo",
+      "version": "57.0.14",
+      "license": "MIT",
+      "use": "iOS/Android framework, Router and native modules",
+      "security": "GitHub security policy/advisories"
+    },
+    {
+      "project": "facebook/react-native",
+      "package": "react-native",
+      "version": "0.86.2",
+      "license": "MIT",
+      "use": "native UI runtime",
+      "security": "GitHub security policy"
+    },
+    {
+      "project": "vercel/next.js",
+      "package": "next",
+      "version": "16.3.1",
+      "license": "MIT",
+      "use": "public web and operations portal",
+      "security": "Vercel security policy/advisories"
+    },
+    {
+      "project": "supabase/supabase-js",
+      "package": "@supabase/supabase-js",
+      "version": "2.112.3",
+      "license": "MIT",
+      "use": "typed Auth/DB/Storage/Realtime client",
+      "security": "Supabase security policy"
+    },
+    {
+      "project": "supabase/cli",
+      "package": "supabase",
+      "version": "2.114.0",
+      "license": "Apache-2.0",
+      "use": "local database/migrations/functions tooling",
+      "security": "Supabase security policy"
+    },
+    {
+      "project": "vercel/turborepo",
+      "package": "turbo",
+      "version": "2.10.10",
+      "license": "MIT",
+      "use": "monorepo task graph",
+      "security": "Vercel security reporting"
+    },
+    {
+      "project": "TanStack/query",
+      "package": "@tanstack/react-query",
+      "version": "5.101.4",
+      "license": "MIT",
+      "use": "mobile server state",
+      "security": "GitHub advisories"
+    },
+    {
+      "project": "react-hook-form/react-hook-form",
+      "package": "react-hook-form",
+      "version": "7.85.0",
+      "license": "MIT",
+      "use": "mobile forms",
+      "security": "Repository SECURITY.md"
+    },
+    {
+      "project": "colinhacks/zod",
+      "package": "zod",
+      "version": "4.4.3",
+      "license": "MIT",
+      "use": "trust-boundary schemas",
+      "security": "GitHub advisories"
+    },
+    {
+      "project": "i18next/i18next",
+      "package": "i18next",
+      "version": "26.3.6",
+      "license": "MIT",
+      "use": "Arabic/English/Urdu/Hindi resources",
+      "security": "GitHub advisories"
+    },
+    {
+      "project": "vitest-dev/vitest",
+      "package": "vitest",
+      "version": "4.1.10",
+      "license": "MIT",
+      "use": "unit/integration tests",
+      "security": "Repository security policy"
+    },
+    {
+      "project": "microsoft/playwright",
+      "package": "@playwright/test",
+      "version": "1.62.1",
+      "license": "Apache-2.0",
+      "use": "web E2E and screenshots",
+      "security": "Microsoft security policy"
+    },
+    {
+      "project": "callstack/react-native-testing-library",
+      "package": "@testing-library/react-native",
+      "version": "14.0.1",
+      "license": "MIT",
+      "use": "mobile component-test foundation",
+      "security": "GitHub advisories"
+    },
+    {
+      "project": "openai/openai-node",
+      "package": "openai",
+      "version": "7.5.0",
+      "license": "Apache-2.0",
+      "use": "server-side structured AI and transcription",
+      "security": "OpenAI security process"
+    },
+    {
+      "project": "paulmillr/noble-hashes",
+      "package": "@noble/hashes",
+      "version": "2.3.0",
+      "license": "MIT",
+      "use": "provider-document SHA-256",
+      "security": "Audits and GitHub advisories"
+    }
+  ],
+  "externalTools": [
+    {
+      "project": "mobile-dev-inc/Maestro",
+      "version": "external current CLI",
+      "license": "Apache-2.0",
+      "use": "mobile E2E; not vendored"
+    },
+    {
+      "project": "grafana/k6",
+      "version": "external current CLI",
+      "license": "AGPL-3.0",
+      "use": "optional external load runner only; not a dependency, binary, library, or copied source"
+    }
+  ],
+  "reviewedExceptions": [
+    {
+      "packages": ["lightningcss", "platform binaries"],
+      "version": "1.33.0",
+      "license": "MPL-2.0",
+      "reason": "Next build tool; unmodified upstream files, not application source"
+    },
+    {
+      "packages": ["@img/sharp-*"],
+      "version": "0.35.3",
+      "license": "Apache-2.0 AND LGPL-3.0-or-later",
+      "reason": "Next image runtime/libvips; preserve notices and obtain distribution review"
+    },
+    {
+      "packages": ["caniuse-lite", "spdx-exceptions"],
+      "license": "CC-BY-4.0 / CC-BY-3.0",
+      "reason": "build/SPDX data; attribution preserved"
+    }
+  ]
+}
