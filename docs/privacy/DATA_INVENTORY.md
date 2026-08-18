@@ -43,7 +43,9 @@ references, audit IP hashes, and data belonging only to another participant are 
 - `requestTranslations`
 - `aiSessions`
 - `aiMessages`
+- `aiMessageMedia`
 - `aiDiagnostics`
+- `aiUsage`
 - `transcriptions`
 - `matches`
 - `offers`
@@ -51,22 +53,105 @@ references, audit IP hashes, and data belonging only to another participant are 
 - `jobHistory`
 - `jobEvents`
 - `completionProofs`
+- `customerAcceptances`
 - `conversations`
 - `messages`
 - `messageAttachments`
+- `messageDeliveryHistory`
 - `payments`
 - `refunds`
 - `financialHolds`
+- `invoices`
+- `receipts`
 - `cancellations`
+- `cancellationDecisions`
 - `disputes`
+- `disputeEvents`
 - `supportCases`
+- `supportMessages`
+- `supportEvidence`
 - `ratings`
 - `notifications`
+- `uploadSecurityEvents`
 - `privacyRequests`
 
 <!-- export-manifest:end -->
 
-`scripts/check-data-inventory.mjs` compares this list with the database export manifest on every
-full validation run.
+## Export query coverage
 
-The database function and this document are two views of one explicit 40-category contract. Export generation fails if an unlisted category is introduced, and CI fails if the documented list drifts. Account deletion uses the same ownership inventory for storage discovery, paginates until no objects remain, and records a failure instead of claiming completion when cleanup is incomplete.
+Every manifest category is bound to a concrete query anchor in `build_data_export`. The parity
+check fails when a category lacks an implementation query, its documented anchor drifts, or an
+anchor disappears from the export function.
+
+<!-- export-query-coverage:start -->
+
+- `profile` → `profiles p_export`
+- `roles` → `user_roles roles_export`
+- `preferences` → `user_preferences preferences_export`
+- `notificationPreferences` → `notification_preferences notification_preferences_export`
+- `addresses` → `addresses addresses_export`
+- `legalAcceptances` → `legal_acceptances legal_export`
+- `devices` → `user_devices devices_export`
+- `providerProfile` → `provider_profiles provider_profile_export`
+- `providerServices` → `provider_services provider_services_export`
+- `providerServiceAreas` → `provider_service_areas provider_areas_export`
+- `providerAvailability` → `provider_availability provider_availability_export`
+- `providerBlackouts` → `provider_blackout_periods provider_blackouts_export`
+- `providerDocuments` → `provider_documents provider_documents_export`
+- `providerPortfolio` → `provider_portfolio_items provider_portfolio_export`
+- `serviceRequests` → `service_requests requests_export`
+- `requestAnswers` → `service_request_answers request_answers_export`
+- `requestMedia` → `request_media request_media_export`
+- `requestTranslations` → `request_translations request_translations_export`
+- `aiSessions` → `ai_sessions ai_sessions_export`
+- `aiMessages` → `ai_messages ai_messages_export`
+- `aiMessageMedia` → `ai_message_media ai_media_export`
+- `aiDiagnostics` → `ai_diagnostics ai_diagnostics_export`
+- `aiUsage` → `ai_usage_events ai_usage_export`
+- `transcriptions` → `transcription_jobs transcriptions_export`
+- `matches` → `request_provider_matches matches_export`
+- `offers` → `offers offers_export`
+- `jobs` → `jobs jobs_export`
+- `jobHistory` → `job_status_history job_history_export`
+- `jobEvents` → `job_events job_events_export`
+- `completionProofs` → `completion_proofs completion_proofs_export`
+- `customerAcceptances` → `customer_acceptances acceptances_export`
+- `conversations` → `conversation_members conversations_membership_export`
+- `messages` → `conversation_members messages_membership_export`
+- `messageAttachments` → `conversation_members attachments_membership_export`
+- `messageDeliveryHistory` → `message_delivery_events delivery_export`
+- `payments` → `payments payments_export`
+- `refunds` → `refunds refunds_export`
+- `financialHolds` → `financial_holds holds_export`
+- `invoices` → `invoices invoices_export`
+- `receipts` → `receipts receipts_export`
+- `cancellations` → `cancellation_requests cancellations_export`
+- `cancellationDecisions` → `cancellation_decisions cancellation_decisions_export`
+- `disputes` → `disputes disputes_export`
+- `disputeEvents` → `dispute_events dispute_events_export`
+- `supportCases` → `support_cases support_cases_export`
+- `supportMessages` → `support_case_messages support_messages_export`
+- `supportEvidence` → `support_case_evidence support_evidence_export`
+- `ratings` → `ratings ratings_export`
+- `notifications` → `notification_outbox notifications_export`
+- `uploadSecurityEvents` → `upload_security_events upload_events_export`
+- `privacyRequests` → `data_export_requests privacy_exports_export`
+
+<!-- export-query-coverage:end -->
+
+Owner scope includes both sides of a marketplace interaction: sent and received conversation
+messages and attachment metadata (including historical memberships), cancellations and disputes
+affecting the owner's request/job regardless of opener, participant-visible decisions/events,
+user-visible support replies/evidence, financial records involving the owner, notification delivery
+history, AI usage/media/translations, and owner upload-security events. Provider exports retain the
+commercial-registration reference while omitting private document paths and hashes.
+
+The portable export removes counterparty contact and private identity fields, payment-provider
+references, internal support messages/notes, private storage paths, signed URLs, security hashes,
+and exact coordinates. Approximate request geography is also omitted from the portable payload;
+the legal/data-governance policy remains the authority for any future location portability change.
+
+`scripts/check-data-inventory.mjs` compares the manifest, documented anchors, database coverage map,
+and concrete export-function query text on every full validation run.
+
+The database function and this document are two views of one explicit 51-category contract. Export generation fails if an unlisted category is introduced, and CI fails if the documented list or query coverage drifts. Account deletion uses the same ownership inventory for storage discovery, paginates until no objects remain, and records a failure instead of claiming completion when cleanup is incomplete.

@@ -80,6 +80,16 @@ insert into public.jobs(
   ('91400000-0000-4000-8000-000000000004','91200000-0000-4000-8000-000000000004','91300000-0000-4000-8000-000000000004','91000000-0000-4000-8000-000000000001','91000000-0000-4000-8000-000000000002','91100000-0000-4000-8000-000000000001','completed',20000,7,now()),
   ('91400000-0000-4000-8000-000000000005','91200000-0000-4000-8000-000000000005','91300000-0000-4000-8000-000000000005','91000000-0000-4000-8000-000000000001','91000000-0000-4000-8000-000000000002','91100000-0000-4000-8000-000000000001','in_progress',8000,2,null),
   ('91400000-0000-4000-8000-000000000006','91200000-0000-4000-8000-000000000006','91300000-0000-4000-8000-000000000006','91000000-0000-4000-8000-000000000001','91000000-0000-4000-8000-000000000002','91100000-0000-4000-8000-000000000001','in_progress',10000,5,null);
+insert into public.support_cases(id,opened_by,job_id,topic,subject)
+values(
+  '91450000-0000-4000-8000-000000000005','91000000-0000-4000-8000-000000000001',
+  '91400000-0000-4000-8000-000000000005','dispute_review','Assigned nonfinancial dispute review'
+);
+insert into public.support_case_assignments(case_id,assignee_id,assigned_by)
+values(
+  '91450000-0000-4000-8000-000000000005','91000000-0000-4000-8000-000000000005',
+  '91000000-0000-4000-8000-000000000004'
+);
 insert into public.payments(
   id,job_id,customer_id,provider_id,provider_name,amount_minor,status,payment_mode,idempotency_key
 ) values
@@ -259,10 +269,13 @@ select 'nonfinancial_resolution',public.resolve_dispute(
   'no_financial_action',0,'resume','Support resumes work after nonfinancial review',3,'nonfinancial-resolve-key'
 );
 select is((select payload->>'status' from workflow_test_context where key='nonfinancial_resolution'),'resolved','nonfinancial resolution completes atomically');
+reset role;
 select is((select status::text from public.jobs where id='91400000-0000-4000-8000-000000000005'),'in_progress','resume outcome restores the previous valid job state');
 select is((select status::text from public.disputes where id=(select (payload->>'disputeId')::uuid from workflow_test_context where key='nonfinancial_dispute')),'resolved','nonfinancial dispute is fully resolved');
 select is((select count(*) from public.job_status_history where job_id='91400000-0000-4000-8000-000000000005'),2::bigint,'nonfinancial resolution records both status transitions');
 select ok((select count(*) from public.dispute_events where dispute_id=(select (payload->>'disputeId')::uuid from workflow_test_context where key='nonfinancial_dispute') and event_type in ('opened','resolved'))=2,'nonfinancial resolution records dispute events');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','91000000-0000-4000-8000-000000000005',true);
 select is(
   public.resolve_dispute(
     (select (payload->>'disputeId')::uuid from workflow_test_context where key='nonfinancial_dispute'),

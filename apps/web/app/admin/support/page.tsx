@@ -1,11 +1,14 @@
 import { translate } from '@sallah/i18n';
-import { requireAdmin } from '@/lib/auth';
+import { requireAnyAdmin } from '@/lib/auth';
 import { decideCancellation, resolveDispute } from '../actions';
 
 const t = (key: Parameters<typeof translate>[1]) => translate('ar', key);
 
 export default async function SupportPage() {
-  const { client, roles } = await requireAdmin(['support.case.read']);
+  const { client, roles } = await requireAnyAdmin([
+    'support.case.read',
+    'operations.marketplace.read',
+  ]);
   const canFinance = roles.some((role) => role === 'finance_reviewer' || role === 'super_admin');
   const [cases, cancellations, disputes] = await Promise.all([
     client

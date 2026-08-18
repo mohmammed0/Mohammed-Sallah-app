@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { requireAdmin } from '@/lib/auth';
+import { requireAdmin, requireAnyAdmin } from '@/lib/auth';
 
 const providerDecision = z.object({
   providerId: z.uuid(),
@@ -102,7 +102,11 @@ export async function decideCancellation(formData: FormData): Promise<void> {
     reason: formData.get('reason'),
     expectedJobVersion: formData.get('expectedJobVersion'),
   });
-  const { client } = await requireAdmin(['support.case.read']);
+  const { client } = await requireAnyAdmin([
+    'support.case.read',
+    'operations.marketplace.read',
+    'finance.read',
+  ]);
   const { error } = await client.rpc('decide_cancellation', {
     p_cancellation_id: input.cancellationId,
     p_approve: input.approve,
@@ -127,7 +131,11 @@ export async function resolveDispute(formData: FormData): Promise<void> {
     reason: formData.get('reason'),
     expectedJobVersion: formData.get('expectedJobVersion'),
   });
-  const { client } = await requireAdmin(['support.case.read']);
+  const { client } = await requireAnyAdmin([
+    'support.case.read',
+    'operations.marketplace.read',
+    'finance.read',
+  ]);
   const { error } = await client.rpc('resolve_dispute', {
     p_dispute_id: input.disputeId,
     p_action: input.action,

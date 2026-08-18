@@ -1,6 +1,6 @@
 import { requireAdmin } from '@/lib/auth';
 export default async function RequestsPage() {
-  const { client } = await requireAdmin(['support.case.read']);
+  const { client } = await requireAdmin(['operations.marketplace.read']);
   const { data, error } = await client
     .from('service_requests')
     .select(

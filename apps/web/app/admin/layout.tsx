@@ -2,16 +2,16 @@ import Link from 'next/link';
 import { requireAdmin, type AdminPermission } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
-const links: ReadonlyArray<readonly [string, string, AdminPermission]> = [
-  ['/admin', 'الرئيسية', 'dashboard.aggregate.read'],
-  ['/admin/customers', 'العملاء', 'customer.pii.read'],
-  ['/admin/providers', 'التحقق', 'provider.document.read'],
-  ['/admin/catalog', 'الكتالوج', 'operations.mutate'],
-  ['/admin/requests', 'الطلبات', 'support.case.read'],
-  ['/admin/jobs', 'الأعمال', 'support.case.read'],
-  ['/admin/support', 'الدعم', 'support.case.read'],
-  ['/admin/finance', 'المالية', 'finance.read'],
-  ['/admin/audit', 'التدقيق', 'operations.mutate'],
+const links: ReadonlyArray<readonly [string, string, readonly AdminPermission[]]> = [
+  ['/admin', 'الرئيسية', ['dashboard.aggregate.read']],
+  ['/admin/customers', 'العملاء', ['customer.pii.read']],
+  ['/admin/providers', 'التحقق', ['provider.document.read']],
+  ['/admin/catalog', 'الكتالوج', ['operations.mutate']],
+  ['/admin/requests', 'الطلبات', ['operations.marketplace.read']],
+  ['/admin/jobs', 'الأعمال', ['operations.marketplace.read']],
+  ['/admin/support', 'الدعم', ['support.case.read', 'operations.marketplace.read']],
+  ['/admin/finance', 'المالية', ['finance.read']],
+  ['/admin/audit', 'التدقيق', ['operations.mutate']],
 ] as const;
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const { roles, permissions } = await requireAdmin(['dashboard.aggregate.read']);
@@ -27,7 +27,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </div>
           <nav className="admin-nav" aria-label="عمليات المنصة">
             {links
-              .filter(([, , permission]) => permissions.has(permission))
+              .filter(([, , required]) =>
+                required.some((permission) => permissions.has(permission)),
+              )
               .map(([href, label]) => (
                 <Link key={href} href={href}>
                   {label}

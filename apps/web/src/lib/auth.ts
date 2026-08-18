@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { createSupabaseServerClient } from './supabase/server';
 import {
   activeAdminRoleNames,
+  hasAnyAdminPermission,
   hasRequiredAdminPermissions,
   permissionsForRoles,
   type AdminPermission,
@@ -20,6 +21,17 @@ const sessionContext = z.object({
 });
 
 export async function requireAdmin(required: readonly AdminPermission[]) {
+  return requireAdminAuthorization(required, 'all');
+}
+
+export async function requireAnyAdmin(required: readonly AdminPermission[]) {
+  return requireAdminAuthorization(required, 'any');
+}
+
+async function requireAdminAuthorization(
+  required: readonly AdminPermission[],
+  mode: 'all' | 'any',
+) {
   const client = await createSupabaseServerClient();
   const {
     data: { user },
@@ -39,7 +51,9 @@ export async function requireAdmin(required: readonly AdminPermission[]) {
   if (
     error ||
     !parsed.success ||
-    !hasRequiredAdminPermissions(parsed.data.accountStatus, roleRows, required)
+    !(mode === 'all'
+      ? hasRequiredAdminPermissions(parsed.data.accountStatus, roleRows, required)
+      : hasAnyAdminPermission(parsed.data.accountStatus, roleRows, required))
   ) {
     console.warn('ADMIN_AUTHORIZATION_DENIED', {
       contextError: error?.code ?? null,
@@ -48,6 +62,7 @@ export async function requireAdmin(required: readonly AdminPermission[]) {
       profileStatus: parsed.success ? parsed.data.accountStatus : null,
       roles: activeAdminRoleNames(roleRows),
       required,
+      mode,
     });
     redirect('/forbidden');
   }

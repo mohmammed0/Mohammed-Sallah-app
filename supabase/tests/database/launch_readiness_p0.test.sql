@@ -24,6 +24,13 @@ insert into public.provider_profiles(user_id,kind,verification_status,accepting_
 insert into public.provider_services(provider_id,category_id)
 select 'a1000000-0000-4000-8000-000000000002',id
 from public.service_categories where slug='general-handyman';
+insert into public.provider_service_areas(provider_id,city_id,center,radius_m)
+select 'a1000000-0000-4000-8000-000000000002',id,
+  extensions.st_setsrid(extensions.st_makepoint(46.67,24.71),4326)::extensions.geography,50000
+from public.cities where code='riyadh';
+insert into public.provider_availability(provider_id,weekday,start_time,end_time)
+select 'a1000000-0000-4000-8000-000000000002',day,'00:00'::time,'23:59:59'::time
+from generate_series(0,6) day;
 
 insert into public.addresses(id,user_id,city_id,label,formatted_address,location)
 select 'a1100000-0000-4000-8000-000000000001','a1000000-0000-4000-8000-000000000001',id,
@@ -83,6 +90,17 @@ insert into public.conversations(id,job_id) values(
 insert into public.conversation_members(conversation_id,user_id,member_role) values
   ('a1550000-0000-4000-8000-000000000001','a1000000-0000-4000-8000-000000000001','customer'),
   ('a1550000-0000-4000-8000-000000000001','a1000000-0000-4000-8000-000000000002','provider');
+insert into public.support_cases(id,opened_by,job_id,topic,subject)
+values(
+  'a1580000-0000-4000-8000-000000000001','a1000000-0000-4000-8000-000000000001',
+  'a1500000-0000-4000-8000-000000000001','completion_review','P0 scoped support case'
+);
+insert into public.support_case_assignments(
+  case_id,assignee_id,assigned_by,permissions
+) values(
+  'a1580000-0000-4000-8000-000000000001','a1000000-0000-4000-8000-000000000004',
+  'a1000000-0000-4000-8000-000000000004',array['read','internal_note','evidence','exact_location']
+);
 
 insert into public.file_uploads(
   id,user_id,purpose,resource_id,original_filename,extension,declared_mime_type,
@@ -139,7 +157,11 @@ select throws_ok(
 );
 select set_config('request.jwt.claim.sub','a1000000-0000-4000-8000-000000000004',true);
 select is(
-  (public.get_authorized_job_location('a1500000-0000-4000-8000-000000000001')->>'jobId')::uuid,
+  (public.get_authorized_job_location(
+    'a1500000-0000-4000-8000-000000000001',
+    'a1580000-0000-4000-8000-000000000001',
+    'P0 assigned support exact location review'
+  )->>'jobId')::uuid,
   'a1500000-0000-4000-8000-000000000001'::uuid,'narrowly authorized support may read job location'
 );
 
@@ -320,7 +342,11 @@ where user_id='a1000000-0000-4000-8000-000000000004' and role='support_agent';
 set local role authenticated;
 select set_config('request.jwt.claim.sub','a1000000-0000-4000-8000-000000000004',true);
 select throws_ok(
-  $$select public.get_authorized_job_location('a1500000-0000-4000-8000-000000000001')$$,
+  $$select public.get_authorized_job_location(
+    'a1500000-0000-4000-8000-000000000001',
+    'a1580000-0000-4000-8000-000000000001',
+    'P0 role revoked exact location review'
+  )$$,
   'EXACT_LOCATION_ACCESS_DENIED','revoked support role loses exact-location permission immediately'
 );
 

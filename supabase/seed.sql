@@ -68,7 +68,7 @@ insert into public.legal_documents(document_type,version,locale,content_hash,pub
 on conflict(document_type,version,locale) do nothing;
 
 insert into public.ai_prompt_versions(purpose,version,schema_version,system_prompt_hash,enabled) values
- ('diagnostic','diagnostic-v1','1.0',encode(digest('system-prompt-reviewed-at-deploy','sha256'),'hex'),true),
+ ('diagnostic','diagnostic-v1','1.0',encode(digest('system-prompt-reviewed-at-deploy','sha256'),'hex'),false),
  ('translation','translation-v1','1.0',encode(digest('translation-prompt-reviewed-at-deploy','sha256'),'hex'),true)
 on conflict(purpose,version) do update set schema_version=excluded.schema_version;
 

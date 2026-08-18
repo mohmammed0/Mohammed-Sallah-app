@@ -11,6 +11,7 @@ select id,'00000000-0000-0000-0000-000000000000','authenticated','authenticated'
     case
       -- Known only to local Playwright runs. This seed file is never used by production config.
       when email='admin.demo@example.invalid' then 'LocalE2E-Only!2026'
+      when email='provider.demo@example.invalid' then 'LocalProviderE2E-Only!2026'
       else gen_random_uuid()::text
     end,
     gen_salt('bf')
@@ -142,8 +143,7 @@ insert into public.jobs(
 ) values
  ('de000000-0000-4000-8000-000000000001','db000000-0000-4000-8000-000000000001','dd000000-0000-4000-8000-000000000001','d1000000-0000-4000-8000-000000000001','d2000000-0000-4000-8000-000000000001','da000000-0000-4000-8000-000000000001','awaiting_change_order_approval',now()+interval '1 day',28000,null),
  ('de000000-0000-4000-8000-000000000002','db000000-0000-4000-8000-000000000003','dd000000-0000-4000-8000-000000000004','d1000000-0000-4000-8000-000000000001','d2000000-0000-4000-8000-000000000001','da000000-0000-4000-8000-000000000001','completed',now()-interval '4 days',18000,now()-interval '3 days'),
- ('de000000-0000-4000-8000-000000000003','db000000-0000-4000-8000-000000000002','dd000000-0000-4000-8000-000000000002','d1000000-0000-4000-8000-000000000002','d2000000-0000-4000-8000-000000000001','da000000-0000-4000-8000-000000000002','disputed',now()+interval '3 days',24000,null);
-update public.jobs set version=2 where id='de000000-0000-4000-8000-000000000003';
+ ('de000000-0000-4000-8000-000000000003','db000000-0000-4000-8000-000000000002','dd000000-0000-4000-8000-000000000002','d1000000-0000-4000-8000-000000000002','d2000000-0000-4000-8000-000000000001','da000000-0000-4000-8000-000000000002','in_progress',now()+interval '3 days',24000,null);
 update public.provider_profiles set active_workload=2 where user_id='d2000000-0000-4000-8000-000000000001';
 
 insert into public.change_orders(
@@ -215,6 +215,8 @@ values(
   'd1000000-0000-4000-8000-000000000002','نزاع عرض محلي غير نهائي','normal','open',
   'd3000000-0000-4000-8000-000000000002',1,'demo-dispute-open','in_progress'
 );
+update public.jobs set status='disputed',version=2
+where id='de000000-0000-4000-8000-000000000003';
 insert into public.dispute_events(dispute_id,actor_id,event_type,reason)
 values('e3000000-0000-4000-8000-000000000001','d1000000-0000-4000-8000-000000000002','opened','طلب مراجعة تجريبي');
 insert into public.financial_holds(job_id,amount_minor,reason,created_by,dispute_id)
