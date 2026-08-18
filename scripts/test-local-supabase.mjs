@@ -65,6 +65,7 @@ async function ensureFunctions(config) {
   const resolved = resolveTool('supabase', ['functions', 'serve']);
   const child = spawn(resolved.command, resolved.args, {
     cwd: process.cwd(),
+    detached: process.platform !== 'win32',
     shell: resolved.shell,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -82,6 +83,43 @@ async function ensureFunctions(config) {
   }
   child.kill('SIGTERM');
   fail(`EDGE_FUNCTION_SERVER_TIMEOUT:${output}`);
+}
+
+function waitForExit(child, timeoutMs) {
+  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const onExit = () => {
+      clearTimeout(timer);
+      resolve(true);
+    };
+    const timer = setTimeout(() => {
+      child.off('exit', onExit);
+      resolve(false);
+    }, timeoutMs);
+    child.once('exit', onExit);
+  });
+}
+
+function signalFunctionServer(child, signal) {
+  if (process.platform !== 'win32' && child.pid) {
+    try {
+      if (process.kill(-child.pid, signal)) return;
+    } catch {
+      // Fall back to the direct child when the process group has already exited.
+    }
+  }
+  child.kill(signal);
+}
+
+async function stopFunctions(child) {
+  if (!child || child.exitCode !== null || child.signalCode !== null) return;
+  signalFunctionServer(child, 'SIGTERM');
+  if (!(await waitForExit(child, 5_000))) {
+    signalFunctionServer(child, 'SIGKILL');
+    if (!(await waitForExit(child, 5_000))) fail('EDGE_FUNCTION_SERVER_SHUTDOWN_TIMEOUT');
+  }
+  child.stdout?.destroy();
+  child.stderr?.destroy();
 }
 
 async function createUser(config, prefix) {
@@ -312,5 +350,5 @@ try {
     'Local Supabase integration: PASS (storage scan/signing + multi-turn AI publication)',
   );
 } finally {
-  functionServer?.kill('SIGTERM');
+  await stopFunctions(functionServer);
 }
