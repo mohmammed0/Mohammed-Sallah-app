@@ -3,7 +3,7 @@ import { chunkedSecureStorage } from '../../lib/secure-storage';
 import type { ConversationMessage } from './conversation-state';
 import { retainedMediaSchema } from '../../lib/durable-media';
 
-const cleanUploadSchema = z.object({
+export const cleanUploadSchema = z.object({
   uploadId: z.uuid(),
   status: z.literal('clean'),
   storagePath: z.string(),
@@ -11,12 +11,20 @@ const cleanUploadSchema = z.object({
   sizeBytes: z.number().int().positive(),
   contentHash: z.string(),
 });
+export type RecoveredCleanUpload = z.infer<typeof cleanUploadSchema>;
+export const turnMediaBindingSchema = z.object({
+  localMediaId: z.string().min(8).max(128),
+  kind: z.enum(['image', 'voice']),
+  upload: cleanUploadSchema.nullable(),
+});
+export type TurnMediaBinding = z.infer<typeof turnMediaBindingSchema>;
 export const pendingCustomerTurnSchema = z.object({
   clientMessageId: z.string().min(8).max(128),
   text: z.string().max(8000),
   inputKind: z.enum(['text', 'voice', 'image']),
   mediaUploadIds: z.array(z.uuid()).max(4),
   localMediaIds: z.array(z.string().min(8).max(128)).max(4),
+  mediaBindings: z.array(turnMediaBindingSchema).max(4).default([]),
   transcript: z.string().min(1).max(8000).nullable().default(null),
   transcriptionStatus: z.enum(['none', 'pending', 'retryable', 'completed']).default('none'),
   confirmedCategorySlug: z.string().nullable(),
@@ -60,6 +68,9 @@ export const aiIntakeSnapshotSchema = z.object({
     imageUpload: cleanUploadSchema.nullable(),
     voiceUpload: cleanUploadSchema.nullable(),
     retainedMedia: z.array(retainedMediaSchema).max(4),
+    activeImageMediaId: z.string().min(8).max(128).nullable().default(null),
+    activeVoiceMediaId: z.string().min(8).max(128).nullable().default(null),
+    requestMediaUploadIds: z.array(z.uuid()).max(8).default([]),
   }),
 });
 export type AiIntakeSnapshot = z.infer<typeof aiIntakeSnapshotSchema>;
@@ -109,6 +120,14 @@ export function enqueuePendingTurn(
   if (turns.some((item) => item.clientMessageId === turn.clientMessageId)) return [...turns];
   return [...turns, pendingCustomerTurnSchema.parse(turn)].sort((left, right) =>
     left.createdAt.localeCompare(right.createdAt),
+  );
+}
+
+export function retryFailedTranscriptionTurns(
+  turns: readonly PendingCustomerTurn[],
+): PendingCustomerTurn[] {
+  return turns.map((turn) =>
+    turn.transcriptionStatus === 'retryable' ? { ...turn, transcriptionStatus: 'pending' } : turn,
   );
 }
 

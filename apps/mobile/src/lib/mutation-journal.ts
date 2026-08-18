@@ -40,6 +40,10 @@ export type MutationJournalEntry = z.infer<typeof journalEntrySchema>;
 const MAX_ENTRIES = 64;
 const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const TERMINAL_RETENTION_MS = 24 * 60 * 60 * 1000;
+const inFlightMutations = new Map<
+  string,
+  { payloadFingerprint: string; promise: Promise<unknown> }
+>();
 
 function key(userId: string): string {
   return `sallah:mutation-journal:v2:${userId}`;
@@ -173,23 +177,46 @@ export function mutationFailureState(error: unknown): 'retryable' | 'terminal_fa
   return 'terminal_failed';
 }
 
-export async function executeJournaledMutation<T>(input: {
+export function executeJournaledMutation<T>(input: {
   userId: string;
   operation: MutationOperation;
   entityKey: string;
   payload: unknown;
   execute: (idempotencyKey: string, persistedPayload: unknown) => Promise<T>;
 }): Promise<T> {
-  const entry = await beginMutation(input);
-  try {
-    const result = await input.execute(entry.idempotencyKey, entry.payload);
-    await completeMutation(entry, result);
-    return result;
-  } catch (error) {
-    await updateMutation(entry, {
-      state: mutationFailureState(error),
-      lastError: errorCode(error).slice(0, 200),
-    });
-    throw error;
+  const flightKey = `${input.userId}:${input.operation}:${input.entityKey}`;
+  const payloadFingerprint = mutationFingerprint(input.payload);
+  const existing = inFlightMutations.get(flightKey);
+  if (existing) {
+    if (existing.payloadFingerprint !== payloadFingerprint) {
+      return Promise.reject(new Error('MUTATION_INTENT_STILL_PENDING'));
+    }
+    return existing.promise as Promise<T>;
   }
+  const promise = (async () => {
+    const entry = await beginMutation(input);
+    try {
+      const result = await input.execute(entry.idempotencyKey, entry.payload);
+      await completeMutation(entry, result);
+      return result;
+    } catch (error) {
+      await updateMutation(entry, {
+        state: mutationFailureState(error),
+        lastError: errorCode(error).slice(0, 200),
+      });
+      throw error;
+    }
+  })();
+  inFlightMutations.set(flightKey, { payloadFingerprint, promise });
+  void promise.then(
+    () => {
+      if (inFlightMutations.get(flightKey)?.promise === promise)
+        inFlightMutations.delete(flightKey);
+    },
+    () => {
+      if (inFlightMutations.get(flightKey)?.promise === promise)
+        inFlightMutations.delete(flightKey);
+    },
+  );
+  return promise;
 }

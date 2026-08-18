@@ -5,6 +5,7 @@ import {
   enqueuePendingTurn,
   reconcileAuthoritativeTurn,
   replayPendingTurns,
+  retryFailedTranscriptionTurns,
   type PendingCustomerTurn,
 } from '../src/features/request/conversation-recovery';
 
@@ -25,6 +26,7 @@ const first: PendingCustomerTurn = {
   inputKind: 'image',
   mediaUploadIds: ['11111111-1111-4111-8111-111111111111'],
   localMediaIds: [],
+  mediaBindings: [],
   transcript: null,
   transcriptionStatus: 'none',
   confirmedCategorySlug: 'plumbing',
@@ -182,5 +184,27 @@ describe('AI intake recovery', () => {
     });
     expect(calls).toBe(1);
     expect(result.completed[0]?.value.text).toBe('The motor is making a loud noise.');
+  });
+
+  it('retries failed voice transcription without a network toggle or restart', async () => {
+    const retryable: PendingCustomerTurn = {
+      ...first,
+      clientMessageId: 'voice-retry-0002',
+      inputKind: 'voice',
+      text: '',
+      localMediaIds: ['voice-local-0002'],
+      mediaBindings: [{ localMediaId: 'voice-local-0002', kind: 'voice', upload: null }],
+      transcriptionStatus: 'retryable',
+    };
+    const pending = retryFailedTranscriptionTurns([retryable]);
+    expect(pending[0]?.transcriptionStatus).toBe('pending');
+    const replayed = await replayPendingTurns(pending, async (turn) => ({
+      ...turn,
+      text: 'The fan does not work.',
+      transcript: 'The fan does not work.',
+      transcriptionStatus: 'completed' as const,
+    }));
+    expect(replayed.pending).toEqual([]);
+    expect(replayed.completed[0]?.value.transcript).toBe('The fan does not work.');
   });
 });

@@ -293,6 +293,7 @@ const ar = {
   microphonePermissionDenied: 'لم تُمنح صلاحية الميكروفون. استخدم الوصف النصي.',
   transcriptionFailed:
     'تعذر النسخ الصوتي. يمكنك متابعة الوصف يدويًا؛ سيُنظف التسجيل المؤقت وفق سياسة الاحتفاظ.',
+  retryTranscription: 'إعادة محاولة النسخ الصوتي',
   descriptionTooShort: 'اكتب وصفًا من 10 أحرف على الأقل.',
   aiUnavailableDraftCreated: 'خدمة الذكاء الاصطناعي غير متاحة؛ أُنشئت مسودة حتمية قابلة للتعديل.',
   requestPublishedTitle: 'تم نشر الطلب',
@@ -798,6 +799,7 @@ const en: TranslationShape = {
   microphonePermissionDenied: 'Microphone permission was not granted. Use the text description.',
   transcriptionFailed:
     'Audio transcription failed. Continue manually; the temporary recording is cleaned under the retention policy.',
+  retryTranscription: 'Retry audio transcription',
   descriptionTooShort: 'Enter a description of at least 10 characters.',
   aiUnavailableDraftCreated: 'AI is unavailable; an editable deterministic draft was created.',
   requestPublishedTitle: 'Request published',

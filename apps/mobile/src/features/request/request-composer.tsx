@@ -33,6 +33,7 @@ import {
   queueAiIntakeAbandonment,
   reconcileAuthoritativeTurn,
   replayPendingTurns,
+  retryFailedTranscriptionTurns,
   saveAiIntakeSnapshot,
   takeAiIntakeAbandonment,
   type PendingCustomerTurn,
@@ -46,6 +47,11 @@ import {
   type RetainedMedia,
 } from '@/lib/durable-media';
 import { executeJournaledMutation } from '@/lib/mutation-journal';
+import {
+  activeMediaIdsAfterReplacement,
+  bindingsForActiveTurn,
+  collectRequestMediaUploadIds,
+} from './turn-media';
 
 const MAX_MEDIA_BYTES = 10 * 1024 * 1024;
 const MAX_RECORDING_MS = 120_000;
@@ -104,6 +110,9 @@ export function RequestComposer() {
   const [userId, setUserId] = useState<string | null>(null);
   const [pendingTurns, setPendingTurns] = useState<PendingCustomerTurn[]>([]);
   const [retainedMedia, setRetainedMedia] = useState<RetainedMedia[]>([]);
+  const [activeImageMediaId, setActiveImageMediaId] = useState<string | null>(null);
+  const [activeVoiceMediaId, setActiveVoiceMediaId] = useState<string | null>(null);
+  const [requestMediaUploadIds, setRequestMediaUploadIds] = useState<string[]>([]);
   const [restored, setRestored] = useState(false);
   const sessionIdRef = useRef<string | null>(null);
   const replayingRef = useRef(false);
@@ -146,6 +155,9 @@ export function RequestComposer() {
         setImageUpload(local.draft.imageUpload);
         setVoiceUpload(local.draft.voiceUpload);
         setRetainedMedia(local.draft.retainedMedia);
+        setActiveImageMediaId(local.draft.activeImageMediaId);
+        setActiveVoiceMediaId(local.draft.activeVoiceMediaId);
+        setRequestMediaUploadIds(local.draft.requestMediaUploadIds);
         const restoredDiagnostic = aiDiagnosticSchema.safeParse(local.draft.diagnostic);
         if (restoredDiagnostic.success) setDiagnostic(restoredDiagnostic.data);
       }
@@ -294,6 +306,9 @@ export function RequestComposer() {
           imageUpload,
           voiceUpload,
           retainedMedia,
+          activeImageMediaId,
+          activeVoiceMediaId,
+          requestMediaUploadIds,
         },
       });
     }, 100);
@@ -319,6 +334,9 @@ export function RequestComposer() {
     imageUpload,
     voiceUpload,
     retainedMedia,
+    activeImageMediaId,
+    activeVoiceMediaId,
+    requestMediaUploadIds,
   ]);
   const catalog = useQuery({
     queryKey: ['request-catalog', locale],
@@ -421,11 +439,17 @@ export function RequestComposer() {
         mimeType: asset.mimeType ?? 'image/jpeg',
         sizeBytes: asset.fileSize,
       });
-      const superseded = retainedMedia
-        .filter((item) => item.kind === 'image')
-        .map((item) => item.id);
+      const superseded = activeMediaIdsAfterReplacement({
+        kind: 'image',
+        activeImageMediaId,
+        activeVoiceMediaId,
+      });
       if (superseded.length) await removeRetainedMedia(userId, superseded);
-      setRetainedMedia((current) => [...current.filter((item) => item.kind !== 'image'), retained]);
+      setRetainedMedia((current) => [
+        ...current.filter((item) => !superseded.includes(item.id)),
+        retained,
+      ]);
+      setActiveImageMediaId(retained.id);
       setImage({ ...asset, uri: retained.localUri });
       setImageUpload(null);
       invalidateApproval();
@@ -471,11 +495,17 @@ export function RequestComposer() {
         filename: `${globalThis.crypto.randomUUID()}.m4a`,
         mimeType: 'audio/mp4',
       });
-      const superseded = retainedMedia
-        .filter((item) => item.kind === 'voice')
-        .map((item) => item.id);
+      const superseded = activeMediaIdsAfterReplacement({
+        kind: 'voice',
+        activeImageMediaId,
+        activeVoiceMediaId,
+      });
       if (superseded.length) await removeRetainedMedia(userId, superseded);
-      setRetainedMedia((current) => [...current.filter((item) => item.kind !== 'voice'), retained]);
+      setRetainedMedia((current) => [
+        ...current.filter((item) => !superseded.includes(item.id)),
+        retained,
+      ]);
+      setActiveVoiceMediaId(retained.id);
       setVoiceUpload(null);
       invalidateApproval();
       if (!online) setError(t('aiUnavailableDraftCreated'));
@@ -485,30 +515,49 @@ export function RequestComposer() {
   }
 
   async function prepareQueuedTurn(turn: PendingCustomerTurn): Promise<PendingCustomerTurn> {
-    if (!turn.localMediaIds.length && turn.inputKind !== 'voice') return turn;
+    const bindings =
+      turn.mediaBindings.length > 0
+        ? [...turn.mediaBindings]
+        : turn.localMediaIds.map((localMediaId) => {
+            const media = retainedMedia.find((item) => item.id === localMediaId);
+            if (!media) throw new Error('RETAINED_MEDIA_MISSING');
+            const upload =
+              localMediaId === activeImageMediaId
+                ? imageUpload
+                : localMediaId === activeVoiceMediaId
+                  ? voiceUpload
+                  : null;
+            return { localMediaId, kind: media.kind, upload };
+          });
     const uploads = [...turn.mediaUploadIds];
-    let voiceStoragePath = voiceUpload?.storagePath ?? null;
-    for (const localMediaId of turn.localMediaIds) {
-      const media = retainedMedia.find((item) => item.id === localMediaId);
+    for (let index = 0; index < bindings.length; index += 1) {
+      const binding = bindings[index];
+      if (!binding) continue;
+      const media = retainedMedia.find((item) => item.id === binding.localMediaId);
       if (!media) throw new Error('RETAINED_MEDIA_MISSING');
-      const existing = media.kind === 'image' ? imageUpload : voiceUpload;
       const upload =
-        existing ??
+        binding.upload ??
         (await uploadPrivate(
           media.localUri,
           media.filename,
           media.mimeType,
           media.kind === 'image' ? 'request_media' : 'request_audio',
         ));
-      if (media.kind === 'image') setImageUpload(upload);
-      else {
-        setVoiceUpload(upload);
-        voiceStoragePath = upload.storagePath;
-      }
+      bindings[index] = { ...binding, upload };
       if (!uploads.includes(upload.uploadId)) uploads.push(upload.uploadId);
     }
-    let prepared: PendingCustomerTurn = { ...turn, mediaUploadIds: uploads, localMediaIds: [] };
+    let prepared: PendingCustomerTurn = {
+      ...turn,
+      mediaUploadIds: uploads,
+      mediaBindings: bindings,
+    };
+    setRequestMediaUploadIds((current) => collectRequestMediaUploadIds(current, bindings));
+    setPendingTurns((current) =>
+      current.map((item) => (item.clientMessageId === turn.clientMessageId ? prepared : item)),
+    );
     if (prepared.inputKind === 'voice' && prepared.transcriptionStatus !== 'completed') {
+      const voiceStoragePath = bindings.find((binding) => binding.kind === 'voice')?.upload
+        ?.storagePath;
       if (!voiceStoragePath) throw new Error('VOICE_UPLOAD_REQUIRED');
       const raw: unknown = await supabase.functions.invoke<unknown>('transcribe', {
         body: { storagePath: voiceStoragePath, locale, clientMessageId: prepared.clientMessageId },
@@ -604,9 +653,19 @@ export function RequestComposer() {
         for (const completed of replayed.completed) {
           applyDiagnosticResult(completed.value.turn, completed.value.diagnostic, true);
         }
-        setPendingTurns(replayed.pending);
-        if (replayed.pending.length) setError(t('aiUnavailableDraftCreated'));
-        else setError('');
+        const completedIds = new Set(
+          replayed.completed.map((completed) => completed.turn.clientMessageId),
+        );
+        setPendingTurns((current) =>
+          current.filter((turn) => !completedIds.has(turn.clientMessageId)),
+        );
+        if (replayed.pending.length) {
+          setError(
+            replayed.pending.some((turn) => turn.inputKind === 'voice')
+              ? t('transcriptionFailed')
+              : t('aiUnavailableDraftCreated'),
+          );
+        } else setError('');
       })
       .finally(() => {
         replayingRef.current = false;
@@ -614,8 +673,22 @@ export function RequestComposer() {
       });
   }, [restored, online, busy, pendingTurns]);
 
+  function retryFailedTranscriptions() {
+    replaySignatureRef.current = '';
+    setPendingTurns(retryFailedTranscriptionTurns);
+    setError('');
+  }
+
   async function analyze(summaryRequested = false) {
-    const hasVoice = retainedMedia.some((item) => item.kind === 'voice');
+    const activeBindings = bindingsForActiveTurn({
+      retainedMedia,
+      activeImageMediaId,
+      activeVoiceMediaId,
+      imageUpload,
+      voiceUpload,
+    });
+    const hasVoice = activeBindings.some((binding) => binding.kind === 'voice');
+    const hasImage = activeBindings.some((binding) => binding.kind === 'image');
     const userText = description.trim() || (summaryRequested ? t('summaryRequestMessage') : '');
     if (userText.length < 10 && !hasVoice) {
       setError(t('descriptionTooShort'));
@@ -627,24 +700,16 @@ export function RequestComposer() {
     const nextConversation = [...conversation, { role: 'user' as const, text: userText }];
     let turn: PendingCustomerTurn | null = null;
     try {
-      const mediaUploadIds = [imageUpload?.uploadId, voiceUpload?.uploadId].filter(
-        (value): value is string => Boolean(value),
+      const mediaUploadIds = activeBindings.flatMap((binding) =>
+        binding.upload ? [binding.upload.uploadId] : [],
       );
       turn = {
         clientMessageId: globalThis.crypto.randomUUID(),
         text: userText,
-        inputKind: hasVoice
-          ? 'voice'
-          : retainedMedia.some((item) => item.kind === 'image')
-            ? 'image'
-            : 'text',
+        inputKind: hasVoice ? 'voice' : hasImage ? 'image' : 'text',
         mediaUploadIds,
-        localMediaIds: retainedMedia
-          .filter(
-            (item) =>
-              !((item.kind === 'image' && imageUpload) || (item.kind === 'voice' && voiceUpload)),
-          )
-          .map((item) => item.id),
+        localMediaIds: activeBindings.map((binding) => binding.localMediaId),
+        mediaBindings: activeBindings,
         transcript: null,
         transcriptionStatus: hasVoice ? 'pending' : 'none',
         confirmedCategorySlug:
@@ -654,6 +719,16 @@ export function RequestComposer() {
       };
       const queued = enqueuePendingTurn(pendingTurns, turn);
       setPendingTurns(queued);
+      const nextRequestMediaUploadIds = collectRequestMediaUploadIds(
+        requestMediaUploadIds,
+        activeBindings,
+      );
+      setRequestMediaUploadIds(nextRequestMediaUploadIds);
+      setActiveImageMediaId(null);
+      setActiveVoiceMediaId(null);
+      setImage(null);
+      setImageUpload(null);
+      setVoiceUpload(null);
       if (userId) {
         await saveAiIntakeSnapshot(userId, {
           version: 2,
@@ -673,9 +748,12 @@ export function RequestComposer() {
             schedule,
             coordinates,
             diagnostic,
-            imageUpload,
-            voiceUpload,
+            imageUpload: null,
+            voiceUpload: null,
             retainedMedia,
+            activeImageMediaId: null,
+            activeVoiceMediaId: null,
+            requestMediaUploadIds: nextRequestMediaUploadIds,
           },
         });
       }
@@ -687,6 +765,11 @@ export function RequestComposer() {
       );
       setDescription('');
     } catch {
+      if (!online && turn?.inputKind === 'voice') {
+        setDescription('');
+        setError(t('aiUnavailableDraftCreated'));
+        return;
+      }
       if (turn?.inputKind === 'voice' && turn.transcriptionStatus !== 'completed') {
         setError(t('transcriptionFailed'));
         return;
@@ -702,15 +785,16 @@ export function RequestComposer() {
       const fallbackTurn = turn ?? {
         clientMessageId: globalThis.crypto.randomUUID(),
         text: userText,
-        inputKind: retainedMedia.some((item) => item.kind === 'voice')
+        inputKind: hasVoice
           ? ('voice' as const)
-          : retainedMedia.some((item) => item.kind === 'image')
+          : hasImage
             ? ('image' as const)
             : ('text' as const),
-        mediaUploadIds: [imageUpload?.uploadId, voiceUpload?.uploadId].filter(
-          (value): value is string => Boolean(value),
+        mediaUploadIds: activeBindings.flatMap((binding) =>
+          binding.upload ? [binding.upload.uploadId] : [],
         ),
-        localMediaIds: retainedMedia.map((item) => item.id),
+        localMediaIds: activeBindings.map((binding) => binding.localMediaId),
+        mediaBindings: activeBindings,
         transcript: null,
         transcriptionStatus: hasVoice ? ('pending' as const) : ('none' as const),
         confirmedCategorySlug:
@@ -732,19 +816,20 @@ export function RequestComposer() {
     setBusy(true);
     setError('');
     try {
+      const activeBindings = bindingsForActiveTurn({
+        retainedMedia,
+        activeImageMediaId,
+        activeVoiceMediaId,
+        imageUpload,
+        voiceUpload,
+      });
       const publicationMedia = await prepareQueuedTurn({
         clientMessageId: `publication-media:${userId}`,
         text: 'publication media',
         inputKind: 'text',
-        mediaUploadIds: [imageUpload?.uploadId, voiceUpload?.uploadId].filter(
-          (value): value is string => Boolean(value),
-        ),
-        localMediaIds: retainedMedia
-          .filter(
-            (item) =>
-              !((item.kind === 'image' && imageUpload) || (item.kind === 'voice' && voiceUpload)),
-          )
-          .map((item) => item.id),
+        mediaUploadIds: requestMediaUploadIds,
+        localMediaIds: activeBindings.map((binding) => binding.localMediaId),
+        mediaBindings: activeBindings,
         transcript: null,
         transcriptionStatus: 'none',
         confirmedCategorySlug: selectedCategorySlug,
@@ -806,6 +891,9 @@ export function RequestComposer() {
       await clearRetainedMedia(userId);
       setRetainedMedia([]);
       setPendingTurns([]);
+      setActiveImageMediaId(null);
+      setActiveVoiceMediaId(null);
+      setRequestMediaUploadIds([]);
       Alert.alert(t('requestPublishedTitle'), t('requestNumber', { id: requestId }));
     } catch {
       setError(t('publishOrUploadFailed'));
@@ -840,6 +928,9 @@ export function RequestComposer() {
       setImage(null);
       setImageUpload(null);
       setVoiceUpload(null);
+      setActiveImageMediaId(null);
+      setActiveVoiceMediaId(null);
+      setRequestMediaUploadIds([]);
       setCoordinates(null);
       setSuggestedCategorySlug('');
       setSelectedCategorySlug('');
@@ -884,7 +975,7 @@ export function RequestComposer() {
         <View style={styles.row}>
           <Button
             kind="secondary"
-            label={image ? t('changePhoto') : t('addPhoto')}
+            label={activeImageMediaId ? t('changePhoto') : t('addPhoto')}
             onPress={() => void pickImage()}
           />
           <Button
@@ -904,11 +995,13 @@ export function RequestComposer() {
             onPress={() => void locate()}
           />
         </View>
-        {(image || retainedMedia.some((item) => item.kind === 'image')) && (
+        {activeImageMediaId && (
           <Image
             source={{
               uri:
-                image?.uri ?? retainedMedia.find((item) => item.kind === 'image')?.localUri ?? '',
+                image?.uri ??
+                retainedMedia.find((item) => item.id === activeImageMediaId)?.localUri ??
+                '',
             }}
             accessibilityLabel={t('attachedImageA11y')}
             style={{ width: '100%', height: 180, borderRadius: 16 }}
@@ -1068,6 +1161,14 @@ export function RequestComposer() {
           <Text accessibilityLiveRegion="polite" style={styles.error}>
             {error}
           </Text>
+        )}
+        {pendingTurns.some((turn) => turn.transcriptionStatus === 'retryable') && (
+          <Button
+            kind="secondary"
+            disabled={busy || !online}
+            label={t('retryTranscription')}
+            onPress={retryFailedTranscriptions}
+          />
         )}
         <Button
           disabled={!canPublish || busy}

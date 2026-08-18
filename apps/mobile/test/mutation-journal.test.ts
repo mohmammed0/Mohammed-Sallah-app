@@ -128,4 +128,49 @@ describe('persistent mutation journal', () => {
     expect([...stored.keys()].some((key) => key.includes('22222222'))).toBe(true);
     expect([...stored.keys()].some((key) => key.includes('33333333'))).toBe(true);
   });
+
+  it.each([
+    ['publish_request', 'request-session'],
+    ['select_offer', 'offer-id'],
+    ['accept_completion', 'completion-rejection'],
+    ['provider_onboarding', 'onboarding-draft'],
+  ] as const)(
+    'serializes concurrent %s commands into one journal and authoritative result',
+    async (operation, entityKey) => {
+      const userId = '55555555-5555-4555-8555-555555555555';
+      let release: ((value: { id: string }) => void) | undefined;
+      let authoritativeCalls = 0;
+      const execute = vi.fn(
+        async () =>
+          await new Promise<{ id: string }>((resolve) => {
+            authoritativeCalls += 1;
+            release = resolve;
+          }),
+      );
+      const input = {
+        userId,
+        operation,
+        entityKey,
+        payload: { entityKey, expectedVersion: 4 },
+        execute,
+      };
+      const first = executeJournaledMutation(input);
+      const second = executeJournaledMutation(input);
+      expect(second).toBe(first);
+      await vi.waitFor(() => {
+        const serialized = [...stored.values()].join('');
+        expect(serialized.match(/"idempotencyKey"/g)).toHaveLength(1);
+      });
+      expect(authoritativeCalls).toBe(1);
+      expect(execute.mock.calls[0]?.[0]).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+      );
+      release?.({ id: `${operation}-result` });
+      const [firstResult, secondResult] = await Promise.all([first, second]);
+      expect(firstResult).toBe(secondResult);
+      expect(firstResult).toEqual({ id: `${operation}-result` });
+      expect(authoritativeCalls).toBe(1);
+      expect([...stored.values()].join('')).not.toContain(entityKey);
+    },
+  );
 });
