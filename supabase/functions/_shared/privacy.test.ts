@@ -1,7 +1,8 @@
-import { assertEquals, assertThrows } from 'jsr:@std/assert@1';
+import { assertEquals, assertRejects, assertThrows } from 'jsr:@std/assert@1';
 import {
   assertOwnedStoragePath,
   classifyPrivacyError,
+  drainOwnedStorage,
   exportStoragePath,
   privacyRetentionSchema,
   PrivacyWorkerError,
@@ -15,6 +16,75 @@ Deno.test('worker secret comparison fails closed and accepts the configured secr
   assertEquals(await workerSecretMatches('wrong', configured), false);
   assertEquals(await workerSecretMatches(null, configured), false);
   assertEquals(await workerSecretMatches(configured, undefined), false);
+});
+
+Deno.test('owned storage deletion drains more than 5000 objects in batches of at most 100', async () => {
+  const userId = '11111111-1111-4111-8111-111111111111';
+  const remaining = new Map(
+    Array.from({ length: 5_237 }, (_, index) => {
+      const path = `${userId}/private/file-${String(index).padStart(5, '0')}.bin`;
+      return [path, { bucket_id: index % 2 === 0 ? 'proofs' : 'messages', name: path }] as const;
+    }),
+  );
+  let largestBatch = 0;
+  const removed = await drainOwnedStorage(
+    userId,
+    () => Promise.resolve([...remaining.values()].slice(0, 1000)),
+    (_bucket, paths) => {
+      largestBatch = Math.max(largestBatch, paths.length);
+      for (const path of paths) remaining.delete(path);
+      return Promise.resolve();
+    },
+  );
+  assertEquals(removed, 5_237);
+  assertEquals(remaining.size, 0);
+  assertEquals(largestBatch <= 100, true);
+});
+
+Deno.test('owned storage deletion fails closed on a partial batch failure and can be retried', async () => {
+  const userId = '11111111-1111-4111-8111-111111111111';
+  const remaining = new Map(
+    Array.from({ length: 130 }, (_, index) => {
+      const path = `${userId}/private/retry-${index}.bin`;
+      return [path, { bucket_id: 'proofs', name: path }] as const;
+    }),
+  );
+  let calls = 0;
+  await assertRejects(
+    () =>
+      drainOwnedStorage(
+        userId,
+        () => Promise.resolve([...remaining.values()]),
+        (_bucket, paths) => {
+          calls += 1;
+          if (calls === 2) throw new PrivacyWorkerError('storage_delete_failed');
+          for (const path of paths) remaining.delete(path);
+          return Promise.resolve();
+        },
+      ),
+    PrivacyWorkerError,
+    'storage_delete_failed',
+  );
+  assertEquals(remaining.size, 30);
+  const retried = await drainOwnedStorage(
+    userId,
+    () => Promise.resolve([...remaining.values()]),
+    (_bucket, paths) => {
+      for (const path of paths) remaining.delete(path);
+      return Promise.resolve();
+    },
+  );
+  assertEquals(retried, 30);
+  assertEquals(remaining.size, 0);
+});
+
+Deno.test('owned storage deletion is idempotent when no objects remain', async () => {
+  const removed = await drainOwnedStorage(
+    '11111111-1111-4111-8111-111111111111',
+    () => Promise.resolve([]),
+    () => Promise.reject(new Error('remove must not be called')),
+  );
+  assertEquals(removed, 0);
 });
 
 Deno.test('privacy retention contract is bounded and explicit', () => {

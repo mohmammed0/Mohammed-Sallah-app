@@ -1,10 +1,19 @@
 begin;
-select plan(25);
+select plan(31);
 
 select has_table('public','privacy_events','privacy event ledger exists');
 select ok(
   (select relrowsecurity from pg_class where oid='public.privacy_events'::regclass),
   'privacy event ledger has RLS enabled'
+);
+select has_table('public','account_reauthentications','short-lived reauthentication ledger exists');
+select function_privs_are(
+  'public','record_account_reauthentication',array['uuid','uuid','text'],'authenticated',array[]::text[],
+  'clients cannot mint their own reauthentication proof'
+);
+select function_privs_are(
+  'public','record_account_reauthentication',array['uuid','uuid','text'],'service_role',array['EXECUTE'],
+  'trusted reauthentication endpoint may record a verified proof'
 );
 select function_privs_are(
   'public','claim_privacy_job',array['text'],'authenticated',array[]::text[],
@@ -48,6 +57,27 @@ insert into auth.users(
     '{}','{}',now(),now()
   );
 
+insert into auth.sessions(id,user_id,created_at,updated_at,not_after) values
+  (
+    '81818181-8181-4181-8181-818181818180',
+    '81818181-8181-4181-8181-818181818181',now(),now(),now()+interval '1 day'
+  ),
+  (
+    '82828282-8282-4282-8282-828282828280',
+    '82828282-8282-4282-8282-828282828282',now(),now(),now()+interval '1 day'
+  );
+
+set local role service_role;
+select lives_ok(
+  $$select public.record_account_reauthentication(
+    '81818181-8181-4181-8181-818181818181',
+    '81818181-8181-4181-8181-818181818180',
+    'password'
+  )$$,
+  'trusted endpoint records recent verification for the current session'
+);
+reset role;
+
 create temp table privacy_test_context (
   key text primary key,
   id uuid,
@@ -60,12 +90,13 @@ select set_config(
   'request.jwt.claims',
   jsonb_build_object(
     'sub','81818181-8181-4181-8181-818181818181',
+    'session_id','81818181-8181-4181-8181-818181818180',
     'iat',extract(epoch from now())::bigint
   )::text,
   true
 );
 insert into privacy_test_context(key,id)
-select 'export_request',public.request_data_export(null);
+select 'export_request',public.request_data_export();
 select is(
   (select status from public.data_export_requests where id=(select id from privacy_test_context where key='export_request')),
   'requested',
@@ -126,6 +157,7 @@ select set_config(
   'request.jwt.claims',
   jsonb_build_object(
     'sub','81818181-8181-4181-8181-818181818181',
+    'session_id','81818181-8181-4181-8181-818181818180',
     'iat',extract(epoch from now())::bigint
   )::text,
   true
@@ -137,7 +169,7 @@ select is(
 );
 
 insert into privacy_test_context(key,id)
-select 'deletion_request',public.request_account_deletion(null);
+select 'deletion_request',public.request_account_deletion();
 select is(
   (select status from public.account_deletion_requests where id=(select id from privacy_test_context where key='deletion_request')),
   'verified',
@@ -186,7 +218,7 @@ select throws_ok(
 set local role authenticated;
 select set_config(
   'request.jwt.claims',
-  '{"sub":"81818181-8181-4181-8181-818181818181","iat":0}',
+  '{"sub":"81818181-8181-4181-8181-818181818181","session_id":"81818181-8181-4181-8181-818181818180","iat":0}',
   true
 );
 select is(
@@ -198,6 +230,7 @@ select set_config(
   'request.jwt.claims',
   jsonb_build_object(
     'sub','82828282-8282-4282-8282-828282828282',
+    'session_id','82828282-8282-4282-8282-828282828280',
     'iat',extract(epoch from now())::bigint
   )::text,
   true
@@ -209,13 +242,37 @@ select is(
 );
 select set_config(
   'request.jwt.claims',
-  '{"sub":"82828282-8282-4282-8282-828282828282","iat":0}',
+  '{"sub":"82828282-8282-4282-8282-828282828282","session_id":"82828282-8282-4282-8282-828282828280","iat":0}',
   true
 );
 select throws_ok(
-  $$select public.request_data_export(null)$$,
+  $$select public.request_data_export()$$,
   'RECENT_REAUTHENTICATION_REQUIRED',
-  'stale sessions cannot request exports'
+  'a session without recent verification cannot request exports'
+);
+
+reset role;
+set local role service_role;
+select lives_ok(
+  $$select public.record_account_reauthentication(
+    '82828282-8282-4282-8282-828282828282',
+    '82828282-8282-4282-8282-828282828280',
+    'password'
+  )$$,
+  'trusted endpoint can verify a second active session'
+);
+reset role;
+delete from auth.sessions where id='82828282-8282-4282-8282-828282828280';
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"82828282-8282-4282-8282-828282828282","session_id":"82828282-8282-4282-8282-828282828280","iat":0}',
+  true
+);
+select throws_ok(
+  $$select public.request_data_export()$$,
+  'RECENT_REAUTHENTICATION_REQUIRED',
+  'revoking the current auth session invalidates its reauthentication proof'
 );
 
 select * from finish();

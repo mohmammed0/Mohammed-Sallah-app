@@ -3,7 +3,9 @@ import {
   assertProductionPaymentMode,
   canTransitionJob,
   DeterministicAiProvider,
+  diagnoseWithFallback,
   scoreCandidate,
+  type AiProvider,
 } from '../src';
 
 describe('job state machine', () => {
@@ -42,5 +44,54 @@ describe('sealed marketplace foundations', () => {
       messages: [{ role: 'user', text: 'هناك ماء قرب الكهرباء' }],
     });
     expect(result.safetyFlags).toContain('water_near_electricity');
+  });
+  it('rejects malformed primary output and uses the validated fallback', async () => {
+    const primary: AiProvider = {
+      name: 'malformed-provider',
+      model: 'broken-v1',
+      diagnose: () => Promise.resolve({ malformed: true } as never),
+    };
+    const result = await diagnoseWithFallback(primary, new DeterministicAiProvider(), {
+      locale: 'en',
+      categoryHints: ['plumbing'],
+      confirmedCategorySlug: 'plumbing',
+      summaryRequested: true,
+      messages: [{ role: 'user', text: 'The sink has leaked since today at noon.' }],
+    });
+    expect(result.metadata.fallback).toBe(true);
+    expect(result.metadata.provider).toBe('deterministic');
+  });
+  it('recovers from a provider failure on a later retry', async () => {
+    const context = {
+      locale: 'en',
+      categoryHints: ['plumbing'],
+      confirmedCategorySlug: 'plumbing',
+      summaryRequested: true,
+      messages: [{ role: 'user' as const, text: 'The sink has leaked since today at noon.' }],
+    };
+    const base = await new DeterministicAiProvider().diagnose(context);
+    let calls = 0;
+    const primary: AiProvider = {
+      name: 'primary-provider',
+      model: 'primary-v1',
+      diagnose: () => {
+        calls += 1;
+        if (calls === 1) return Promise.reject(new Error('temporary failure'));
+        return Promise.resolve({
+          ...base,
+          metadata: {
+            ...base.metadata,
+            provider: 'primary-provider',
+            model: 'primary-v1',
+            fallback: false,
+          },
+        });
+      },
+    };
+    const fallback = new DeterministicAiProvider();
+    expect((await diagnoseWithFallback(primary, fallback, context)).metadata.fallback).toBe(true);
+    const retry = await diagnoseWithFallback(primary, fallback, context);
+    expect(retry.metadata.fallback).toBe(false);
+    expect(retry.metadata.provider).toBe('primary-provider');
   });
 });

@@ -3,17 +3,22 @@ export const inputSchema = z.object({
   locale: z.enum(['ar', 'en', 'ur', 'hi']).default('ar'),
   messages: z
     .array(z.object({ role: z.enum(['user', 'assistant']), text: z.string().min(1).max(8000) }))
-    .min(1)
-    .max(100),
+    .min(1),
   categoryHints: z.array(z.string()).max(100).default([]),
+  sessionId: z.uuid().optional(),
+  clientMessageId: z.string().min(8).max(128).optional(),
+  inputKind: z.enum(['text', 'voice', 'image']).default('text'),
+  mediaUploadIds: z.array(z.uuid()).max(8).default([]),
+  confirmedCategorySlug: z.string().min(1).max(120).nullable().optional(),
+  summaryRequested: z.boolean().default(false),
 });
 export const diagnosticSchema = z.object({
   schemaVersion: z.literal('1.0'),
   suggestedCategorySlug: z.string().nullable(),
   suggestedSubcategorySlug: z.string().nullable(),
   confidence: z.number().min(0).max(1),
-  customerSummary: z.string().min(1).max(4000),
-  providerBrief: z.string().min(1).max(4000),
+  customerSummary: z.string().min(1).max(4000).nullable(),
+  providerBrief: z.string().min(1).max(4000).nullable(),
   observedSymptoms: z.array(z.string()).max(30),
   possibleCauses: z.array(z.string()).max(20),
   followUpQuestions: z.array(z.string()).max(5),
@@ -41,6 +46,10 @@ export const diagnosticSchema = z.object({
     model: z.string(),
     promptVersion: z.string(),
     fallback: z.boolean(),
+    sessionId: z.uuid().optional(),
+    turnNumber: z.number().int().positive().optional(),
+    historyPreserved: z.boolean().default(true),
+    categoryConfirmed: z.boolean().default(false),
   }),
 });
 export type Diagnostic = z.infer<typeof diagnosticSchema>;
@@ -71,8 +80,8 @@ export const jsonSchema = {
     suggestedCategorySlug: { type: ['string', 'null'] },
     suggestedSubcategorySlug: { type: ['string', 'null'] },
     confidence: { type: 'number', minimum: 0, maximum: 1 },
-    customerSummary: { type: 'string' },
-    providerBrief: { type: 'string' },
+    customerSummary: { type: ['string', 'null'] },
+    providerBrief: { type: ['string', 'null'] },
     observedSymptoms: { type: 'array', items: { type: 'string' } },
     possibleCauses: { type: 'array', items: { type: 'string' } },
     followUpQuestions: { type: 'array', items: { type: 'string' }, maxItems: 5 },
@@ -103,12 +112,23 @@ export const jsonSchema = {
     metadata: {
       type: 'object',
       additionalProperties: false,
-      required: ['provider', 'model', 'promptVersion', 'fallback'],
+      required: [
+        'provider',
+        'model',
+        'promptVersion',
+        'fallback',
+        'historyPreserved',
+        'categoryConfirmed',
+      ],
       properties: {
         provider: { type: 'string' },
         model: { type: 'string' },
         promptVersion: { type: 'string' },
         fallback: { type: 'boolean' },
+        sessionId: { type: 'string', format: 'uuid' },
+        turnNumber: { type: 'integer', minimum: 1 },
+        historyPreserved: { type: 'boolean' },
+        categoryConfirmed: { type: 'boolean' },
       },
     },
   },
@@ -128,30 +148,91 @@ export function deterministic(input: z.infer<typeof inputSchema>): Diagnostic {
     .join('\n')
     .slice(0, 4000);
   const safetyFlags = patterns.filter(([p]) => p.test(text)).map(([, f]) => f);
+  const confirmedCategory = input.confirmedCategorySlug ??
+    input.categoryHints.find((hint) =>
+      text.toLocaleLowerCase().includes(hint.toLocaleLowerCase())
+    ) ??
+    null;
+  const hasDescription = text.trim().length >= 20;
+  const hasSchedule =
+    /اليوم|غد|موعد|صباح|مساء|today|tomorrow|schedule|morning|evening|\d{1,2}[:٫]\d{2}/i
+      .test(text);
+  const hasLocation = /حي|مدينة|الرياض|جدة|الدمام|district|city|riyadh|jeddah|dammam/i.test(text);
+  const missingInformation = [
+    ...(!confirmedCategory ? ['category'] : []),
+    ...(!hasDescription ? ['description'] : []),
+    ...(!hasSchedule ? ['schedule'] : []),
+    ...(!hasLocation ? ['area'] : []),
+  ];
+  const enoughInformation = missingInformation.length === 0;
+  const previousAssistantText = input.messages
+    .filter((message) => message.role === 'assistant')
+    .map((message) => message.text.toLocaleLowerCase())
+    .join('\n');
+  const localizedQuestions: Record<typeof input.locale, Record<string, string>> = {
+    ar: {
+      category: 'يرجى تأكيد فئة الخدمة.',
+      description: 'صف ما حدث وما تلاحظه ومتى بدأت المشكلة.',
+      schedule: 'ما التاريخ والفترة الزمنية المناسبة للزيارة؟',
+      area: 'في أي مدينة وحي تحتاج الخدمة؟',
+    },
+    en: {
+      category: 'Please confirm the service category.',
+      description: 'Please describe what happened, what you observe, and when it started.',
+      schedule: 'What date and time window works for the visit?',
+      area: 'Which city and district is the service needed in?',
+    },
+    ur: {
+      category: 'براہ کرم سروس کی قسم کی تصدیق کریں۔',
+      description: 'بتائیں کیا ہوا، آپ کیا دیکھ رہے ہیں، اور مسئلہ کب شروع ہوا۔',
+      schedule: 'دورے کے لیے کون سی تاریخ اور وقت مناسب ہے؟',
+      area: 'کس شہر اور علاقے میں سروس درکار ہے؟',
+    },
+    hi: {
+      category: 'कृपया सेवा श्रेणी की पुष्टि करें।',
+      description: 'बताएं कि क्या हुआ, आप क्या देख रहे हैं और समस्या कब शुरू हुई।',
+      schedule: 'मुलाकात के लिए कौन-सी तारीख और समय उपयुक्त है?',
+      area: 'किस शहर और क्षेत्र में सेवा चाहिए?',
+    },
+  };
+  const questions = localizedQuestions[input.locale];
+  const nextQuestion = missingInformation
+    .map((field) => questions[field])
+    .find((question) => question && !previousAssistantText.includes(question.toLocaleLowerCase()));
+  const allowSummary = enoughInformation || input.summaryRequested;
   return diagnosticSchema.parse({
     schemaVersion: '1.0',
-    suggestedCategorySlug: null,
+    suggestedCategorySlug: confirmedCategory,
     suggestedSubcategorySlug: null,
-    confidence: 0.2,
-    customerSummary: text || 'Manual description required',
-    providerBrief: text || 'Manual brief required',
+    confidence: confirmedCategory ? 0.6 : 0.2,
+    customerSummary: allowSummary ? (text || 'Manual description required') : null,
+    providerBrief: allowSummary ? (text || 'Manual brief required') : null,
     observedSymptoms: [],
     possibleCauses: [],
-    followUpQuestions: text
-      ? ['Please confirm when the issue started and whether the service is currently usable.']
-      : ['Please describe the issue.'],
+    followUpQuestions: nextQuestion ? [nextQuestion] : [],
     safetyFlags,
     urgencySuggestion: safetyFlags.length ? 'safety_critical' : 'normal',
     recommendedCapabilities: [],
     tentativeToolsMaterials: [],
-    missingInformation: ['category', 'schedule'],
-    enoughInformation: false,
-    confirmationQuestion: 'Review and edit every field before publishing.',
+    missingInformation,
+    enoughInformation,
+    confirmationQuestion: input.locale === 'ar'
+      ? 'راجع كل حقل وعدّله قبل النشر.'
+      : input.locale === 'ur'
+      ? 'شائع کرنے سے پہلے ہر فیلڈ کا جائزہ لیں اور اس میں ترمیم کریں۔'
+      : input.locale === 'hi'
+      ? 'प्रकाशित करने से पहले हर फ़ील्ड की समीक्षा और संपादन करें।'
+      : 'Review and edit every field before publishing.',
     metadata: {
       provider: 'deterministic',
       model: 'rules-v1',
       promptVersion: 'diagnostic-v1',
       fallback: true,
+      historyPreserved: true,
+      categoryConfirmed: input.confirmedCategorySlug !== undefined &&
+        input.confirmedCategorySlug !== null,
+      sessionId: input.sessionId,
+      turnNumber: input.messages.filter((message) => message.role === 'user').length,
     },
   });
 }

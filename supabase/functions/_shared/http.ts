@@ -24,12 +24,27 @@ export function json(request: Request, body: unknown, status = 200) {
   });
 }
 export function safeError(request: Request, error: unknown, correlationId: string) {
-  const category = error instanceof Error && /RATE_LIMIT/.test(error.message)
-    ? 'rate_limited'
-    : 'provider_unavailable';
   const code = error instanceof Error && /^[A-Z0-9_]{3,80}$/.test(error.message)
     ? error.message
     : 'unexpected';
+  const status = code === 'AUTH_REQUIRED'
+    ? 401
+    : /ACCESS_DENIED|NOT_AUTHORIZED|REVOKED/.test(code)
+    ? 403
+    : /INVALID|REQUIRED|WRONG_PASSWORD|UNSUPPORTED/.test(code)
+    ? 400
+    : code === 'RATE_LIMIT'
+    ? 429
+    : 503;
+  const category = status === 401
+    ? 'authentication_required'
+    : status === 403
+    ? 'forbidden'
+    : status === 400
+    ? 'invalid_request'
+    : status === 429
+    ? 'rate_limited'
+    : 'provider_unavailable';
   console.error(JSON.stringify({ event: 'edge_error', category, code, correlationId }));
-  return json(request, { error: category, correlationId }, category === 'rate_limited' ? 429 : 503);
+  return json(request, { error: category, code, correlationId }, status);
 }

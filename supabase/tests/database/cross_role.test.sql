@@ -91,6 +91,7 @@ set local role authenticated;
 
 select set_config('request.jwt.claim.sub','77777777-7777-4777-8777-777777777777',true);
 select lives_ok($$select public.admin_set_customer_status('11111111-1111-4111-8111-111111111111','suspended','risk review complete','operations-customer-key')$$,'operations admin may suspend customer');
+reset role;
 select is((select status::text from public.profiles where id='11111111-1111-4111-8111-111111111111'),'suspended','customer suspension persists');
 
 select * from finish();

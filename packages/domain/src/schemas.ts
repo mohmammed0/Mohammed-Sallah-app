@@ -61,8 +61,8 @@ export const aiDiagnosticSchema = z.object({
   suggestedCategorySlug: z.string().nullable(),
   suggestedSubcategorySlug: z.string().nullable(),
   confidence: z.number().min(0).max(1),
-  customerSummary: z.string().min(1).max(4000),
-  providerBrief: z.string().min(1).max(4000),
+  customerSummary: z.string().min(1).max(4000).nullable(),
+  providerBrief: z.string().min(1).max(4000).nullable(),
   observedSymptoms: z.array(z.string().max(300)).max(30),
   possibleCauses: z.array(z.string().max(300)).max(20),
   followUpQuestions: z.array(z.string().max(500)).max(5),
@@ -90,6 +90,10 @@ export const aiDiagnosticSchema = z.object({
     model: z.string(),
     promptVersion: z.string(),
     fallback: z.boolean(),
+    sessionId: z.uuid().optional(),
+    turnNumber: z.number().int().positive().optional(),
+    historyPreserved: z.boolean().default(true),
+    categoryConfirmed: z.boolean().default(false),
   }),
 });
 

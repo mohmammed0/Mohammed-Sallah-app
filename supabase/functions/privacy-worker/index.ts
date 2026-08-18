@@ -2,6 +2,7 @@ import { serviceClient } from '../_shared/auth.ts';
 import {
   assertOwnedStoragePath,
   classifyPrivacyError,
+  drainOwnedStorage,
   expiredExportSchema,
   exportStoragePath,
   type PrivacyJob,
@@ -25,27 +26,33 @@ async function removeStorageObjects(
   db: ReturnType<typeof serviceClient>,
   userId: string,
 ): Promise<number> {
-  const { data, error } = await db
-    .schema('storage')
-    .from('objects')
-    .select('bucket_id,name')
-    .like('name', `${userId}/%`)
-    .limit(5000);
-  if (error) fail('storage_query_failed');
-  const rows = storageObjectSchema.array().parse(data ?? []);
-  const byBucket = new Map<string, string[]>();
-  for (const row of rows) {
-    assertOwnedStoragePath(userId, row.name);
-    byBucket.set(row.bucket_id, [...(byBucket.get(row.bucket_id) ?? []), row.name]);
-  }
-  for (const [bucket, paths] of byBucket) {
-    for (let offset = 0; offset < paths.length; offset += 100) {
-      const batch = paths.slice(offset, offset + 100);
+  const removed = await drainOwnedStorage(
+    userId,
+    async () => {
+      const { data, error } = await db
+        .schema('storage')
+        .from('objects')
+        .select('bucket_id,name')
+        .like('name', `${userId}/%`)
+        .order('bucket_id')
+        .order('name')
+        .limit(1000);
+      if (error) fail('storage_query_failed');
+      return storageObjectSchema.array().parse(data ?? []);
+    },
+    async (bucket, batch) => {
       const { error: removeError } = await db.storage.from(bucket).remove(batch);
       if (removeError) fail('storage_delete_failed');
-    }
-  }
-  return rows.length;
+    },
+  );
+  const { count, error: verifyError } = await db
+    .schema('storage')
+    .from('objects')
+    .select('id', { count: 'exact', head: true })
+    .like('name', `${userId}/%`);
+  if (verifyError) fail('storage_verify_failed');
+  if ((count ?? 0) !== 0) fail('storage_objects_remaining');
+  return removed;
 }
 
 async function processAccountDeletion(
@@ -199,6 +206,21 @@ Deno.serve(async (request) => {
   let cleaned = 0;
   let quarantineCleaned = 0;
   let quarantineFailed = 0;
+  let reconciledDeletions = 0;
+  try {
+    const { data, error } = await db.rpc('reconcile_blocked_account_deletions', {
+      p_request_id: null,
+    });
+    if (error) fail('deletion_reconciliation_failed');
+    reconciledDeletions = Number(
+      data && typeof data === 'object' && 'unblocked' in data ? data.unblocked : 0,
+    );
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: 'deletion_reconciliation_failed',
+      category: classifyPrivacyError(error),
+    }));
+  }
   try {
     cleaned = await cleanExpiredExports(db);
   } catch (error) {
@@ -246,5 +268,12 @@ Deno.serve(async (request) => {
       console.error(JSON.stringify({ event: 'privacy_job_failed', category }));
     }
   }
-  return Response.json({ processed, failed, cleaned, quarantineCleaned, quarantineFailed });
+  return Response.json({
+    processed,
+    failed,
+    cleaned,
+    quarantineCleaned,
+    quarantineFailed,
+    reconciledDeletions,
+  });
 });

@@ -4,6 +4,8 @@ export interface DiagnosticContext {
   locale: string;
   messages: readonly { role: 'user' | 'assistant'; text: string }[];
   categoryHints: readonly string[];
+  confirmedCategorySlug?: string | null;
+  summaryRequested?: boolean;
 }
 export interface AiProvider {
   readonly name: string;
@@ -32,14 +34,21 @@ export class DeterministicAiProvider implements AiProvider {
     const safetyFlags = safetyPatterns
       .filter(([pattern]) => pattern.test(original))
       .map(([, flag]) => flag);
+    const confirmedCategory = context.confirmedCategorySlug ?? null;
+    const enoughInformation = Boolean(
+      confirmedCategory &&
+      original.length >= 20 &&
+      /today|tomorrow|schedule|اليوم|غد|موعد/i.test(original),
+    );
+    const allowSummary = enoughInformation || context.summaryRequested === true;
     return Promise.resolve(
       aiDiagnosticSchema.parse({
         schemaVersion: '1.0',
-        suggestedCategorySlug: null,
+        suggestedCategorySlug: confirmedCategory,
         suggestedSubcategorySlug: null,
         confidence: 0.2,
-        customerSummary: original || 'Manual description required',
-        providerBrief: original || 'Manual brief required',
+        customerSummary: allowSummary ? original || 'Manual description required' : null,
+        providerBrief: allowSummary ? original || 'Manual brief required' : null,
         observedSymptoms: [],
         possibleCauses: [],
         followUpQuestions: original
@@ -50,13 +59,15 @@ export class DeterministicAiProvider implements AiProvider {
         recommendedCapabilities: [],
         tentativeToolsMaterials: [],
         missingInformation: ['category', 'preferred schedule'],
-        enoughInformation: false,
+        enoughInformation,
         confirmationQuestion: 'Review and edit this draft before publishing.',
         metadata: {
           provider: this.name,
           model: this.model,
           promptVersion: 'diagnostic-v1',
           fallback: true,
+          historyPreserved: true,
+          categoryConfirmed: Boolean(context.confirmedCategorySlug),
         },
       }),
     );
