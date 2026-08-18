@@ -1,26 +1,27 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { requireAdmin, requireAnyAdmin } from '@/lib/auth';
+import { adminCommandKey } from '@/lib/admin-command-intent';
 
-function stableCommandKey(scope: string, payload: unknown): string {
-  return createHash('sha256')
-    .update(`${scope}:${JSON.stringify(payload)}`)
-    .digest('hex');
-}
 function commandIntentId(formData: FormData): string {
   return z.uuid().parse(formData.get('commandIntentId'));
 }
 function formCommandKey(scope: string, formData: FormData, payload: unknown): string {
-  return stableCommandKey(scope, { commandIntentId: commandIntentId(formData), payload });
+  return adminCommandKey(scope, commandIntentId(formData), payload);
 }
 
 const providerDecision = z.object({
   providerId: z.uuid(),
   decision: z.enum(['verified', 'rejected', 'more_information_required', 'suspended']),
   reason: z.string().trim().min(5).max(1000),
+});
+const providerServiceDecision = z.object({
+  providerId: z.uuid(),
+  categoryId: z.uuid(),
+  decision: z.enum(['approved', 'more_information_required', 'rejected', 'suspended']),
+  reason: z.string().trim().min(5).max(2000),
 });
 const categoryDecision = z.object({
   categoryId: z.uuid(),
@@ -56,7 +57,7 @@ const supportAssignment = z.object({
   caseId: z.uuid(),
   assigneeId: z.uuid(),
   reason: z.string().trim().min(5).max(1000),
-  expiresAt: z.string().datetime().nullable(),
+  expiresAt: z.string().datetime(),
   exactLocation: z.boolean(),
 });
 const supportAssignmentEnd = z.object({
@@ -89,6 +90,26 @@ export async function reviewProvider(formData: FormData): Promise<void> {
     p_idempotency_key: formCommandKey('provider-review', formData, input),
   });
   if (error) throw new Error('PROVIDER_REVIEW_FAILED');
+  revalidatePath('/admin/providers');
+  revalidatePath('/admin');
+}
+
+export async function reviewProviderService(formData: FormData): Promise<void> {
+  const input = providerServiceDecision.parse({
+    providerId: formData.get('providerId'),
+    categoryId: formData.get('categoryId'),
+    decision: formData.get('decision'),
+    reason: formData.get('reason'),
+  });
+  const { client } = await requireAdmin(['provider.document.read']);
+  const { error } = await client.rpc('review_provider_service', {
+    p_provider_id: input.providerId,
+    p_category_id: input.categoryId,
+    p_decision: input.decision,
+    p_reason: input.reason,
+    p_idempotency_key: formCommandKey('provider-service-review', formData, input),
+  });
+  if (error) throw new Error('PROVIDER_SERVICE_REVIEW_FAILED');
   revalidatePath('/admin/providers');
   revalidatePath('/admin');
 }
@@ -215,20 +236,19 @@ export async function assignSupportCase(formData: FormData): Promise<void> {
     caseId: formData.get('caseId'),
     assigneeId: formData.get('assigneeId'),
     reason: formData.get('reason'),
-    expiresAt: formData.get('expiresAt') || null,
+    expiresAt: formData.get('expiresAt') || formData.get('normalizedExpiresAt') || null,
     exactLocation: formData.get('exactLocation') === 'true',
   });
   const { client } = await requireAdmin(['operations.mutate']);
   const permissions = ['read', 'internal_note', 'evidence'];
   if (input.exactLocation) permissions.push('exact_location');
-  const expiresAt = input.expiresAt ?? new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
-  const commandPayload = { ...input, expiresAt };
+  const commandPayload = { ...input, expiresAt: input.expiresAt };
   const { error } = await client.rpc('assign_support_case', {
     p_case_id: input.caseId,
     p_assignee_id: input.assigneeId,
     p_permissions: permissions,
     p_reason: input.reason,
-    p_expires_at: expiresAt,
+    p_expires_at: input.expiresAt,
     p_idempotency_key: formCommandKey('support-assignment', formData, commandPayload),
   });
   if (error) throw new Error('SUPPORT_ASSIGNMENT_FAILED');

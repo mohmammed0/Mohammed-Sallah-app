@@ -1,4 +1,5 @@
 import { translate } from '@sallah/i18n';
+import { DurableCommandIntent } from '@/components/durable-command-intent';
 import { requireAnyAdmin } from '@/lib/auth';
 import {
   assignSupportCase,
@@ -71,7 +72,10 @@ export default async function SupportPage() {
                         className="inline-form"
                         key={assignment.id}
                       >
-                        <input type="hidden" name="commandIntentId" value={crypto.randomUUID()} />
+                        <DurableCommandIntent
+                          intentKey={`support-assignment-end:${assignment.id}`}
+                          initialIntentId={crypto.randomUUID()}
+                        />
                         <input type="hidden" name="assignmentId" value={assignment.id} />
                         <span className="muted">
                           {t('supportAgentId')}: {assignment.assignee_id}
@@ -90,7 +94,10 @@ export default async function SupportPage() {
                     .filter((grant) => !grant.revoked_at)
                     .map((grant) => (
                       <form action={revokeSupportAccess} className="inline-form" key={grant.id}>
-                        <input type="hidden" name="commandIntentId" value={crypto.randomUUID()} />
+                        <DurableCommandIntent
+                          intentKey={`support-access-revoke:${grant.id}`}
+                          initialIntentId={crypto.randomUUID()}
+                        />
                         <input type="hidden" name="grantId" value={grant.id} />
                         <span className="muted">
                           {t('supportAgentId')}: {grant.user_id}
@@ -108,7 +115,11 @@ export default async function SupportPage() {
                   {canOperate && (
                     <>
                       <form action={assignSupportCase} className="inline-form">
-                        <input type="hidden" name="commandIntentId" value={crypto.randomUUID()} />
+                        <DurableCommandIntent
+                          intentKey={`support-assignment:${item.id}`}
+                          initialIntentId={crypto.randomUUID()}
+                          defaultExpiresAt={new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString()}
+                        />
                         <input type="hidden" name="caseId" value={item.id} />
                         <input name="assigneeId" required placeholder={t('supportAgentId')} />
                         <input name="expiresAt" placeholder={t('accessExpiry')} />
@@ -129,7 +140,10 @@ export default async function SupportPage() {
                         <button type="submit">{t('assignSupportCase')}</button>
                       </form>
                       <form action={grantSupportAccess} className="inline-form">
-                        <input type="hidden" name="commandIntentId" value={crypto.randomUUID()} />
+                        <DurableCommandIntent
+                          intentKey={`support-access-grant:${item.id}`}
+                          initialIntentId={crypto.randomUUID()}
+                        />
                         <input type="hidden" name="caseId" value={item.id} />
                         <input name="userId" required placeholder={t('supportAgentId')} />
                         <input name="expiresAt" required placeholder={t('accessExpiry')} />
@@ -174,7 +188,10 @@ export default async function SupportPage() {
             </p>
             {item.job_id && item.jobs && (
               <form action={decideCancellation} className="inline-form">
-                <input type="hidden" name="commandIntentId" value={crypto.randomUUID()} />
+                <DurableCommandIntent
+                  intentKey={`cancellation-decision:${item.id}`}
+                  initialIntentId={crypto.randomUUID()}
+                />
                 <input type="hidden" name="cancellationId" value={item.id} />
                 <input type="hidden" name="expectedJobVersion" value={item.jobs.version} />
                 <label>
@@ -219,7 +236,10 @@ export default async function SupportPage() {
             </p>
             {item.jobs && item.status === 'open' && (
               <form action={resolveDispute} className="inline-form">
-                <input type="hidden" name="commandIntentId" value={crypto.randomUUID()} />
+                <DurableCommandIntent
+                  intentKey={`dispute-resolution:${item.id}`}
+                  initialIntentId={crypto.randomUUID()}
+                />
                 <input type="hidden" name="disputeId" value={item.id} />
                 <input type="hidden" name="expectedJobVersion" value={item.jobs.version} />
                 <label>

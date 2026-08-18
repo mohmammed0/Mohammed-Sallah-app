@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth';
+import { DurableCommandIntent } from '@/components/durable-command-intent';
 import { setCustomerStatus } from '../actions';
 
 const searchSchema = z.string().trim().max(80).catch('');
@@ -113,7 +114,10 @@ export default async function CustomersPage({
                     {canWrite &&
                     (customer.status === 'active' || customer.status === 'suspended') ? (
                       <form action={setCustomerStatus} className="inline-form">
-                        <input type="hidden" name="commandIntentId" value={crypto.randomUUID()} />
+                        <DurableCommandIntent
+                          intentKey={`customer-status:${customer.id}`}
+                          initialIntentId={crypto.randomUUID()}
+                        />
                         <input type="hidden" name="customerId" value={customer.id} />
                         <input type="hidden" name="status" value={nextStatus} />
                         <input

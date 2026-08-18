@@ -1,6 +1,7 @@
 import { translate, type TranslationKey } from '@sallah/i18n';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth';
+import { DurableCommandIntent } from '@/components/durable-command-intent';
 import { confirmFinancialAction, decideCancellation, resolveDispute } from '../actions';
 
 const t = (key: TranslationKey) => translate('ar', key);
@@ -86,7 +87,10 @@ export default async function FinancePage() {
                 {t('openFinancialHolds')}: {item.heldAmountMinor}
               </p>
               <form action={resolveDispute} className="inline-form">
-                <input type="hidden" name="commandIntentId" value={crypto.randomUUID()} />
+                <DurableCommandIntent
+                  intentKey={`dispute-resolution:${item.disputeId}`}
+                  initialIntentId={crypto.randomUUID()}
+                />
                 <input type="hidden" name="disputeId" value={item.disputeId} />
                 <input type="hidden" name="expectedJobVersion" value={item.jobVersion} />
                 <label>
@@ -138,7 +142,10 @@ export default async function FinancePage() {
               </p>
               {item.jobVersion && (
                 <form action={decideCancellation} className="inline-form">
-                  <input type="hidden" name="commandIntentId" value={crypto.randomUUID()} />
+                  <DurableCommandIntent
+                    intentKey={`cancellation-decision:${item.cancellationId}`}
+                    initialIntentId={crypto.randomUUID()}
+                  />
                   <input type="hidden" name="cancellationId" value={item.cancellationId} />
                   <input type="hidden" name="expectedJobVersion" value={item.jobVersion} />
                   <input name="feeMinor" type="number" min="0" step="1" defaultValue="0" required />
@@ -177,7 +184,10 @@ export default async function FinancePage() {
                 {t('amountMinor')}: {item.amountMinor}
               </p>
               <form action={confirmFinancialAction} className="inline-form">
-                <input type="hidden" name="commandIntentId" value={crypto.randomUUID()} />
+                <DurableCommandIntent
+                  intentKey={`financial-confirmation:${item.intentId}`}
+                  initialIntentId={crypto.randomUUID()}
+                />
                 <input type="hidden" name="intentId" value={item.intentId} />
                 <input
                   name="providerReference"
