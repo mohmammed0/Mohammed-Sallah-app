@@ -1,0 +1,52 @@
+{
+  "name": "sallah-platform",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.19.0",
+  "engines": {
+    "node": ">=22.13.0 <25"
+  },
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:db": "node scripts/run-command.mjs supabase test db",
+    "test:security": "vitest run tests/security",
+    "test:e2e:web": "playwright test",
+    "test:e2e:mobile": "node scripts/mobile-e2e.mjs",
+    "test:load:smoke": "node scripts/run-k6.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "validate": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "mobile:expo-check": "pnpm --filter @sallah/mobile exec expo export --platform android --output-dir .expo-check",
+    "mobile:expo-doctor": "pnpm --filter @sallah/mobile exec expo-doctor",
+    "config:validate:production": "node scripts/validate-production-config.mjs",
+    "i18n:check": "node scripts/check-i18n.mjs",
+    "licenses:check": "node scripts/check-licenses.mjs",
+    "security:scan": "node scripts/security-scan.mjs",
+    "sbom": "node scripts/generate-sbom.mjs",
+    "prepare": "node scripts/prepare.mjs",
+    "test:functions": "node scripts/test-edge-functions.mjs"
+  },
+  "devDependencies": {
+    "@cyclonedx/cyclonedx-npm": "4.1.1",
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.62.1",
+    "@types/node": "24.3.0",
+    "eslint": "10.8.1",
+    "prettier": "3.9.6",
+    "supabase": "2.114.0",
+    "turbo": "2.10.10",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.67.0",
+    "vitest": "4.1.10"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}

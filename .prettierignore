@@ -1,0 +1,9 @@
+node_modules
+.next
+.expo
+dist
+coverage
+pnpm-lock.yaml
+supabase/.temp
+
+supabase/functions
