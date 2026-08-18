@@ -1,0 +1,23 @@
+{
+  "name": "@sallah/i18n",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint src test",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --exclude dist/**"
+  },
+  "dependencies": {
+    "i18next": "26.3.6"
+  },
+  "devDependencies": {
+    "@sallah/typescript-config": "workspace:*",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
+  }
+}

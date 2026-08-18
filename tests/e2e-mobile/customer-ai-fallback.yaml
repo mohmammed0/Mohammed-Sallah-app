@@ -1,0 +1,12 @@
+appId: sa.example.sallah
+---
+- launchApp:
+    clearState: true
+- assertVisible: 'صلّح'
+- tapOn: 'AR'
+- tapOn: 'الرئيسية'
+- tapOn: 'اطلب خدمة'
+- tapOn: 'اشرح المشكلة'
+- inputText: 'المكيف لا يبرد وبدأ يصدر صوتا منذ اليوم'
+- tapOn: 'إنشاء مسودة قابلة للتعديل'
+- assertVisible: 'لن يُنشر شيء قبل الضغط على زر النشر أدناه.'

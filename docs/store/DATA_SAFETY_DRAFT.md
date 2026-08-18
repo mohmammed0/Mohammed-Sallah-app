@@ -1,0 +1,5 @@
+# Google Play Data Safety draft
+
+Potentially collected: account/contact data; user IDs; foreground precise/approximate location; photos/audio/text and messages; provider verification documents for provider users; service and payment metadata; app/device/security events. Purposes: app functionality, account management, provider verification, fraud/security, support, translation/AI diagnostic, notifications, and legal compliance. No raw card credentials are designed to be collected.
+
+Potential sharing/processors: Supabase hosting/auth/storage, approved AI provider for selected diagnostic/transcription content, configured notification/email provider, and future configured payment gateway. Exact production sharing, region, encryption claims, retention, optionality, and deletion answers must match deployed configuration and contracts. Data is encrypted in transit through provider TLS; at-rest claims depend on production provider configuration. Users can request export/deletion; sensitive financial/audit records may be retained/anonymized under approved law/policy.

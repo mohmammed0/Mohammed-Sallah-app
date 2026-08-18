@@ -1,0 +1,6 @@
+{
+  "extends": "../../packages/typescript-config/next.json",
+  "compilerOptions": { "paths": { "@/*": ["./src/*"] }, "incremental": true },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}

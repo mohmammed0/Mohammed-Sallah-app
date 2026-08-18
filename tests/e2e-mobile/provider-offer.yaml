@@ -1,0 +1,9 @@
+appId: sa.example.sallah
+---
+- launchApp
+- assertVisible: 'صلّح'
+- tapOn: 'الرئيسية'
+- tapOn: 'مقدم خدمة'
+- assertVisible: 'أعمالك بوضوح وثقة'
+- tapOn: 'إرسال عرض'
+- assertVisible: 'عرض خاص ومختوم'

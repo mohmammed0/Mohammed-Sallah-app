@@ -1,0 +1,13 @@
+begin;
+select plan(9);
+select col_type_is('public','offers','total_amount_minor','bigint','offers use integer minor units');
+select col_type_is('public','jobs','approved_total_minor','bigint','jobs use integer minor units');
+select col_type_is('public','addresses','location','geography(Point,4326)','addresses use PostGIS geography');
+select has_index('public','service_requests','requests_marketplace_idx','marketplace request index exists');
+select has_index('public','messages','messages_page_idx','messages pagination index exists');
+select has_function('public','publish_service_request',array['jsonb'],'publish command exists');
+select has_function('public','submit_offer',array['jsonb'],'offer command exists');
+select has_function('public','transition_job',array['uuid','text','text','text'],'job transition command exists');
+select has_function('public','admin_set_customer_status',array['uuid','account_status','text','text'],'customer status command exists');
+select * from finish();
+rollback;
