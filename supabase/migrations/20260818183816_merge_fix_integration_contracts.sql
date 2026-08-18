@@ -6,10 +6,18 @@ alter table public.service_requests
   add column timing_mode public.request_timing_mode;
 
 update public.service_requests
-set timing_mode=case
-  when requested_start is not null and requested_end is not null then 'scheduled'::public.request_timing_mode
-  else 'flexible'::public.request_timing_mode
-end;
+set requested_end=case
+      when requested_start is not null
+        and (requested_end is null or requested_end<=requested_start)
+        then requested_start+interval '60 minutes'
+      when requested_start is null then null
+      else requested_end
+    end,
+    requested_start=case when requested_start is null then null else requested_start end,
+    timing_mode=case
+      when requested_start is not null then 'scheduled'::public.request_timing_mode
+      else 'flexible'::public.request_timing_mode
+    end;
 
 alter table public.service_requests
   alter column timing_mode set not null,
@@ -23,12 +31,48 @@ alter table public.service_requests
   );
 
 alter table public.transcription_jobs
-  add column client_message_id text;
+  add column client_message_id text,
+  add column claim_expires_at timestamptz,
+  add column claim_token uuid;
 create unique index transcription_jobs_user_client_message_unique
   on public.transcription_jobs(user_id,client_message_id);
 
+create type public.provider_service_review_status as enum (
+  'draft','submitted','approved','more_information_required','rejected','suspended'
+);
+alter table public.provider_services
+  add column review_status public.provider_service_review_status,
+  add column submitted_at timestamptz,
+  add column reviewed_at timestamptz,
+  add column reviewed_by uuid references public.profiles(id),
+  add column review_reason text;
+update public.provider_services s
+set review_status=case
+      when not s.enabled then 'draft'::public.provider_service_review_status
+      when p.verification_status='verified' then 'approved'::public.provider_service_review_status
+      when p.verification_status in ('submitted','under_review')
+        then 'submitted'::public.provider_service_review_status
+      else 'draft'::public.provider_service_review_status
+    end,
+    submitted_at=case when s.enabled and p.verification_status in ('submitted','under_review')
+      then coalesce(s.created_at,now()) else null end,
+    reviewed_at=case when s.enabled and p.verification_status='verified'
+      then coalesce(s.created_at,now()) else null end
+from public.provider_profiles p where p.user_id=s.provider_id;
+alter table public.provider_services
+  alter column review_status set default 'draft'::public.provider_service_review_status,
+  alter column review_status set not null,
+  add constraint provider_service_review_reason_check check (
+    review_reason is null or char_length(trim(review_reason)) between 5 and 2000
+  );
+create index provider_services_approved_category_idx
+  on public.provider_services(category_id,provider_id)
+  where enabled and review_status='approved';
+
 comment on column public.service_requests.timing_mode is
   'Authoritative scheduling semantics. ASAP uses the publication instant plus a bounded 60-minute matching window; scheduled uses the customer window; flexible has no fixed window and providers supply arrival estimates.';
+comment on column public.provider_services.review_status is
+  'Reviewer-controlled eligibility for one provider category/subcategory. Global provider verification does not approve a newly added service.';
 
 create function private.normalize_direct_request_timing() returns trigger
 language plpgsql set search_path='' as $$
@@ -43,32 +87,57 @@ create trigger normalize_direct_request_timing
 before insert or update of requested_start,requested_end on public.service_requests for each row
 execute function private.normalize_direct_request_timing();
 
--- Preserve the existing, security-reviewed publication body while adding a narrow
--- timing contract around it. This avoids duplicating authorization, media binding,
--- AI-session binding, idempotency and audit behavior.
-alter function public.publish_service_request(jsonb)
-  rename to publish_service_request_without_timing_mode;
-
-create function public.publish_service_request(payload jsonb) returns uuid
+-- Replace the authoritative publication body so timing is present on the row
+-- observed by the AFTER INSERT matching trigger. All dependent writes remain in
+-- this transaction; any later failure rolls the request and its matches back.
+create or replace function public.publish_service_request(payload jsonb) returns uuid
 language plpgsql security definer set search_path=public,extensions,pg_temp as $$
-declare
-  mode public.request_timing_mode;
-  start_at timestamptz;
-  end_at timestamptz;
-  normalized jsonb:=payload;
-  result_id uuid;
+declare actor uuid:=auth.uid(); v_request_id uuid; v_address_id uuid; v_city_id uuid;
+  v_category_id uuid; v_suggested_category_id uuid; session ai_sessions%rowtype;
+  idem text:=payload->>'idempotency_key'; request_hash text; replay jsonb;
+  lat double precision; lon double precision; item jsonb; diag jsonb;
+  selected_slug text; suggested_slug text; selection_source text; upload file_uploads%rowtype;
+  v_session_id uuid; media_count integer; image_count integer:=0; media_bytes bigint:=0;
+  mode public.request_timing_mode; start_at timestamptz; end_at timestamptz;
 begin
+  if actor is null then raise exception 'AUTH_REQUIRED'; end if;
+  if not exists(select 1 from profiles where id=actor and status='active') then
+    raise exception 'ACCOUNT_NOT_ACTIVE';
+  end if;
+  if coalesce((payload->>'customer_approved')::boolean,false) is not true then
+    raise exception 'CUSTOMER_APPROVAL_REQUIRED';
+  end if;
+  if coalesce((payload->>'category_confirmed_by_user')::boolean,false) is not true then
+    raise exception 'CATEGORY_CONFIRMATION_REQUIRED';
+  end if;
+  selected_slug:=nullif(trim(coalesce(
+    payload->>'selected_category_slug',payload->>'category_slug',''
+  )),'');
+  suggested_slug:=nullif(trim(coalesce(
+    payload->>'suggested_category_slug',payload->'ai_diagnostic'->>'suggestedCategorySlug',''
+  )),'');
+  selection_source:=payload->>'category_selection_source';
+  if selected_slug is null or selection_source not in (
+    'ai_suggestion','customer_correction','manual'
+  ) then raise exception 'CATEGORY_SELECTION_REQUIRED'; end if;
+  if selection_source='ai_suggestion' and selected_slug is distinct from suggested_slug then
+    raise exception 'AI_CATEGORY_SELECTION_MISMATCH';
+  end if;
+  request_hash:=private.canonical_request_hash(payload);
+  perform pg_advisory_xact_lock(hashtextextended(
+    actor::text||':publish_service_request:'||idem,0
+  ));
+  replay:=private.idempotency_replay(actor,'publish_service_request_v3',idem,request_hash);
+  if replay is not null then return (replay->>'id')::uuid; end if;
+
   mode:=coalesce(
     nullif(payload->>'timing_mode',''),
     nullif(payload->>'schedule_preference',''),
     case when nullif(payload->>'requested_start','') is not null then 'scheduled' else 'flexible' end
   )::public.request_timing_mode;
   if mode='asap' then
-    start_at:=coalesce(nullif(payload->>'requested_start','')::timestamptz,now());
-    end_at:=coalesce(nullif(payload->>'requested_end','')::timestamptz,start_at+interval '60 minutes');
-    if end_at<=start_at or end_at>start_at+interval '60 minutes' then
-      raise exception 'INVALID_ASAP_WINDOW';
-    end if;
+    start_at:=now();
+    end_at:=start_at+interval '60 minutes';
   elsif mode='scheduled' then
     start_at:=nullif(payload->>'requested_start','')::timestamptz;
     end_at:=nullif(payload->>'requested_end','')::timestamptz;
@@ -81,21 +150,128 @@ begin
     end if;
     start_at:=null; end_at:=null;
   end if;
-  normalized:=jsonb_set(normalized,'{requested_start}',coalesce(to_jsonb(start_at),'null'::jsonb),true);
-  normalized:=jsonb_set(normalized,'{requested_end}',coalesce(to_jsonb(end_at),'null'::jsonb),true);
-  result_id:=public.publish_service_request_without_timing_mode(normalized);
-  update public.service_requests set timing_mode=mode where id=result_id and customer_id=auth.uid();
-  update public.transcription_jobs t set request_id=result_id
-  where t.user_id=auth.uid() and t.request_id is null and exists(
-    select 1 from jsonb_array_elements(coalesce(payload->'media','[]'::jsonb)) m
-    join public.file_uploads f on f.id=coalesce(
-      nullif(m->>'upload_id','')::uuid,nullif(m->>'uploadId','')::uuid)
-    where f.user_id=auth.uid() and f.final_path=t.private_audio_path
+
+  v_session_id:=nullif(payload->>'ai_session_id','')::uuid;
+  if v_session_id is not null then
+    select * into session from ai_sessions
+    where id=v_session_id and user_id=actor and status='active' for update;
+    if session.id is null then raise exception 'ACTIVE_AI_SESSION_REQUIRED'; end if;
+  end if;
+  media_count:=jsonb_array_length(coalesce(payload->'media','[]'::jsonb));
+  if media_count>8 then raise exception 'TOO_MANY_REQUEST_MEDIA'; end if;
+  insert into idempotency_keys(user_id,command,key,request_hash)
+  values(actor,'publish_service_request_v3',idem,request_hash);
+  select id into v_city_id from cities
+  where code=coalesce(payload->>'city_code','riyadh') and enabled limit 1;
+  select id into v_category_id from service_categories
+  where slug=selected_slug and enabled limit 1;
+  if suggested_slug is not null then
+    select id into v_suggested_category_id from service_categories
+    where slug=suggested_slug and enabled limit 1;
+  end if;
+  if v_city_id is null or v_category_id is null then
+    raise exception 'CATALOG_CONFIGURATION_REQUIRED';
+  end if;
+  diag:=payload->'ai_diagnostic';
+  lat:=(payload->'exact_location'->>'latitude')::double precision;
+  lon:=(payload->'exact_location'->>'longitude')::double precision;
+  if lat not between 16 and 33 or lon not between 34 and 56 then
+    raise exception 'LOCATION_OUTSIDE_SAUDI_ARABIA';
+  end if;
+  insert into addresses(user_id,city_id,label,formatted_address,location)
+  values(actor,v_city_id,'Service location','Private location selected in app',
+    st_setsrid(st_makepoint(lon,lat),4326)::geography)
+  returning id into v_address_id;
+  insert into service_requests(
+    customer_id,category_id,suggested_category_id,category_selection_source,
+    category_confirmed_at,city_id,title,structured_description,original_text,
+    original_locale,urgency,timing_mode,requested_start,requested_end,approximate_location,
+    exact_address_id,ai_provider,ai_model,ai_prompt_version,customer_approved_at,
+    published_at,status
+  ) values(
+    actor,v_category_id,v_suggested_category_id,selection_source,now(),v_city_id,
+    left(coalesce(nullif(payload->>'title',''),payload->>'structured_description'),120),
+    payload->>'structured_description',payload->>'original_text',
+    coalesce(payload->>'locale','ar'),
+    coalesce((payload->>'urgency')::request_urgency,'normal'),
+    mode,start_at,end_at,
+    st_setsrid(st_makepoint(round(lon::numeric,2),round(lat::numeric,2)),4326)::geography,
+    v_address_id,diag->'metadata'->>'provider',diag->'metadata'->>'model',
+    diag->'metadata'->>'promptVersion',now(),now(),'published'
+  ) returning id into v_request_id;
+  insert into request_visibility(request_id) values(v_request_id);
+  insert into request_status_history(
+    request_id,actor_id,new_status,reason,idempotency_key,metadata
+  ) values(
+    v_request_id,actor,'published','customer_approved',idem,
+    jsonb_build_object('categorySelectionSource',selection_source,
+      'selectedCategorySlug',selected_slug,'suggestedCategorySlug',suggested_slug,
+      'aiSessionId',v_session_id,'timingMode',mode,
+      'requestedStart',start_at,'requestedEnd',end_at)
   );
-  return result_id;
+  insert into request_publication_events(
+    request_id,actor_id,request_version,approval_snapshot,idempotency_key
+  ) values(v_request_id,actor,1,payload||jsonb_build_object(
+    'timing_mode',mode,'requested_start',start_at,'requested_end',end_at
+  ),idem);
+
+  for item in select value from jsonb_array_elements(coalesce(payload->'media','[]'::jsonb)) loop
+    select * into upload from file_uploads
+    where id=coalesce(
+      nullif(item->>'upload_id','')::uuid,nullif(item->>'uploadId','')::uuid
+    ) for update;
+    if upload.id is null or upload.user_id<>actor
+      or upload.purpose not in ('request_media','request_audio')
+      or upload.status<>'clean' or upload.final_path is null
+      or (upload.resource_id is not null and upload.resource_id<>v_request_id) then
+      raise exception 'CLEAN_REQUEST_MEDIA_REQUIRED';
+    end if;
+    media_bytes:=media_bytes+upload.size_bytes;
+    if coalesce(upload.detected_mime_type,upload.declared_mime_type)
+      like 'image/%' then image_count:=image_count+1; end if;
+    if image_count>4 or media_bytes>41943040 then
+      raise exception 'REQUEST_MEDIA_LIMIT_EXCEEDED';
+    end if;
+    update file_uploads set resource_id=v_request_id where id=upload.id;
+    insert into request_media(
+      request_id,uploader_id,storage_path,mime_type,size_bytes,content_hash,
+      media_kind,upload_status,file_upload_id
+    ) values(
+      v_request_id,actor,upload.final_path,
+      coalesce(upload.detected_mime_type,upload.declared_mime_type),
+      upload.size_bytes,upload.content_sha256,
+      case when upload.purpose='request_audio' then 'voice' else 'request' end,
+      'uploaded',upload.id
+    );
+  end loop;
+  for item in select to_jsonb(value)
+    from jsonb_array_elements_text(coalesce(diag->'safetyFlags','[]'::jsonb))
+  loop
+    insert into request_safety_flags(
+      request_id,flag_type,source,severity,guidance_version
+    ) values(v_request_id,item#>>'{}','ai','high','safety-v1');
+  end loop;
+  if v_session_id is not null then
+    update ai_sessions set request_id=v_request_id,status='published',
+      confirmed_category_slug=selected_slug,ended_at=now(),updated_at=now(),
+      version=version+1 where id=v_session_id;
+    update ai_diagnostics d set request_id=v_request_id where d.session_id=v_session_id;
+  end if;
+  update transcription_jobs t set request_id=v_request_id
+  where t.user_id=actor and t.request_id is null and exists(
+    select 1 from file_uploads f
+    where f.user_id=actor and f.purpose='request_audio'
+      and f.resource_id=v_request_id and f.final_path=t.private_audio_path
+  );
+  perform private.complete_idempotent_command(
+    actor,'publish_service_request_v3',idem,jsonb_build_object(
+      'id',v_request_id,'aiSessionId',v_session_id,'categorySelectionSource',selection_source,
+      'mediaCount',media_count,'timingMode',mode,'requestedStart',start_at,'requestedEnd',end_at
+    )
+  );
+  return v_request_id;
 end $$;
 
-revoke all on function public.publish_service_request_without_timing_mode(jsonb) from public,anon,authenticated;
 revoke all on function public.publish_service_request(jsonb) from public,anon,authenticated;
 grant execute on function public.publish_service_request(jsonb) to authenticated;
 
@@ -126,7 +302,7 @@ begin
   select * into req from public.service_requests where id=p_request_id;
   if req.id is null then return jsonb_build_object('eligible',false,'reason','request_not_found'); end if;
   if req.timing_mode='asap' then
-    window_start:=p_at; window_end:=p_at+interval '60 minutes';
+    window_start:=req.requested_start; window_end:=req.requested_end;
   elsif req.timing_mode='scheduled' then
     window_start:=req.requested_start; window_end:=req.requested_end;
   else
@@ -134,6 +310,10 @@ begin
   end if;
   if req.timing_mode<>'flexible' and (window_start is null or window_end is null or window_end<=window_start) then
     return jsonb_build_object('eligible',false,'reason','invalid_request_window');
+  end if;
+  if req.timing_mode='asap' and p_at>=window_end then
+    return jsonb_build_object('eligible',false,'reason','asap_window_expired',
+      'timingMode',req.timing_mode,'windowStart',window_start,'windowEnd',window_end);
   end if;
   if window_start is not null then
     local_start:=window_start at time zone 'Asia/Riyadh';
@@ -147,7 +327,8 @@ begin
   elsif provider.verification_status<>'verified' then reason:='provider_not_verified';
   elsif p_accepting_new_work and not provider.accepting_requests then reason:='provider_not_accepting_requests'; end if;
   select * into service from public.provider_services
-  where provider_id=p_provider_id and category_id=req.category_id and enabled;
+  where provider_id=p_provider_id and category_id=req.category_id and enabled
+    and review_status='approved';
   if reason is null and service.provider_id is null then reason:='category_not_supported'; end if;
   if reason is null and req.subcategory_id is not null
     and (service.subcategory_id is null or service.subcategory_id<>req.subcategory_id) then reason:='subcategory_not_supported'; end if;
@@ -189,6 +370,162 @@ begin
     'activeWorkload',coalesce(provider.active_workload,0),'capacity',coalesce(provider.max_active_jobs,0),
     'categoryRestricted',coalesce(category_restricted,false),'subcategoryRestricted',coalesce(subcategory_restricted,false));
 end $$;
+
+create or replace function private.guard_provider_service_qualification() returns trigger
+language plpgsql security definer set search_path='' as $$
+declare provider uuid:=case when tg_op='DELETE' then old.provider_id else new.provider_id end;
+  reviewer boolean:=private.has_role(array[
+    'verification_reviewer','super_admin'
+  ]::public.user_role[]);
+begin
+  if tg_op='INSERT' then
+    if new.qualified_for_restricted and not reviewer then
+      raise exception 'PROVIDER_SELF_QUALIFICATION_FORBIDDEN';
+    end if;
+  elsif tg_op='UPDATE' then
+    if new.qualified_for_restricted is distinct from old.qualified_for_restricted
+      and not reviewer then
+      raise exception 'PROVIDER_SELF_QUALIFICATION_FORBIDDEN';
+    end if;
+  end if;
+  if tg_op='UPDATE' then
+    if (
+      new.review_status is distinct from old.review_status
+      or new.submitted_at is distinct from old.submitted_at
+      or new.reviewed_at is distinct from old.reviewed_at
+      or new.reviewed_by is distinct from old.reviewed_by
+      or new.review_reason is distinct from old.review_reason
+    ) and not reviewer
+      and current_user<>'postgres'
+      and current_setting('sallah.provider_onboarding_command',true) is distinct from 'true' then
+      raise exception 'PROVIDER_SERVICE_REVIEW_SELF_CHANGE_FORBIDDEN';
+    end if;
+  elsif tg_op='INSERT' and (
+    new.review_status<>'draft'
+    or new.submitted_at is not null
+    or new.reviewed_at is not null
+    or new.reviewed_by is not null
+    or new.review_reason is not null
+  ) and not reviewer
+    and current_user<>'postgres'
+    and current_setting('sallah.provider_onboarding_command',true) is distinct from 'true' then
+    raise exception 'PROVIDER_SERVICE_REVIEW_SELF_CHANGE_FORBIDDEN';
+  end if;
+  if auth.uid()=provider and not reviewer
+    and current_setting('sallah.provider_onboarding_command',true) is distinct from 'true' then
+    raise exception 'PROVIDER_SERVICE_ONBOARDING_REQUIRED';
+  end if;
+  return case when tg_op='DELETE' then old else new end;
+end $$;
+
+create function public.review_provider_service(
+  p_provider_id uuid,p_category_id uuid,
+  p_decision public.provider_service_review_status,p_reason text,p_idempotency_key text
+) returns jsonb
+language plpgsql security definer set search_path=public,extensions,pg_temp as $$
+declare actor uuid:=auth.uid(); item public.provider_services%rowtype;
+  request_hash text; replay jsonb; result_payload jsonb;
+begin
+  if not private.has_role(array['verification_reviewer','super_admin']::user_role[]) then
+    raise exception 'VERIFICATION_PERMISSION_REQUIRED';
+  end if;
+  if p_decision not in ('approved','more_information_required','rejected','suspended') then
+    raise exception 'INVALID_PROVIDER_SERVICE_DECISION';
+  end if;
+  if length(trim(coalesce(p_reason,''))) not between 5 and 2000 then
+    raise exception 'REASON_REQUIRED';
+  end if;
+  request_hash:=private.canonical_request_hash(jsonb_build_object(
+    'providerId',p_provider_id,'categoryId',p_category_id,
+    'decision',p_decision,'reason',trim(p_reason)
+  ));
+  perform pg_advisory_xact_lock(hashtextextended(
+    actor::text||':provider_service_review:'||p_idempotency_key,0
+  ));
+  replay:=private.idempotency_replay(
+    actor,'provider_service_review_v1',p_idempotency_key,request_hash
+  );
+  if replay is not null then return replay; end if;
+  select * into item from provider_services
+  where provider_id=p_provider_id and category_id=p_category_id and enabled for update;
+  if item.provider_id is null then raise exception 'ACTIVE_PROVIDER_SERVICE_REQUIRED'; end if;
+  if item.review_status not in ('submitted','more_information_required','approved') then
+    raise exception 'PROVIDER_SERVICE_NOT_REVIEWABLE';
+  end if;
+  insert into idempotency_keys(user_id,command,key,request_hash)
+  values(actor,'provider_service_review_v1',p_idempotency_key,request_hash);
+  update provider_services set review_status=p_decision,reviewed_at=now(),reviewed_by=actor,
+    review_reason=trim(p_reason)
+  where provider_id=p_provider_id and category_id=p_category_id;
+  insert into admin_audit_logs(
+    actor_id,action,target_type,target_id,reason,correlation_id,before_snapshot,after_snapshot
+  ) values(actor,'provider.service.review','provider',p_provider_id,trim(p_reason),gen_random_uuid(),
+    jsonb_build_object('categoryId',p_category_id,'reviewStatus',item.review_status,
+      'subcategoryId',item.subcategory_id),
+    jsonb_build_object('categoryId',p_category_id,'reviewStatus',p_decision,
+      'subcategoryId',item.subcategory_id));
+  result_payload:=jsonb_build_object('providerId',p_provider_id,'categoryId',p_category_id,
+    'subcategoryId',item.subcategory_id,'status',p_decision);
+  perform private.complete_idempotent_command(
+    actor,'provider_service_review_v1',p_idempotency_key,result_payload
+  );
+  return result_payload;
+end $$;
+
+create function public.claim_transcription_job(
+  p_user_id uuid,p_client_message_id text,p_private_audio_path text,
+  p_source_locale text,p_provider text,p_model text
+) returns jsonb
+language plpgsql set search_path=public,pg_temp as $$
+declare item public.transcription_jobs%rowtype; inserted_id uuid; next_claim_token uuid:=gen_random_uuid();
+begin
+  if current_user<>'service_role' then raise exception 'SERVICE_ROLE_REQUIRED'; end if;
+  if length(trim(coalesce(p_client_message_id,''))) not between 8 and 128 then
+    raise exception 'INVALID_CLIENT_MESSAGE_ID';
+  end if;
+  insert into transcription_jobs(
+    user_id,client_message_id,private_audio_path,source_locale,provider,model,status,
+    claim_expires_at,claim_token
+  ) values(
+    p_user_id,p_client_message_id,p_private_audio_path,p_source_locale,p_provider,p_model,'processing',
+    now()+interval '15 minutes',next_claim_token
+  ) on conflict(user_id,client_message_id) do nothing returning id into inserted_id;
+  select * into item from transcription_jobs
+  where user_id=p_user_id and client_message_id=p_client_message_id for update;
+  if item.private_audio_path is distinct from p_private_audio_path then
+    return jsonb_build_object('state','media_conflict','jobId',item.id);
+  end if;
+  if inserted_id is not null then
+    return jsonb_build_object(
+      'state','claimed','jobId',item.id,'claimToken',item.claim_token
+    );
+  end if;
+  if item.status='completed' and item.transcript is not null then
+    return jsonb_build_object('state','completed','jobId',item.id,'transcript',item.transcript);
+  end if;
+  if item.status='processing' and item.claim_expires_at>now() then
+    return jsonb_build_object('state','in_progress','jobId',item.id);
+  end if;
+  update transcription_jobs set status='processing',source_locale=p_source_locale,
+    provider=p_provider,model=p_model,transcript=null,completed_at=null,error_category=null,
+    claim_expires_at=now()+interval '15 minutes',claim_token=next_claim_token
+  where id=item.id;
+  return jsonb_build_object(
+    'state','claimed','jobId',item.id,'claimToken',next_claim_token
+  );
+end $$;
+
+revoke all on function public.review_provider_service(
+  uuid,uuid,public.provider_service_review_status,text,text
+) from public,anon,authenticated;
+grant execute on function public.review_provider_service(
+  uuid,uuid,public.provider_service_review_status,text,text
+) to authenticated;
+revoke all on function public.claim_transcription_job(uuid,text,text,text,text,text)
+  from public,anon,authenticated;
+grant execute on function public.claim_transcription_job(uuid,text,text,text,text,text)
+  to service_role;
+grant select,insert,update on public.transcription_jobs to service_role;
 
 -- Restore the workflow state captured when the dispute opened. Completion
 -- rejection is the one deliberate exception: it resumes into rework.
@@ -260,12 +597,28 @@ begin
   if current_setting('sallah.provider_onboarding_command',true)='true' then
     return case when tg_op='DELETE' then old else new end;
   end if;
+  if tg_table_name='provider_services' then
+    if tg_op='UPDATE' and not (
+      old.enabled and old.review_status='approved'
+      and (
+        not new.enabled
+        or new.review_status<>'approved'
+        or new.category_id is distinct from old.category_id
+        or new.subcategory_id is distinct from old.subcategory_id
+      )
+    ) then
+      return new;
+    end if;
+    if tg_op='DELETE' and not (old.enabled and old.review_status='approved') then
+      return old;
+    end if;
+  end if;
   provider:=case tg_table_name
     when 'profiles' then coalesce(nullif(to_jsonb(new)->>'id',''),nullif(to_jsonb(old)->>'id',''))::uuid
     when 'provider_profiles' then coalesce(nullif(to_jsonb(new)->>'user_id',''),nullif(to_jsonb(old)->>'user_id',''))::uuid
     else coalesce(nullif(to_jsonb(new)->>'provider_id',''),nullif(to_jsonb(old)->>'provider_id',''))::uuid end;
   changed_category:=case when tg_table_name in ('provider_services','provider_restricted_qualifications')
-    then coalesce(nullif(to_jsonb(new)->>'category_id',''),nullif(to_jsonb(old)->>'category_id',''))::uuid else null end;
+    then coalesce(nullif(to_jsonb(old)->>'category_id',''),nullif(to_jsonb(new)->>'category_id',''))::uuid else null end;
   invalid_reason:=case tg_table_name when 'profiles' then 'provider_account_inactive'
     when 'provider_profiles' then case when to_jsonb(new)->>'verification_status'<>'verified' then 'provider_not_verified'
       else 'provider_not_accepting_requests' end
@@ -294,6 +647,12 @@ begin
   return case when tg_op='DELETE' then old else new end;
 end $$;
 
+drop trigger provider_service_invalidates_marketplace on public.provider_services;
+create trigger provider_service_invalidates_marketplace
+after update of category_id,subcategory_id,enabled,review_status or delete
+on public.provider_services for each row
+execute function private.invalidate_provider_marketplace_eligibility();
+
 alter function public.upsert_provider_onboarding(jsonb)
   rename to upsert_provider_onboarding_without_final_diff;
 
@@ -316,8 +675,12 @@ language plpgsql security definer set search_path=public,extensions,pg_temp as $
 declare actor uuid:=auth.uid(); result jsonb; before_profile public.provider_profiles%rowtype;
   after_profile public.provider_profiles%rowtype; removed_category uuid; prior_accepting boolean;
   identity_changed boolean; documents_added boolean; before_services jsonb;
+  service_row record; submit boolean:=coalesce((payload->>'submit')::boolean,true);
+  final_services jsonb; final_service_count integer; final_area_count integer;
+  final_result jsonb; history_ids_before uuid[]; idem text:=payload->>'idempotencyKey';
 begin
   if actor is null then raise exception 'AUTH_REQUIRED'; end if;
+  perform set_config('sallah.provider_onboarding_command','true',true);
   perform set_config('sallah.onboarding_category_ids',coalesce((
     select jsonb_agg(distinct category_id)::text from (
       select value->>'categoryId' category_id from jsonb_array_elements(coalesce(payload->'services','[]'::jsonb))
@@ -327,8 +690,13 @@ begin
   ),'[]'),true);
   select * into before_profile from public.provider_profiles where user_id=actor;
   prior_accepting:=before_profile.accepting_requests;
-  select coalesce(jsonb_agg(jsonb_build_object('category_id',category_id,'subcategory_id',subcategory_id,
-    'enabled',enabled)),'[]'::jsonb) into before_services
+  select coalesce(array_agg(id),'{}'::uuid[]) into history_ids_before
+  from public.provider_status_history where provider_id=actor;
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'category_id',category_id,'subcategory_id',subcategory_id,'enabled',enabled,
+    'review_status',review_status,'submitted_at',submitted_at,'reviewed_at',reviewed_at,
+    'reviewed_by',reviewed_by,'review_reason',review_reason
+  )),'[]'::jsonb) into before_services
   from public.provider_services where provider_id=actor;
   result:=public.upsert_provider_onboarding_without_final_diff(payload);
   select * into after_profile from public.provider_profiles where user_id=actor;
@@ -342,7 +710,43 @@ begin
     update public.provider_profiles set verification_status='verified',accepting_requests=false
     where user_id=actor;
     update public.provider_profiles set accepting_requests=prior_accepting where user_id=actor;
+    delete from public.provider_status_history where provider_id=actor
+      and not (id=any(history_ids_before))
+      and previous_status='verified' and new_status='submitted'
+      and reason='material_change_requires_review';
   end if;
+  for service_row in
+    select s.provider_id,s.category_id,s.subcategory_id,b.review_status,b.submitted_at,
+      b.reviewed_at,b.reviewed_by,b.review_reason
+    from public.provider_services s
+    left join jsonb_to_recordset(before_services) as b(
+      category_id uuid,subcategory_id uuid,enabled boolean,
+      review_status public.provider_service_review_status,submitted_at timestamptz,
+      reviewed_at timestamptz,reviewed_by uuid,review_reason text
+    ) on b.category_id=s.category_id and b.enabled
+      and b.subcategory_id is not distinct from s.subcategory_id
+    where s.provider_id=actor and s.enabled
+  loop
+    if service_row.review_status is not null
+      and not (
+        submit and service_row.review_status in ('draft','more_information_required','rejected')
+      ) then
+      update public.provider_services set
+        review_status=service_row.review_status,
+        submitted_at=service_row.submitted_at,
+        reviewed_at=service_row.reviewed_at,
+        reviewed_by=service_row.reviewed_by,
+        review_reason=service_row.review_reason
+      where provider_id=actor and category_id=service_row.category_id;
+    else
+      update public.provider_services set
+        review_status=case when submit then 'submitted'::public.provider_service_review_status
+          else 'draft'::public.provider_service_review_status end,
+        submitted_at=case when submit then now() else null end,
+        reviewed_at=null,reviewed_by=null,review_reason=null
+      where provider_id=actor and category_id=service_row.category_id;
+    end if;
+  end loop;
   for removed_category in
     select b.category_id from jsonb_to_recordset(before_services) as b(
       category_id uuid,subcategory_id uuid,enabled boolean
@@ -373,7 +777,29 @@ begin
     where provider_id=actor and status not in ('completed','cancelled')
     on conflict (job_id) where status='open' do nothing;
   end if;
-  return result||jsonb_build_object('materialIdentityChange',identity_changed or documents_added);
+  select * into after_profile from public.provider_profiles where user_id=actor;
+  select count(*),coalesce(jsonb_agg(jsonb_build_object(
+    'categoryId',category_id,'subcategoryId',subcategory_id,'enabled',enabled,
+    'reviewStatus',review_status,'submittedAt',submitted_at,'reviewedAt',reviewed_at,
+    'reviewedBy',reviewed_by,'reviewReason',review_reason
+  ) order by category_id),'[]'::jsonb)
+  into final_service_count,final_services
+  from public.provider_services where provider_id=actor and enabled;
+  select count(*) into final_area_count from public.provider_service_areas where provider_id=actor and enabled;
+  final_result:=jsonb_build_object(
+    'providerId',actor,'status',after_profile.verification_status,
+    'serviceCount',final_service_count,'areaCount',final_area_count,
+    'services',final_services,'submitted',submit,
+    'materialChange',identity_changed or documents_added,
+    'materialIdentityChange',identity_changed or documents_added,
+    'serviceReviewRequired',exists(
+      select 1 from public.provider_services where provider_id=actor and enabled
+        and review_status<>'approved'
+    )
+  );
+  update public.idempotency_keys set response=final_result,updated_at=now()
+  where user_id=actor and command='provider_onboarding_v2' and key=idem and status='completed';
+  return final_result;
 end $$;
 
 revoke all on function public.upsert_provider_onboarding_without_final_diff(jsonb) from public,anon,authenticated;

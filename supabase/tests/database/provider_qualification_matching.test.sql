@@ -1,5 +1,5 @@
 begin;
-select plan(31);
+select plan(32);
 
 select has_table('public','provider_restricted_qualifications','restricted qualifications have an authoritative reviewer-owned ledger');
 
@@ -29,13 +29,13 @@ insert into public.provider_profiles(
   ('f2000000-0000-4000-8000-000000000003','individual','Far restricted provider','verified',true,2),
   ('f2000000-0000-4000-8000-000000000004','individual','Material change provider','verified',true,2),
   ('f2000000-0000-4000-8000-000000000006','individual','Nonmaterial provider','verified',true,2);
-insert into public.provider_services(provider_id,category_id)
-select provider_id,c.id from (values
+insert into public.provider_services(provider_id,category_id,review_status)
+select provider_id,c.id,'approved' from (values
   ('f2000000-0000-4000-8000-000000000002'::uuid),
   ('f2000000-0000-4000-8000-000000000003'::uuid)
 ) p(provider_id) cross join lateral(select id from public.service_categories where slug='pest-control') c;
-insert into public.provider_services(provider_id,category_id)
-select provider_id,c.id from (values
+insert into public.provider_services(provider_id,category_id,review_status)
+select provider_id,c.id,'approved' from (values
   ('f2000000-0000-4000-8000-000000000004'::uuid),
   ('f2000000-0000-4000-8000-000000000006'::uuid)
 ) p(provider_id) cross join lateral(select id from public.service_categories where slug='general-handyman') c;
@@ -266,12 +266,15 @@ update public.service_requests set timing_mode='asap',requested_start=now(),requ
 where id='f2100000-0000-4000-8000-000000000001';
 insert into public.provider_availability(provider_id,weekday,start_time,end_time)
 select 'f2000000-0000-4000-8000-000000000002',extract(dow from now() at time zone 'Asia/Riyadh')::smallint,'00:00','23:59:59';
-select is(private.provider_request_eligibility(
+select ok((select (private.provider_request_eligibility(
   'f2000000-0000-4000-8000-000000000002','f2100000-0000-4000-8000-000000000001',
-  '2026-08-18T12:00:00Z'::timestamptz)->>'windowStart','2026-08-18T12:00:00+00:00',
-  'ASAP eligibility evaluates the supplied current instant');
+  requested_start+interval '1 minute')->>'windowStart')::timestamptz=requested_start
+  from public.service_requests where id='f2100000-0000-4000-8000-000000000001'),
+  'ASAP eligibility reuses the persisted publication window');
 update public.provider_profiles set active_workload=max_active_jobs
 where user_id='f2000000-0000-4000-8000-000000000002';
+update public.service_requests set timing_mode='flexible',requested_start=null,requested_end=null
+where id='f2100000-0000-4000-8000-000000000001';
 select is(private.provider_request_eligibility(
   'f2000000-0000-4000-8000-000000000002','f2100000-0000-4000-8000-000000000001',now())->>'reason',
   'capacity_reached','active workload at capacity excludes the provider');
@@ -289,13 +292,17 @@ select is(private.provider_request_eligibility(
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub','f2000000-0000-4000-8000-000000000004',true);
-insert into public.provider_services(provider_id,category_id)
-select 'f2000000-0000-4000-8000-000000000004',id from public.service_categories where slug='pest-control';
+select throws_ok(
+  format('insert into public.provider_services(provider_id,category_id) values(%L,%L)',
+    'f2000000-0000-4000-8000-000000000004',
+    (select id from public.service_categories where slug='pest-control')),
+  'PROVIDER_SERVICE_ONBOARDING_REQUIRED',
+  'verified provider cannot bypass per-service review with a direct insert');
 reset role;
 select is((select verification_status::text from public.provider_profiles where user_id='f2000000-0000-4000-8000-000000000004'),
-  'submitted','verified provider adding a service category is returned to review');
+  'verified','blocked direct service insert does not contradict global verification');
 select is((select accepting_requests from public.provider_profiles where user_id='f2000000-0000-4000-8000-000000000004'),
-  false,'material provider changes immediately stop new request acceptance');
+  true,'blocked direct service insert leaves approved-service acceptance unchanged');
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub','f2000000-0000-4000-8000-000000000006',true);

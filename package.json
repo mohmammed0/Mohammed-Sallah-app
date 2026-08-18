@@ -15,6 +15,7 @@
     "test": "turbo test",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:local-supabase": "node scripts/test-local-supabase.mjs",
+    "test:legacy-upgrade": "node scripts/test-legacy-timing-upgrade.mjs",
     "test:db": "node scripts/run-command.mjs supabase test db",
     "test:security": "vitest run tests/security",
     "test:e2e:web": "node scripts/test-web-e2e.mjs",

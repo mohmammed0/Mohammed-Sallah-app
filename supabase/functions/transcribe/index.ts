@@ -2,6 +2,7 @@ import OpenAI from 'npm:openai@7.5.0';
 import { z } from 'npm:zod@4.4.3';
 import { authenticatedUser, serviceClient } from '../_shared/auth.ts';
 import { corsHeaders, json, safeError } from '../_shared/http.ts';
+import { runClaimedTranscription } from '../_shared/transcription-claim.ts';
 const schema = z.object({
   storagePath: z
     .string()
@@ -12,7 +13,6 @@ const schema = z.object({
 });
 Deno.serve(async (request) => {
   const correlationId = crypto.randomUUID();
-  let failedJob: { id: string; userId: string } | null = null;
   if (request.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: corsHeaders(request) });
   }
@@ -23,68 +23,81 @@ Deno.serve(async (request) => {
       return json(request, { error: 'access_denied' }, 403);
     }
     const db = serviceClient();
-    const { data: existing, error: existingError } = await db
-      .from('transcription_jobs')
-      .select('id,status,transcript,private_audio_path')
-      .eq('user_id', user.id)
-      .eq('client_message_id', input.clientMessageId)
-      .maybeSingle();
-    if (existingError) throw new Error(`TRANSCRIPTION_LOOKUP_${existingError.code}`);
-    if (
-      existing?.private_audio_path !== undefined &&
-      existing.private_audio_path !== input.storagePath
-    ) {
+    const model = Deno.env.get('TRANSCRIPTION_MODEL') ?? 'gpt-4o-mini-transcribe';
+    const result = await runClaimedTranscription({
+      async claim() {
+        const { data, error } = await db.rpc('claim_transcription_job', {
+          p_user_id: user.id,
+          p_client_message_id: input.clientMessageId,
+          p_private_audio_path: input.storagePath,
+          p_source_locale: input.locale,
+          p_provider: 'openai',
+          p_model: model,
+        });
+        if (error) throw new Error(`TRANSCRIPTION_CLAIM_${error.code}`);
+        return z.discriminatedUnion('state', [
+          z.object({ state: z.literal('claimed'), jobId: z.uuid(), claimToken: z.uuid() }),
+          z.object({
+            state: z.literal('completed'),
+            jobId: z.uuid(),
+            transcript: z.string().min(1),
+          }),
+          z.object({ state: z.literal('in_progress'), jobId: z.uuid() }),
+          z.object({ state: z.literal('media_conflict'), jobId: z.uuid() }),
+        ]).parse(data);
+      },
+      async transcribe(_jobId, _claimToken) {
+        const { data, error } = await db.storage.from('request-media').download(input.storagePath);
+        if (error || !data) throw new Error('PRIVATE_AUDIO_NOT_FOUND');
+        const apiKey = Deno.env.get('OPENAI_API_KEY');
+        if (!apiKey) throw new Error('TRANSCRIPTION_NOT_CONFIGURED');
+        const client = new OpenAI({ apiKey });
+        const file = new File([data], input.storagePath.split('/').at(-1) ?? 'recording.m4a', {
+          type: data.type || 'audio/mp4',
+        });
+        const transcript = await client.audio.transcriptions.create({
+          file,
+          model,
+          language: input.locale,
+        });
+        return transcript.text;
+      },
+      async complete(jobId, claimToken, transcript) {
+        const { data, error } = await db.from('transcription_jobs').update({
+          status: 'completed',
+          transcript,
+          completed_at: new Date().toISOString(),
+          error_category: null,
+          claim_expires_at: null,
+          claim_token: null,
+        }).eq('id', jobId).eq('user_id', user.id).eq('status', 'processing')
+          .eq('claim_token', claimToken).select('id').maybeSingle();
+        if (error || !data) {
+          throw new Error(`TRANSCRIPTION_COMPLETE_${error?.code ?? 'CLAIM_LOST'}`);
+        }
+      },
+      async fail(jobId, claimToken) {
+        await db.from('transcription_jobs').update({
+          status: 'failed',
+          error_category: 'retryable_transcription_failure',
+          claim_expires_at: null,
+          claim_token: null,
+        }).eq('id', jobId).eq('user_id', user.id).eq('status', 'processing')
+          .eq('claim_token', claimToken);
+      },
+    });
+    if (result.state === 'media_conflict') {
       return json(request, { error: 'client_message_media_conflict' }, 409);
     }
-    if (existing?.status === 'completed' && existing.transcript) {
-      return json(request, { transcript: existing.transcript, editable: true, cached: true });
-    }
-    if (existing?.status === 'processing') {
+    if (result.state === 'in_progress') {
       return json(request, { error: 'transcription_in_progress', retryable: true }, 409);
     }
-    const model = Deno.env.get('TRANSCRIPTION_MODEL') ?? 'gpt-4o-mini-transcribe';
-    const { data: job, error: jobError } = await db.from('transcription_jobs').upsert({
-      user_id: user.id,
-      client_message_id: input.clientMessageId,
-      private_audio_path: input.storagePath,
-      source_locale: input.locale,
-      provider: 'openai',
-      model,
-      status: 'processing',
-      transcript: null,
-      completed_at: null,
-    }, { onConflict: 'user_id,client_message_id' }).select('id').single();
-    if (jobError || !job) throw new Error(`TRANSCRIPTION_JOB_${jobError?.code ?? 'FAILED'}`);
-    failedJob = { id: job.id, userId: user.id };
-    const { data, error } = await db.storage.from('request-media').download(input.storagePath);
-    if (error || !data) throw new Error('PRIVATE_AUDIO_NOT_FOUND');
-    const apiKey = Deno.env.get('OPENAI_API_KEY');
-    if (!apiKey) {
-      throw new Error('TRANSCRIPTION_NOT_CONFIGURED');
-    }
-    const client = new OpenAI({ apiKey });
-    const file = new File([data], input.storagePath.split('/').at(-1) ?? 'recording.m4a', {
-      type: data.type || 'audio/mp4',
+    return json(request, {
+      transcript: result.transcript,
+      editable: true,
+      ...(result.cached ? { cached: true } : {}),
     });
-    const transcript = await client.audio.transcriptions.create({
-      file,
-      model,
-      language: input.locale === 'ar' ? 'ar' : input.locale,
-    });
-    const { error: completionError } = await db.from('transcription_jobs').update({
-      status: 'completed',
-      transcript: transcript.text,
-      completed_at: new Date().toISOString(),
-    }).eq('id', job.id).eq('user_id', user.id);
-    if (completionError) throw new Error(`TRANSCRIPTION_COMPLETE_${completionError.code}`);
-    return json(request, { transcript: transcript.text, editable: true });
   } catch (error) {
-    if (failedJob) {
-      await serviceClient().from('transcription_jobs').update({
-        status: 'failed',
-        error_category: 'retryable_transcription_failure',
-      }).eq('id', failedJob.id).eq('user_id', failedJob.userId);
-    }
     return safeError(request, error, correlationId);
   }
 });

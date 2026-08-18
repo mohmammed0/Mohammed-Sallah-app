@@ -87,6 +87,26 @@ from (values
 cross join lateral(select id from public.service_categories where slug='air-conditioning') category
 on conflict(provider_id,category_id) do nothing;
 
+do $$
+begin
+  if exists(
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='provider_services'
+      and column_name='review_status'
+  ) then
+    perform set_config('sallah.provider_onboarding_command','true',true);
+    execute $sql$
+      update public.provider_services
+      set review_status='approved',reviewed_at=coalesce(reviewed_at,now())
+      where provider_id in (
+        'd2000000-0000-4000-8000-000000000001'::uuid,
+        'd2000000-0000-4000-8000-000000000002'::uuid
+      ) and enabled
+    $sql$;
+    perform set_config('sallah.provider_onboarding_command','false',true);
+  end if;
+end $$;
+
 insert into public.provider_service_areas(provider_id,city_id,center,radius_m)
 select provider_id,city.id,st_setsrid(st_makepoint(0,0),4326)::geography,40000
 from (values

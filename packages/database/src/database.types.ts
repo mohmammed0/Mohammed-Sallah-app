@@ -4555,7 +4555,12 @@ export type Database = {
           enabled: boolean;
           provider_id: string;
           qualified_for_restricted: boolean;
+          review_reason: string | null;
+          review_status: Database['public']['Enums']['provider_service_review_status'];
+          reviewed_at: string | null;
+          reviewed_by: string | null;
           subcategory_id: string | null;
+          submitted_at: string | null;
         };
         Insert: {
           category_id: string;
@@ -4563,7 +4568,12 @@ export type Database = {
           enabled?: boolean;
           provider_id: string;
           qualified_for_restricted?: boolean;
+          review_reason?: string | null;
+          review_status?: Database['public']['Enums']['provider_service_review_status'];
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
           subcategory_id?: string | null;
+          submitted_at?: string | null;
         };
         Update: {
           category_id?: string;
@@ -4571,7 +4581,12 @@ export type Database = {
           enabled?: boolean;
           provider_id?: string;
           qualified_for_restricted?: boolean;
+          review_reason?: string | null;
+          review_status?: Database['public']['Enums']['provider_service_review_status'];
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
           subcategory_id?: string | null;
+          submitted_at?: string | null;
         };
         Relationships: [
           {
@@ -4594,6 +4609,13 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: 'provider_public_profiles';
             referencedColumns: ['user_id'];
+          },
+          {
+            foreignKeyName: 'provider_services_reviewed_by_fkey';
+            columns: ['reviewed_by'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
           },
           {
             foreignKeyName: 'provider_services_subcategory_id_fkey';
@@ -6524,6 +6546,8 @@ export type Database = {
       };
       transcription_jobs: {
         Row: {
+          claim_expires_at: string | null;
+          claim_token: string | null;
           client_message_id: string | null;
           completed_at: string | null;
           created_at: string;
@@ -6541,6 +6565,8 @@ export type Database = {
           user_id: string;
         };
         Insert: {
+          claim_expires_at?: string | null;
+          claim_token?: string | null;
           client_message_id?: string | null;
           completed_at?: string | null;
           created_at?: string;
@@ -6558,6 +6584,8 @@ export type Database = {
           user_id: string;
         };
         Update: {
+          claim_expires_at?: string | null;
+          claim_token?: string | null;
           client_message_id?: string | null;
           completed_at?: string | null;
           created_at?: string;
@@ -7106,6 +7134,17 @@ export type Database = {
         Returns: Json;
       };
       claim_privacy_job: { Args: { p_worker_id: string }; Returns: Json };
+      claim_transcription_job: {
+        Args: {
+          p_client_message_id: string;
+          p_model: string;
+          p_private_audio_path: string;
+          p_provider: string;
+          p_source_locale: string;
+          p_user_id: string;
+        };
+        Returns: Json;
+      };
       claim_upload_quarantine_cleanup: {
         Args: { p_worker_id: string };
         Returns: Json;
@@ -7321,10 +7360,6 @@ export type Database = {
             Returns: string;
           };
       publish_service_request: { Args: { payload: Json }; Returns: string };
-      publish_service_request_without_timing_mode: {
-        Args: { payload: Json };
-        Returns: string;
-      };
       reconcile_blocked_account_deletions: {
         Args: { p_request_id?: string };
         Returns: Json;
@@ -7412,6 +7447,16 @@ export type Database = {
           p_reason: string;
         };
         Returns: undefined;
+      };
+      review_provider_service: {
+        Args: {
+          p_category_id: string;
+          p_decision: Database['public']['Enums']['provider_service_review_status'];
+          p_idempotency_key: string;
+          p_provider_id: string;
+          p_reason: string;
+        };
+        Returns: Json;
       };
       revoke_support_case_access: {
         Args: {
@@ -7526,6 +7571,8 @@ export type Database = {
         'pending' | 'processing' | 'delivered' | 'failed' | 'dead_letter' | 'disabled';
       offer_status: 'active' | 'revised' | 'withdrawn' | 'expired' | 'selected' | 'rejected';
       provider_kind: 'individual' | 'company';
+      provider_service_review_status:
+        'draft' | 'submitted' | 'approved' | 'more_information_required' | 'rejected' | 'suspended';
       request_status:
         | 'draft'
         | 'approved'
@@ -7721,6 +7768,14 @@ export const Constants = {
       ],
       offer_status: ['active', 'revised', 'withdrawn', 'expired', 'selected', 'rejected'],
       provider_kind: ['individual', 'company'],
+      provider_service_review_status: [
+        'draft',
+        'submitted',
+        'approved',
+        'more_information_required',
+        'rejected',
+        'suspended',
+      ],
       request_status: [
         'draft',
         'approved',

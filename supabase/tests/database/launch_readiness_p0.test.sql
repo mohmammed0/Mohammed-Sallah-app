@@ -21,8 +21,8 @@ insert into public.user_roles(user_id,role) values
 insert into public.provider_profiles(user_id,kind,verification_status,accepting_requests) values
   ('a1000000-0000-4000-8000-000000000002','individual','verified',true),
   ('a1000000-0000-4000-8000-000000000003','individual','verified',true);
-insert into public.provider_services(provider_id,category_id)
-select 'a1000000-0000-4000-8000-000000000002',id
+insert into public.provider_services(provider_id,category_id,review_status)
+select 'a1000000-0000-4000-8000-000000000002',id,'approved'
 from public.service_categories where slug='general-handyman';
 insert into public.provider_service_areas(provider_id,city_id,center,radius_m)
 select 'a1000000-0000-4000-8000-000000000002',id,

@@ -4,10 +4,10 @@ select plan(15);
 select has_column('public','service_requests','timing_mode','requests persist authoritative timing mode');
 select col_type_is('public','service_requests','timing_mode','request_timing_mode','timing mode uses the constrained enum');
 select is((select enum_range(null::public.request_timing_mode)::text),'{asap,scheduled,flexible}','timing values are exact');
-select ok(pg_get_functiondef('private.provider_request_eligibility(uuid,uuid,timestamptz,boolean)'::regprocedure)
-  like '%req.timing_mode<>''flexible''%','ordinary availability is bypassed only for flexible requests');
-select ok(pg_get_functiondef('private.provider_request_eligibility(uuid,uuid,timestamptz,boolean)'::regprocedure)
-  like '%window_start:=p_at; window_end:=p_at+interval ''60 minutes''%','ASAP has a documented bounded window');
+select has_column('public','provider_services','review_status','services persist reviewer-owned state');
+select is((select enum_range(null::public.provider_service_review_status)::text),
+  '{draft,submitted,approved,more_information_required,rejected,suspended}',
+  'provider service review states are exact');
 
 select ok(pg_get_functiondef('private.apply_dispute_job_outcome(uuid,uuid,text,text)'::regprocedure) like '%when ''provider_selected'' then ''provider_selected''::public.job_status%','provider-selected disputes restore provider-selected');
 select ok(pg_get_functiondef('private.apply_dispute_job_outcome(uuid,uuid,text,text)'::regprocedure) like '%when ''scheduled'' then ''scheduled''::public.job_status%','scheduled disputes restore scheduled');

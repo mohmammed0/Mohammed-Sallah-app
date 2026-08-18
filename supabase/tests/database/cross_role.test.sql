@@ -17,9 +17,10 @@ insert into public.user_roles(user_id,role) values
  ('77777777-7777-4777-8777-777777777777','operations_admin');
 insert into public.provider_profiles(user_id,kind,verification_status,accepting_requests) values
  ('22222222-2222-4222-8222-222222222222','individual','verified',true),('33333333-3333-4333-8333-333333333333','individual','verified',true);
-insert into public.provider_services(provider_id,category_id)
-select provider_id,c.id from (values('22222222-2222-4222-8222-222222222222'::uuid),('33333333-3333-4333-8333-333333333333'::uuid)) p(provider_id)
-cross join lateral(select id from public.service_categories where slug='general-handyman') c;
+insert into public.provider_services(provider_id,category_id,review_status)
+select provider_id,c.id,state.review_status from (values('22222222-2222-4222-8222-222222222222'::uuid),('33333333-3333-4333-8333-333333333333'::uuid)) p(provider_id)
+cross join lateral(select id from public.service_categories where slug='general-handyman') c
+cross join lateral(select 'approved'::public.provider_service_review_status review_status) state;
 insert into public.provider_service_areas(provider_id,city_id,center,radius_m)
 select provider_id,c.id,st_setsrid(st_makepoint(0,0),4326)::geography,50000
 from (values('22222222-2222-4222-8222-222222222222'::uuid),('33333333-3333-4333-8333-333333333333'::uuid)) p(provider_id)
