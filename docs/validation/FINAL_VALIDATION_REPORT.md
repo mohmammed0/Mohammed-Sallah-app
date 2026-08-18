@@ -2,7 +2,7 @@
 
 Date: 2026-08-18. Environment: Windows/WSL workspace, Node 24.19.0, pnpm 11.19.0, Supabase CLI 2.114.0, Docker Desktop, Deno 2.9.5, Playwright Chromium 151, k6 2.2.0, Maestro 2.8.0, and Temurin JRE 17.0.20.
 
-Scope: autonomous continuation of draft PR #5 from the independently reviewed baseline `43b9a331d7bf022a2cf4e06a9002b5b996ae6261`. The locally validated implementation evidence HEAD before this report-only commit is `c14507e18afb4729a4803925bd1e30c87cd94b41`. The final branch HEAD is recorded in PR #5 and the release handoff because a tracked file cannot contain the SHA of the commit that contains itself. Statuses below are actual command results; `NOT RUN` and `BLOCKED BY HUMAN PRODUCTION INPUTS` are not passes.
+Scope: autonomous continuation of draft PR #5 from the independently reviewed baseline `43b9a331d7bf022a2cf4e06a9002b5b996ae6261`. The locally validated implementation evidence HEAD before this report-only commit is `c14507e89f749f9c6217e480960918d16172a020`. The final branch HEAD is recorded in PR #5 and the release handoff because a tracked file cannot contain the SHA of the commit that contains itself. Statuses below are actual command results; `NOT RUN` and `BLOCKED BY HUMAN PRODUCTION INPUTS` are not passes.
 
 No production deployment, store submission, live payment, merge, history rewrite, or force-push occurred. Draft PR #5 remains the only pull request for this branch.
 
