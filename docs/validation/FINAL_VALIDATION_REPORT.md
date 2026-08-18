@@ -2,74 +2,85 @@
 
 Date: 2026-08-18. Environment: Windows/WSL, Node 24.19.0, pnpm 11.19.0,
 Supabase CLI 2.114.0, Docker Desktop, Deno 2.9.5, Playwright Chromium 151, k6 2.2.0,
-Expo SDK 54, and Maestro 2.8.0.
+and Expo SDK 54.
 
-Scope: seven repository-controlled integration fixes continued on draft PR #5 from reviewed HEAD
-`c81e6e2f60ba39eaa648741cab2cd9af7c660a93`. The final branch HEAD and CI links are recorded in the
-PR merge-gate table and release handoff because a tracked file cannot contain the SHA of its own
-commit. No production deployment, secret change, merge, force-push, or history rewrite occurred.
+Scope: four repository-controlled pre-merge corrections continued on draft PR #5 from reviewed HEAD
+`f8b4e83cc87cd3954566c5d175d56efd43c96249`. The implementation commits are:
 
-Implementation commit: `7b50ae7` — `fix: close launch readiness integration gaps`.
+- `fa8462a` — `fix: make integration persistence atomic`
+- `222827c` — `fix: scope request media and mobile mutations`
+- `978c853` — `fix: persist admin intents across retries`
 
-## Migration
+The final full branch SHA and CI links are recorded in the PR merge-gate table and release handoff,
+because a tracked file cannot contain the SHA of its own commit. No production deployment, secret
+change, merge, force-push, or history rewrite occurred.
 
-One forward-only migration was added; no existing migration was edited. A reset from zero applies all
-30 migrations:
+## Migration and upgrade path
 
-- `20260818183816_merge_fix_integration_contracts.sql`
+No migration was added or replaced. The existing unmerged migration
+`20260818183816_merge_fix_integration_contracts.sql` was corrected in place, as required, because a
+later migration could not repair its own predecessor failing on legacy timing rows. A reset from zero
+applies all 30 migrations.
 
-It persists request timing mode, aligns matching/offer selection semantics, atomically binds replayed
-transcriptions, restores dispute pre-states, narrows onboarding invalidation to material final-state
-changes, and extends the shared role/database contracts.
+The pre-migration upgrade fixture starts at `20260818140300`, creates all five legacy timing shapes,
+applies the corrected migration, and passes **5/5 conversions**:
+
+- both null becomes explicit flexible with both values null;
+- start-only becomes a bounded 60-minute scheduled window;
+- a valid start/end pair is preserved;
+- end-only becomes explicit flexible and clears the orphan end;
+- an invalid pair keeps its start and receives a bounded 60-minute end.
 
 ## Validation evidence
 
-| Command or suite                         | Result | Evidence                                                                                              |
-| ---------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------- |
-| `supabase db reset --local`              | PASS   | Clean reset from zero applied all 30 migrations and seed                                              |
-| Generated database types                 | PASS   | Regenerated from local PostgreSQL; zero byte drift after repository formatting                        |
-| `supabase test db`                       | PASS   | 17 pgTAP files, **397 assertions**                                                                    |
-| `supabase db lint --local --level error` | PASS   | No database errors; two pre-existing unused-variable warnings only                                    |
-| Deno function tests                      | PASS   | **30 tests**                                                                                          |
-| Workspace Vitest through `pnpm validate` | PASS   | **67 tests**: mobile 29, web 14, domain 8, config 5, i18n 5, image parser 6                           |
-| `pnpm test:integration`                  | PASS   | **2 tests**                                                                                           |
-| `pnpm test:security`                     | PASS   | **4 tests**; secret and static security boundaries clean                                              |
-| `pnpm test:local-supabase`               | PASS   | Storage/AI scenarios and true concurrent idempotency/replay behavior                                  |
-| `pnpm test:e2e:web`                      | PASS   | **8 passed, 2 intentionally skipped** duplicate mobile-project cases                                  |
-| `pnpm validate`                          | PASS   | Format, lint, strict typecheck, i18n, catalog assertion, tests, web build, Android export             |
-| Data inventory                           | PASS   | 76 categories and one classification for each of 130 tables                                           |
-| Expo Doctor                              | PASS   | **21/21 checks**                                                                                      |
-| Android export                           | PASS   | Hermes bundle, **1,554 modules**                                                                      |
-| k6 smoke                                 | PASS   | **200/200 checks**, zero failures, p95 **3.78 ms**                                                    |
-| License check                            | PASS   | Reviewed policy, inventory, and notices                                                               |
-| Vulnerability/secret scan                | PASS   | No known disallowed vulnerability or committed secret                                                 |
-| SBOM                                     | PASS   | CycloneDX, 773 components; SHA-256 `75909b2727790f0afa6103a101a8c6f24e2e98b8b72d529dc960218a56653c8f` |
+| Command or suite                                     | Result | Evidence                                                                                              |
+| ---------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------- |
+| `pnpm test:legacy-upgrade`                           | PASS   | **5/5** legacy timing combinations                                                                    |
+| `supabase db reset --local`                          | PASS   | Clean zero-to-head reset applied all **30 migrations** and seed                                       |
+| Generated database types                             | PASS   | Regenerated from rebuilt PostgreSQL; zero formatted drift                                             |
+| `supabase test db`                                   | PASS   | **20 pgTAP files, 445 assertions**, including RLS and concurrency                                     |
+| `supabase db lint -s public,private --fail-on error` | PASS   | No application-schema errors                                                                          |
+| Deno format, lint, check, and tests                  | PASS   | **32 tests**                                                                                          |
+| Workspace Vitest                                     | PASS   | **78 tests**: mobile 39, web 15, domain 8, config 5, i18n 5, image parser 6                           |
+| `pnpm test:integration`                              | PASS   | **2 tests**                                                                                           |
+| `pnpm test:security`                                 | PASS   | **4 tests**                                                                                           |
+| `pnpm test:local-supabase`                           | PASS   | Storage, AI, and true concurrent core idempotency scenarios                                           |
+| `pnpm test:e2e:web`                                  | PASS   | **8 passed, 2 intentionally skipped** duplicate mobile-project cases                                  |
+| `pnpm validate`                                      | PASS   | Format, lint, strict types, i18n, inventory, tests, web build, and Android bundle                     |
+| Data inventory                                       | PASS   | 76 categories and exactly one classification for each of 130 tables                                   |
+| Expo dependency check / Doctor                       | PASS   | Dependencies current; **21/21 checks**                                                                |
+| Android export                                       | PASS   | Hermes bundle, **1,555 modules**                                                                      |
+| k6 smoke                                             | PASS   | **200/200 checks**, zero failures, p95 **4.02 ms**                                                    |
+| License, vulnerability, and secret checks            | PASS   | Approved license policy; no known high-severity vulnerability or committed production secret          |
+| SBOM                                                 | PASS   | CycloneDX, 773 components; SHA-256 `b5d17a38dec3d07d1aa246456b2c5f0be3d2ea1850eccad4349779014a8067b5` |
 
-The countable repository suites contain **508 passing tests**: 397 pgTAP, 30 Deno, 67 workspace
-Vitest, 2 integration, 4 security, and 8 Playwright. Local-Supabase scenarios and 200 k6 checks are
-reported separately because they are scenario/load checks rather than the same assertion model.
+The countable repository suites contain **569 passing tests/assertions**: 445 pgTAP, 32 Deno, 78
+workspace Vitest, 2 integration, 4 security, and 8 Playwright. The 5 legacy conversion assertions,
+local-Supabase scenarios, and 200 k6 checks are reported separately.
 
-## Merge-fix gate
+## Pre-merge correction gates
 
-| Defect                                | Status | Repository-controlled result                                                                                                                                                                                                                                                      |
-| ------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| MERGE-FIX-1 — flexible scheduling     | PASS   | Explicit `asap`/`scheduled`/`flexible` mode is persisted and exposed. ASAP uses now plus a documented 60-minute bound; scheduled validates its window and blackout; flexible has no synthetic current window. Matching, submission, brief access, and selection share the policy. |
-| MERGE-FIX-2 — offline voice replay    | PASS   | Retained audio survives restart, uploads/scans/transcribes once by `clientMessageId`, then supplies its transcript to AI. Failure stays retryable; publication binds transcription atomically; deletion/replacement removes local files.                                          |
-| MERGE-FIX-3 — fake AI suggestion      | PASS   | Initial suggestion is null. Only authoritative diagnostics populate it; manual, AI-confirmed, and customer-corrected sources are distinct and persisted; publish requires explicit confirmation.                                                                                  |
-| MERGE-FIX-4 — mutation intents        | PASS   | Mobile journals use five lifecycle states, preserve only retryable response-loss payloads, isolate users, retain server results before cleanup, and permit corrected terminal mutations. Browser forms use unique form-instance intent IDs and normalize defaults before hashing. |
-| MERGE-FIX-5 — onboarding invalidation | PASS   | Final-state service diffs preserve offers for biography, locale, unchanged categories, and still-covering availability. Category/qualification loss withdraws only affected offers where possible; selected jobs route to operations review.                                      |
-| MERGE-FIX-6 — dispute resume state    | PASS   | General disputes restore documented safe pre-state policies; completion rejection resumes `in_progress`; completed jobs reject ordinary resume; location sharing and events/history follow the selected policy.                                                                   |
-| MERGE-FIX-7 — user roles              | PASS   | One shared runtime contract includes `privacy_reviewer` across mobile, web, domain, generated database types, and tests. Staff-only users receive a controlled restricted mobile state; marketplace navigation still requires customer/provider ownership.                        |
+| Gate                             | Status | Repository-controlled result                                                                                                                                                                                                                                                                                                                                                                             |
+| -------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PRE-MERGE-1 — atomic timing      | PASS   | Publication inserts `timing_mode` and the authoritative window before the automatic matching trigger. Scheduled first-run matching excludes unavailable providers; flexible creates no fabricated window; ASAP reuses its stored 60-minute window through match/offer/selection and returns `asap_window_expired`. Failed publication rolls back request and matching state.                             |
+| PRE-MERGE-2 — turn-scoped media  | PASS   | Each pending turn owns exact local/upload bindings. Successful turns detach active media; a following text turn is text-only. Multiple offline recordings remain distinct, active replacement preserves pending files, retries work without restart, publication retains intended request attachments, and a 15-minute ownership-token lease serializes transcription while permitting stale recovery.   |
+| PRE-MERGE-3 — per-service review | PASS   | Service rows use six reviewer-owned states. New services remain draft/submitted while the verified account and old approved offers remain valid. Matching/brief/offer/selection require the applicable approved service. Reviewer approval enables matching; removal affects only that category; returned and stored idempotent JSON matches final database state without contradictory account history. |
+| PRE-MERGE-4 — serialized intents | PASS   | Mobile Promise-all tests prove one in-flight Promise, journal, key, and result for publication, selection, completion rejection, and onboarding. Browser intents and normalized expiry survive response loss/reconstruction, rotate after completed/terminal responses, and database replay leaves one assignment/grant, idempotency record, and audit event.                                            |
+
+Focused evidence: atomic publication **16/16**, provider timing/qualification **32/32**,
+per-service onboarding **18/18**, transcription claims **10/10**, browser reconstruction **8/8**,
+mobile media/recovery **12/12**, and mobile mutation journal **8/8**.
 
 ## Remaining external NOT RUN gates
 
-- Maestro and physical Android journey: **NOT RUN** because ADB reported no emulator/device.
+- Maestro and physical Android journey: **NOT RUN** because no ADB executable or Android target was
+  available. Per policy, Maestro was not attempted without a real target.
 - Physical iOS build/journey and store signing: **NOT RUN**; no Apple target/account was supplied.
 - Live payment, SMS/OTP, push, production AI/provider integrations, production migration rehearsal,
   backup restore drill, penetration test, legal approval, and store release remain external human gates.
 - Production configuration validation remains fail-closed until the approved production values in
   `docs/HUMAN_INPUTS.md` are supplied.
 
-Application rollback is a new Git revert commit. Applied database changes require a reviewed forward
-compensation migration or backup restore; migration and Git history must not be rewritten. PR #5 is
-required to remain draft, open, and unmerged until all external gates are approved.
+Application rollback is an additive Git revert. Applied database changes require a reviewed forward
+compensation migration or backup restore; migration and Git history must not be rewritten. PR #5
+must remain draft, open, and unmerged until all external gates are approved.

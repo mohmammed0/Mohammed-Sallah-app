@@ -10,13 +10,22 @@ messages with server replies without duplicating turns.
 
 Selected image and voice files are copied immediately from picker/cache locations into a
 user-scoped app-private directory. The encrypted snapshot stores stable local media IDs and keeps
-their association with the customer turn across restart. The queue permits four retained items,
-10 MiB per item, 20 MiB total, and seven days of retention. Replay uploads and scans every queued
-file before submitting its bound turn. Voice replay uploads/scans, transcribes with the stable
-`clientMessageId`, persists the transcript, and only then sends the authoritative transcript to the
-diagnostic assistant. Transcription jobs deduplicate across timeout/restart. Failure leaves the voice
-turn queued in a retry/manual-edit state and never replays a generic recording label. Successful
-atomic publication binds the final transcription jobs and deletes the snapshot and retained files.
+their association with one exact customer turn across restart. Active composer attachments are
+separate from turn-owned and request-level media. Queuing a turn transfers its active media bindings
+to that turn and clears the composer, so a following text turn cannot inherit an old voice recording
+or transcript. Replacing an active attachment never deletes an object already owned by a pending
+turn, and multiple pending offline turns retain distinct objects. The queue permits four retained
+items, 10 MiB per item, 20 MiB total, and seven days of retention. Replay uploads and scans every
+queued file before submitting its bound turn. Voice replay atomically claims the
+`userId`/`clientMessageId` transcription job, uploads/scans, transcribes, persists the transcript,
+and only then sends that authoritative transcript to the diagnostic assistant. Simultaneous callers,
+timeouts, and restart cannot invoke the external transcription provider twice during the bounded
+15-minute claim lease. A hard-crash lease becomes reclaimable rather than blocking the turn forever,
+and its ownership token prevents a stale worker from overwriting the retry. Failure releases the
+claim and leaves the voice turn queued with an explicit in-session retry
+path; it never replays a generic recording label. Successful atomic publication binds the final
+transcription jobs and separately retained request attachments, then deletes the snapshot and local
+files.
 Offline explicit draft deletion removes local state/media immediately and queues server-session
 abandonment for the next connection. Replacing retained media deletes the superseded object and index
 entry.
@@ -47,7 +56,7 @@ sequenceDiagram
   Edge->>DB: usage + prompt/vision/fallback metadata
   Edge->>DB: append authoritative assistant reply
   Edge-->>Mobile: schema-validated editable draft
-  Mobile->>Mobile: reconcile temporary reply + clear pending turn
+  Mobile->>Mobile: reconcile reply + consume this turn's active attachment
   Customer->>Mobile: confirm/correct category + approve
   Mobile->>DB: publish_service_request(session, media, approval snapshot)
   DB->>DB: request + clean media + AI/transcription links atomically

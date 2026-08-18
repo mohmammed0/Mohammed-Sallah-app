@@ -26,12 +26,21 @@ Exact customer addresses never participate in matching or provider briefs.
 
 Provider capacity is `active_workload < max_active_jobs`. Offer selection increments active workload;
 exactly-once terminal completion/cancellation decrements it. `service_requests.timing_mode` is the
-authoritative timing contract. `asap` evaluates from transaction time over a bounded 60-minute
-default window. `scheduled` requires a valid future `requested_start`/`requested_end` window and
+authoritative timing contract. Publication writes the mode and both window fields in the original
+`service_requests` insert, before the `request_auto_match` trigger runs; there is no temporary
+flexible state or post-match correction. `asap` stores the publication transaction time plus a
+bounded 60-minute default window. All later checks reuse that exact stored window rather than sliding
+it forward. `scheduled` requires a valid future `requested_start`/`requested_end` window and
 applies full availability coverage plus blackout overlap. `flexible` stores no synthetic window and
 does not exclude an otherwise eligible provider solely because the current time is outside ordinary
 availability; provider offers remain authoritative for arrival estimates. Matching, brief access,
 offer submission, and selection all call the same timing-aware eligibility policy.
+
+An expired ASAP window returns `asap_window_expired`. Provider brief access, new offers, and offer
+selection fail immediately; the next matching pass closes stale open candidates. The window is never
+silently extended. The customer must create a new timing intent/request before matching can resume.
+The upgrade migration converts legacy start-only and invalid pairs to bounded 60-minute scheduled
+windows, preserves valid pairs, and clears orphan end-only values into an explicit flexible state.
 
 Suspension, verification loss, material identity resubmission, restricted qualification revocation,
 and service removal close affected open matches and withdraw affected active offers with customer
@@ -39,3 +48,9 @@ notification. Onboarding diffs final services instead of disabling/re-enabling e
 locale, unchanged services, and availability edits that still cover a request preserve valid offers.
 Category-specific loss does not invalidate unrelated categories. Already selected active jobs remain
 intact and receive an operations eligibility-review record rather than being silently removed.
+
+Provider account verification and service approval are independent, server-authoritative gates.
+Every enabled provider service has `draft`, `submitted`, `approved`, `more_information_required`,
+`rejected`, or `suspended` review state. A verified provider may retain approved services and their
+valid offers while a newly added category/subcategory remains draft or submitted. Matching, brief
+access, offer submission, and selection require the exact applicable service row to be approved.

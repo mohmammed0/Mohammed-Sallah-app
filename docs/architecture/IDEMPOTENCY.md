@@ -22,12 +22,23 @@ pending operation is rejected visibly rather than silently replaying stale input
 server result is durably recorded before cleanup. Journals are encrypted, isolated by authenticated
 user, bounded to 64 entries, and cleaned after seven days.
 
+A process-local single-flight is keyed by authenticated user, operation, and entity around the full
+begin/load/save/execute lifecycle. Concurrent calls with the same payload share the exact in-flight
+Promise, journal row, and idempotency key. A concurrent different fingerprint receives
+`MUTATION_INTENT_STILL_PENDING`; it can never replace or silently reuse the running payload. This
+central path covers publication, offer selection, onboarding, completion decisions, and every other
+current journaled mobile command.
+
 Every browser mutation form renders a fresh `commandIntentId`. Browser duplicate submission and
-response-loss replay retain that form-instance ID, while a later form render receives a new ID even
-when the business payload is identical. Server actions hash the intent ID with the fully normalized
-payload. Defaults such as support-assignment expiry are calculated before hashing, then the exact
-same value is sent to PostgreSQL on every retry.
+response-loss replay retain that form-instance ID and normalized defaults in browser storage across
+page reconstruction. After a response completes, the form rotates to a new logical intent, so a
+later identical action receives a new ID. Server actions hash the durable intent ID with the fully
+normalized payload. Defaults such as support-assignment expiry are calculated before rendering and
+persisted with the intent; the exact same value is hashed and sent to PostgreSQL on every retry.
 
 Concurrent local integration scenarios deliberately discard responses and issue parallel
 publication, offer-selection, and completion-rejection calls. They assert one request, one job, one
 completion attempt/decision, and one dispute respectively, with append-only events retained.
+Database reconstruction tests discard support assignment/access-grant responses and repeat the same
+rendered intent and expiry; each replay returns the committed result with one authoritative row,
+idempotency record, and audit event.
