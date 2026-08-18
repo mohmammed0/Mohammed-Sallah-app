@@ -34,13 +34,15 @@ if (!['127.0.0.1', 'localhost'].includes(supabaseUrl.hostname)) {
 const pnpm = inherited.npm_execpath;
 if (!pnpm) throw new Error('RUN_WEB_E2E_THROUGH_PNPM');
 
-const reset = spawnTool('supabase', ['db', 'reset', '--local'], {
-  encoding: 'utf8',
-  env: environment,
-});
-if (reset.status !== 0) {
-  process.stderr.write(reset.stderr ?? 'LOCAL_SUPABASE_RESET_FAILED\n');
-  process.exit(reset.status ?? 1);
+if (inherited.SALLAH_E2E_DATABASE_PREPARED !== 'true') {
+  const reset = spawnTool('supabase', ['db', 'reset', '--local'], {
+    encoding: 'utf8',
+    env: environment,
+  });
+  if (reset.status !== 0) {
+    process.stderr.write(reset.stderr ?? 'LOCAL_SUPABASE_RESET_FAILED\n');
+    process.exit(reset.status ?? 1);
+  }
 }
 
 function run(args) {

@@ -85,6 +85,8 @@ jobs:
       - run: pnpm --filter @sallah/web build
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e:web
+        env:
+          SALLAH_E2E_DATABASE_PREPARED: 'true'
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
