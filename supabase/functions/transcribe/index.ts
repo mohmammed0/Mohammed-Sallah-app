@@ -30,8 +30,10 @@ Deno.serve(async (request) => {
       .eq('client_message_id', input.clientMessageId)
       .maybeSingle();
     if (existingError) throw new Error(`TRANSCRIPTION_LOOKUP_${existingError.code}`);
-    if (existing?.private_audio_path !== undefined &&
-      existing.private_audio_path !== input.storagePath) {
+    if (
+      existing?.private_audio_path !== undefined &&
+      existing.private_audio_path !== input.storagePath
+    ) {
       return json(request, { error: 'client_message_media_conflict' }, 409);
     }
     if (existing?.status === 'completed' && existing.transcript) {
