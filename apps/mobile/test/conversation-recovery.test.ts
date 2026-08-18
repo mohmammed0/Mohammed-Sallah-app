@@ -25,6 +25,8 @@ const first: PendingCustomerTurn = {
   inputKind: 'image',
   mediaUploadIds: ['11111111-1111-4111-8111-111111111111'],
   localMediaIds: [],
+  transcript: null,
+  transcriptionStatus: 'none',
   confirmedCategorySlug: 'plumbing',
   summaryRequested: false,
   createdAt: '2026-08-18T10:00:00.000Z',
@@ -155,5 +157,30 @@ describe('AI intake recovery', () => {
       localMediaIds: [localImageId],
     });
     expect(snapshot.draft.retainedMedia[0]?.localUri).toContain('/private/image.jpg');
+  });
+
+  it('keeps an offline voice turn retryable and replays it once with its transcript', async () => {
+    const voice: PendingCustomerTurn = {
+      ...first,
+      clientMessageId: 'voice-turn-0001',
+      inputKind: 'voice',
+      text: '',
+      mediaUploadIds: [],
+      localMediaIds: ['voice-local-0001'],
+      transcriptionStatus: 'retryable',
+      transcript: null,
+    };
+    let calls = 0;
+    const result = await replayPendingTurns([voice, voice], async (turn) => {
+      calls += 1;
+      return {
+        ...turn,
+        text: 'The motor is making a loud noise.',
+        transcript: 'The motor is making a loud noise.',
+        transcriptionStatus: 'completed' as const,
+      };
+    });
+    expect(calls).toBe(1);
+    expect(result.completed[0]?.value.text).toBe('The motor is making a loud noise.');
   });
 });

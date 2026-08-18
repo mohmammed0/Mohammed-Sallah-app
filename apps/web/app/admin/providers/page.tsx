@@ -42,6 +42,7 @@ export default async function ProvidersPage() {
                 <td>
                   {canReview ? (
                     <form action={reviewProvider} className="inline-form">
+                      <input type="hidden" name="commandIntentId" value={crypto.randomUUID()} />
                       <input type="hidden" name="providerId" value={provider.user_id} />
                       <select name="decision" defaultValue="more_information_required">
                         <option value="verified">تحقق</option>

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   appendConversationTurn,
   canPublishRequest,
+  categorySelectionSource,
   conversationOriginalText,
   type ConversationMessage,
 } from '../src/features/request/conversation-state';
@@ -65,5 +66,12 @@ describe('multi-turn request conversation', () => {
         categoryConfirmedByUser: true,
       }),
     ).toBe(true);
+  });
+
+  it('attributes category choices only to an authoritative AI suggestion', () => {
+    expect(categorySelectionSource('plumbing', null)).toBe('manual');
+    expect(categorySelectionSource('plumbing', 'plumbing')).toBe('ai_suggestion');
+    expect(categorySelectionSource('electrical', 'plumbing')).toBe('customer_correction');
+    expect(categorySelectionSource('general-handyman', null)).toBe('manual');
   });
 });

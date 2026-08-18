@@ -29,6 +29,7 @@ vi.mock('expo-file-system/legacy', () => ({
 import {
   clearRetainedMedia,
   listRetainedMedia,
+  removeRetainedMedia,
   retainPrivateMedia,
 } from '../src/lib/durable-media';
 
@@ -36,6 +37,27 @@ describe('durable private request media', () => {
   beforeEach(() => {
     stored.clear();
     copied.clear();
+  });
+
+  it('removes a superseded retained recording from both disk and the index', async () => {
+    const userId = '44444444-4444-4444-8444-444444444444';
+    const first = await retainPrivateMedia({
+      userId,
+      kind: 'voice',
+      sourceUri: 'file:///one.m4a',
+      filename: 'one.m4a',
+      mimeType: 'audio/mp4',
+    });
+    const second = await retainPrivateMedia({
+      userId,
+      kind: 'voice',
+      sourceUri: 'file:///two.m4a',
+      filename: 'two.m4a',
+      mimeType: 'audio/mp4',
+    });
+    await removeRetainedMedia(userId, [first.id]);
+    expect(copied.has(first.localUri)).toBe(false);
+    expect(await listRetainedMedia(userId)).toEqual([second]);
   });
 
   it('copies a selected image into user-scoped app-private storage and restores it', async () => {

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { setTimeout as delay } from 'node:timers/promises';
 import { z } from 'zod';
+import { userRoleSchema } from '@sallah/domain';
 import { createSupabaseServerClient } from './supabase/server';
 import {
   activeAdminRoleNames,
@@ -17,7 +18,7 @@ const sessionContext = z.object({
   accountStatus: z.string(),
   allowed: z.literal(true),
   authenticated: z.literal(true),
-  roles: z.array(z.string()),
+  roles: z.array(userRoleSchema),
 });
 
 export async function requireAdmin(required: readonly AdminPermission[]) {

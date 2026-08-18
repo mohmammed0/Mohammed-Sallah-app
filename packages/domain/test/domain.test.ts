@@ -5,6 +5,8 @@ import {
   DeterministicAiProvider,
   diagnoseWithFallback,
   scoreCandidate,
+  parseKnownUserRoles,
+  userRoleValues,
   type AiProvider,
 } from '../src';
 
@@ -16,6 +18,13 @@ describe('job state machine', () => {
 });
 
 describe('sealed marketplace foundations', () => {
+  it('parses every current database user role from the shared contract', () => {
+    expect(parseKnownUserRoles(userRoleValues)).toEqual({
+      roles: [...userRoleValues],
+      unknownRoles: [],
+    });
+    expect(userRoleValues).toContain('privacy_reviewer');
+  });
   it('hard excludes suspended providers', () =>
     expect(
       scoreCandidate({

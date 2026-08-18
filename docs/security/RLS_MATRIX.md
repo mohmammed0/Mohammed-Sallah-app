@@ -31,7 +31,12 @@ PII, provider verification, notification, finance, and exact-location access are
 permissions. Support agents never inherit raw profile or ledger-wide reads. Customer PII lookup
 requires an active privacy-reviewer or super-admin role, a target, and an audited reason.
 
-Automated evidence: 15 pgTAP files execute 373 assertions, including
+The authoritative runtime role list is exported by `@sallah/domain` and includes
+`privacy_reviewer`. Database-generated types, web authorization, and mobile session parsing consume
+the same contract. Staff-only roles never imply customer/provider navigation. An unknown future role
+produces a controlled restricted mobile state instead of an endless initialization state.
+
+Automated evidence: 17 pgTAP files execute 397 assertions, including
 `scoped_support_authorization.test.sql`, `cross_role.test.sql`, `rls.test.sql`,
 `pii_admin_scope.test.sql`, `schema.test.sql`, and `launch_readiness_p0.test.sql`. They cover direct
 raw-table PII denial, purpose-scoped projections, assigned/unassigned/expired support,

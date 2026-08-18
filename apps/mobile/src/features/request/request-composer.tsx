@@ -19,24 +19,29 @@ import { secureUpload, type CleanUpload } from '@/lib/secure-upload';
 import { useLocale } from '@/providers/locale-provider';
 import {
   canPublishRequest,
+  categorySelectionSource as resolveCategorySelectionSource,
   conversationOriginalText,
   type ConversationMessage,
 } from './conversation-state';
 import { ConversationTimeline } from './conversation-timeline';
 import {
   appendTemporaryFallback,
+  clearAiIntakeAbandonment,
   clearAiIntakeSnapshot,
   enqueuePendingTurn,
   loadAiIntakeSnapshot,
+  queueAiIntakeAbandonment,
   reconcileAuthoritativeTurn,
   replayPendingTurns,
   saveAiIntakeSnapshot,
+  takeAiIntakeAbandonment,
   type PendingCustomerTurn,
 } from './conversation-recovery';
 import { isNetworkOnline } from '@/features/connectivity/network-state';
 import {
   clearRetainedMedia,
   listRetainedMedia,
+  removeRetainedMedia,
   retainPrivateMedia,
   type RetainedMedia,
 } from '@/lib/durable-media';
@@ -92,7 +97,7 @@ export function RequestComposer() {
   const [urgency, setUrgency] = useState<'flexible' | 'normal' | 'urgent' | 'safety_critical'>(
     'normal',
   );
-  const [schedule, setSchedule] = useState<'asap' | 'today' | 'flexible'>('flexible');
+  const [schedule, setSchedule] = useState<'asap' | 'scheduled' | 'flexible'>('flexible');
   const [approved, setApproved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -209,6 +214,13 @@ export function RequestComposer() {
     if (!restored || !userId || reconnectRestoredRef.current) return;
     reconnectRestoredRef.current = true;
     void (async () => {
+      const abandonedSessionId = await takeAiIntakeAbandonment(userId);
+      if (abandonedSessionId) {
+        const { error: abandonError } = await supabase.rpc('abandon_ai_intake_session', {
+          p_session_id: abandonedSessionId,
+        });
+        if (!abandonError) await clearAiIntakeAbandonment(userId);
+      }
       const response = await (
         supabase.rpc as unknown as (name: string) => Promise<{ data: unknown; error: unknown }>
       )('restore_active_ai_intake');
@@ -329,21 +341,16 @@ export function RequestComposer() {
     },
   });
   useEffect(() => {
-    if (!suggestedCategorySlug && catalog.data?.categories.length)
-      setSuggestedCategorySlug(
-        catalog.data.categories.find((item) => item.slug === 'general-handyman')?.slug ??
-          catalog.data.categories[0]?.slug ??
-          '',
-      );
     if (!cityCode && catalog.data?.cities.length)
       setCityCode(
         catalog.data.cities.find((item) => item.code === 'riyadh')?.code ??
           catalog.data.cities[0]?.code ??
           '',
       );
-  }, [catalog.data, suggestedCategorySlug, cityCode]);
+  }, [catalog.data, cityCode]);
   const canPublish = useMemo(
     () =>
+      pendingTurns.length === 0 &&
       canPublishRequest({
         title,
         summary,
@@ -361,6 +368,7 @@ export function RequestComposer() {
       categoryConfirmedByUser,
       cityCode,
       approved,
+      pendingTurns.length,
     ],
   );
   useEffect(() => {
@@ -413,6 +421,10 @@ export function RequestComposer() {
         mimeType: asset.mimeType ?? 'image/jpeg',
         sizeBytes: asset.fileSize,
       });
+      const superseded = retainedMedia
+        .filter((item) => item.kind === 'image')
+        .map((item) => item.id);
+      if (superseded.length) await removeRetainedMedia(userId, superseded);
       setRetainedMedia((current) => [...current.filter((item) => item.kind !== 'image'), retained]);
       setImage({ ...asset, uri: retained.localUri });
       setImageUpload(null);
@@ -459,38 +471,23 @@ export function RequestComposer() {
         filename: `${globalThis.crypto.randomUUID()}.m4a`,
         mimeType: 'audio/mp4',
       });
+      const superseded = retainedMedia
+        .filter((item) => item.kind === 'voice')
+        .map((item) => item.id);
+      if (superseded.length) await removeRetainedMedia(userId, superseded);
       setRetainedMedia((current) => [...current.filter((item) => item.kind !== 'voice'), retained]);
       setVoiceUpload(null);
-      if (!online) {
-        invalidateApproval();
-        setError(t('aiUnavailableDraftCreated'));
-        return;
-      }
-      const upload = await uploadPrivate(
-        retained.localUri,
-        retained.filename,
-        retained.mimeType,
-        'request_audio',
-      );
-      const raw: unknown = await supabase.functions.invoke<unknown>('transcribe', {
-        body: { storagePath: upload.storagePath, locale },
-      });
-      const invoked = functionResultSchema.parse(raw);
-      const transcript = z.object({ transcript: z.string() }).safeParse(invoked.data);
-      if (invoked.error || !transcript.success) throw new Error('TRANSCRIPTION_FAILED');
-      setDescription((current) =>
-        current ? `${current}\n${transcript.data.transcript}` : transcript.data.transcript,
-      );
-      setVoiceUpload(upload);
       invalidateApproval();
+      if (!online) setError(t('aiUnavailableDraftCreated'));
     } catch {
       setError(t('transcriptionFailed'));
     }
   }
 
   async function prepareQueuedTurn(turn: PendingCustomerTurn): Promise<PendingCustomerTurn> {
-    if (!turn.localMediaIds.length) return turn;
+    if (!turn.localMediaIds.length && turn.inputKind !== 'voice') return turn;
     const uploads = [...turn.mediaUploadIds];
+    let voiceStoragePath = voiceUpload?.storagePath ?? null;
     for (const localMediaId of turn.localMediaIds) {
       const media = retainedMedia.find((item) => item.id === localMediaId);
       if (!media) throw new Error('RETAINED_MEDIA_MISSING');
@@ -504,10 +501,36 @@ export function RequestComposer() {
           media.kind === 'image' ? 'request_media' : 'request_audio',
         ));
       if (media.kind === 'image') setImageUpload(upload);
-      else setVoiceUpload(upload);
+      else {
+        setVoiceUpload(upload);
+        voiceStoragePath = upload.storagePath;
+      }
       if (!uploads.includes(upload.uploadId)) uploads.push(upload.uploadId);
     }
-    const prepared = { ...turn, mediaUploadIds: uploads, localMediaIds: [] };
+    let prepared: PendingCustomerTurn = { ...turn, mediaUploadIds: uploads, localMediaIds: [] };
+    if (prepared.inputKind === 'voice' && prepared.transcriptionStatus !== 'completed') {
+      if (!voiceStoragePath) throw new Error('VOICE_UPLOAD_REQUIRED');
+      const raw: unknown = await supabase.functions.invoke<unknown>('transcribe', {
+        body: { storagePath: voiceStoragePath, locale, clientMessageId: prepared.clientMessageId },
+      });
+      const invoked = functionResultSchema.parse(raw);
+      const parsed = z.object({ transcript: z.string().min(1) }).safeParse(invoked.data);
+      if (invoked.error || !parsed.success) {
+        prepared = { ...prepared, transcriptionStatus: 'retryable' };
+        setPendingTurns((current) =>
+          current.map((item) => (item.clientMessageId === turn.clientMessageId ? prepared : item)),
+        );
+        throw new Error('TRANSCRIPTION_RETRY_REQUIRED');
+      }
+      prepared = {
+        ...prepared,
+        transcript: parsed.data.transcript,
+        transcriptionStatus: 'completed',
+        text: prepared.text.trim()
+          ? `${prepared.text.trim()}\n${parsed.data.transcript}`
+          : parsed.data.transcript,
+      };
+    }
     setPendingTurns((current) =>
       current.map((item) => (item.clientMessageId === turn.clientMessageId ? prepared : item)),
     );
@@ -592,14 +615,9 @@ export function RequestComposer() {
   }, [restored, online, busy, pendingTurns]);
 
   async function analyze(summaryRequested = false) {
-    const userText =
-      description.trim() ||
-      (retainedMedia.some((item) => item.kind === 'voice')
-        ? t('recordVoice')
-        : summaryRequested
-          ? t('summaryRequestMessage')
-          : '');
-    if (userText.length < 10) {
+    const hasVoice = retainedMedia.some((item) => item.kind === 'voice');
+    const userText = description.trim() || (summaryRequested ? t('summaryRequestMessage') : '');
+    if (userText.length < 10 && !hasVoice) {
       setError(t('descriptionTooShort'));
       return;
     }
@@ -615,7 +633,7 @@ export function RequestComposer() {
       turn = {
         clientMessageId: globalThis.crypto.randomUUID(),
         text: userText,
-        inputKind: retainedMedia.some((item) => item.kind === 'voice')
+        inputKind: hasVoice
           ? 'voice'
           : retainedMedia.some((item) => item.kind === 'image')
             ? 'image'
@@ -627,6 +645,8 @@ export function RequestComposer() {
               !((item.kind === 'image' && imageUpload) || (item.kind === 'voice' && voiceUpload)),
           )
           .map((item) => item.id),
+        transcript: null,
+        transcriptionStatus: hasVoice ? 'pending' : 'none',
         confirmedCategorySlug:
           categoryConfirmedByUser && selectedCategorySlug ? selectedCategorySlug : null,
         summaryRequested,
@@ -667,6 +687,10 @@ export function RequestComposer() {
       );
       setDescription('');
     } catch {
+      if (turn?.inputKind === 'voice' && turn.transcriptionStatus !== 'completed') {
+        setError(t('transcriptionFailed'));
+        return;
+      }
       const result = await fallback.diagnose({
         locale,
         messages: nextConversation,
@@ -687,6 +711,8 @@ export function RequestComposer() {
           (value): value is string => Boolean(value),
         ),
         localMediaIds: retainedMedia.map((item) => item.id),
+        transcript: null,
+        transcriptionStatus: hasVoice ? ('pending' as const) : ('none' as const),
         confirmedCategorySlug:
           categoryConfirmedByUser && selectedCategorySlug ? selectedCategorySlug : null,
         summaryRequested,
@@ -709,11 +735,7 @@ export function RequestComposer() {
       const publicationMedia = await prepareQueuedTurn({
         clientMessageId: `publication-media:${userId}`,
         text: 'publication media',
-        inputKind: retainedMedia.some((item) => item.kind === 'voice')
-          ? 'voice'
-          : retainedMedia.some((item) => item.kind === 'image')
-            ? 'image'
-            : 'text',
+        inputKind: 'text',
         mediaUploadIds: [imageUpload?.uploadId, voiceUpload?.uploadId].filter(
           (value): value is string => Boolean(value),
         ),
@@ -723,6 +745,8 @@ export function RequestComposer() {
               !((item.kind === 'image' && imageUpload) || (item.kind === 'voice' && voiceUpload)),
           )
           .map((item) => item.id),
+        transcript: null,
+        transcriptionStatus: 'none',
         confirmedCategorySlug: selectedCategorySlug,
         summaryRequested: false,
         createdAt: new Date().toISOString(),
@@ -732,7 +756,7 @@ export function RequestComposer() {
       }));
       const now = Date.now();
       const requestedStart =
-        schedule === 'today'
+        schedule === 'scheduled'
           ? new Date(now + 60 * 60 * 1000).toISOString()
           : schedule === 'asap'
             ? new Date(now).toISOString()
@@ -757,6 +781,7 @@ export function RequestComposer() {
         requested_start: requestedStart,
         requested_end: requestedEnd,
         schedule_preference: schedule,
+        timing_mode: schedule,
         exact_location: coordinates,
         media,
         customer_approved: true,
@@ -793,15 +818,17 @@ export function RequestComposer() {
     setBusy(true);
     setError('');
     try {
-      if (sessionId) {
-        if (!online) throw new Error('NETWORK_REQUIRED_TO_ABANDON_SESSION');
-        const { error: abandonError } = await supabase.rpc('abandon_ai_intake_session', {
-          p_session_id: sessionId,
-        });
-        if (abandonError) throw abandonError;
-      }
+      const abandonedSessionId = sessionId;
       await clearAiIntakeSnapshot(userId);
       await clearRetainedMedia(userId);
+      if (abandonedSessionId && online) {
+        const { error: abandonError } = await supabase.rpc('abandon_ai_intake_session', {
+          p_session_id: abandonedSessionId,
+        });
+        if (abandonError) throw abandonError;
+      } else if (abandonedSessionId) {
+        await queueAiIntakeAbandonment(userId, abandonedSessionId);
+      }
       setConversation([]);
       setPendingTurns([]);
       setSessionId(null);
@@ -968,7 +995,7 @@ export function RequestComposer() {
                 setSelectedCategorySlug(category.slug);
                 setCategoryConfirmedByUser(true);
                 setCategorySelectionSource(
-                  category.slug === suggestedCategorySlug ? 'ai_suggestion' : 'customer_correction',
+                  resolveCategorySelectionSource(category.slug, suggestedCategorySlug || null),
                 );
                 invalidateApproval();
               }}
@@ -1011,14 +1038,14 @@ export function RequestComposer() {
         </View>
         <Text style={styles.lead}>{t('preferredTiming')}</Text>
         <View style={styles.row}>
-          {(['asap', 'today', 'flexible'] as const).map((value) => (
+          {(['asap', 'scheduled', 'flexible'] as const).map((value) => (
             <Button
               key={value}
               kind={schedule === value ? 'primary' : 'secondary'}
               label={
                 value === 'asap'
                   ? t('timingAsap')
-                  : value === 'today'
+                  : value === 'scheduled'
                     ? t('timingToday')
                     : t('timingFlexible')
               }

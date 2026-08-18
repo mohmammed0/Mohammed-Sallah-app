@@ -113,6 +113,7 @@ export default async function CustomersPage({
                     {canWrite &&
                     (customer.status === 'active' || customer.status === 'suspended') ? (
                       <form action={setCustomerStatus} className="inline-form">
+                        <input type="hidden" name="commandIntentId" value={crypto.randomUUID()} />
                         <input type="hidden" name="customerId" value={customer.id} />
                         <input type="hidden" name="status" value={nextStatus} />
                         <input

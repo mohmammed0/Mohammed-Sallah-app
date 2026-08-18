@@ -29,6 +29,7 @@ export default async function CatalogPage() {
             </p>
             {canWrite && (
               <form action={setCategoryState} className="form">
+                <input type="hidden" name="commandIntentId" value={crypto.randomUUID()} />
                 <input type="hidden" name="categoryId" value={category.id} />
                 <input type="hidden" name="enabled" value={category.enabled ? 'false' : 'true'} />
                 <label className="field">

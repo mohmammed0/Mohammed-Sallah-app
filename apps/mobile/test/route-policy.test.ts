@@ -39,4 +39,23 @@ describe('mobile protected route policy', () => {
     expect(canEnterProductArea(context, 'customer')).toBe(false);
     expect(canEnterProductArea(context, 'provider-operations')).toBe(false);
   });
+
+  it('does not turn staff roles into marketplace navigation roles', () => {
+    expect(
+      productLandingRoute({ allowed: true, roles: ['privacy_reviewer'], activeRole: null }),
+    ).toBe('/account');
+    expect(
+      productLandingRoute({
+        allowed: true,
+        roles: ['customer', 'privacy_reviewer'],
+        activeRole: 'customer',
+      }),
+    ).toBe('/customer-home');
+    expect(
+      canEnterProductArea(
+        { allowed: true, roles: ['privacy_reviewer'], activeRole: 'privacy_reviewer' },
+        'customer',
+      ),
+    ).toBe(false);
+  });
 });

@@ -12,10 +12,14 @@ Selected image and voice files are copied immediately from picker/cache location
 user-scoped app-private directory. The encrypted snapshot stores stable local media IDs and keeps
 their association with the customer turn across restart. The queue permits four retained items,
 10 MiB per item, 20 MiB total, and seven days of retention. Replay uploads and scans every queued
-file before submitting its bound turn; upload failure leaves the whole turn pending and never
-silently converts it to text-only. Successful atomic publication deletes the snapshot and retained
-files. Explicit draft deletion first abandons the owned active server session, then deletes local
-conversation state and media; failure leaves the draft recoverable.
+file before submitting its bound turn. Voice replay uploads/scans, transcribes with the stable
+`clientMessageId`, persists the transcript, and only then sends the authoritative transcript to the
+diagnostic assistant. Transcription jobs deduplicate across timeout/restart. Failure leaves the voice
+turn queued in a retry/manual-edit state and never replays a generic recording label. Successful
+atomic publication binds the final transcription jobs and deletes the snapshot and retained files.
+Offline explicit draft deletion removes local state/media immediately and queues server-session
+abandonment for the next connection. Replacing retained media deletes the superseded object and index
+entry.
 
 For clean `request_media` images, the function verifies ownership/status, downloads the private
 object server-side, rechecks the byte limit and detected MIME signature, and passes base64 image
@@ -52,8 +56,10 @@ sequenceDiagram
 `confirmedCategorySlug` and `summaryRequested` are explicit prompt inputs, not metadata-only hints.
 The active database prompt declaration and diagnostic metadata use `diagnostic-v3`. AI never
 publishes, quotes a guaranteed price, diagnoses with certainty, or replaces emergency guidance.
-The UI keeps suggested, selected, and customer-confirmed category state separate; no default is
-confirmed. Publishing requires a separate customer-owned command with explicit category confirmation
+The UI keeps suggested, selected, and customer-confirmed category state separate. The initial AI
+suggestion is null; only an authoritative diagnostic can populate it. Selection records `manual`,
+`ai_suggestion`, or `customer_correction` truthfully and survives restart. Publishing requires a
+separate customer-owned command with explicit category confirmation
 and approval. The transaction creates the request, binds clean request media, links diagnostics and
 applicable transcriptions, records the approval snapshot, and marks the owned active session
 published. Invalid provider output, provider failure,

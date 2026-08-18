@@ -16,6 +16,7 @@ export const originalBriefSchema = z.object({
   districtId: z.uuid().nullable(),
   urgency: z.string().min(1).max(100),
   requestedStart: z.string().nullable(),
+  timingMode: z.enum(['asap', 'scheduled', 'flexible']),
   requestVersion: z.number().int().positive(),
   safetyNotes: z.array(z.string().max(500)).max(20),
 });
@@ -37,6 +38,7 @@ export function protectedBriefFields(original: OriginalBrief) {
     districtId: original.districtId,
     urgency: original.urgency,
     requestedStart: original.requestedStart,
+    timingMode: original.timingMode,
     requestVersion: original.requestVersion,
   };
 }

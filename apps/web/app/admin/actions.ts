@@ -10,6 +10,12 @@ function stableCommandKey(scope: string, payload: unknown): string {
     .update(`${scope}:${JSON.stringify(payload)}`)
     .digest('hex');
 }
+function commandIntentId(formData: FormData): string {
+  return z.uuid().parse(formData.get('commandIntentId'));
+}
+function formCommandKey(scope: string, formData: FormData, payload: unknown): string {
+  return stableCommandKey(scope, { commandIntentId: commandIntentId(formData), payload });
+}
 
 const providerDecision = z.object({
   providerId: z.uuid(),
@@ -80,7 +86,7 @@ export async function reviewProvider(formData: FormData): Promise<void> {
     p_provider_id: input.providerId,
     p_decision: input.decision,
     p_reason: input.reason,
-    p_idempotency_key: stableCommandKey('provider-review', input),
+    p_idempotency_key: formCommandKey('provider-review', formData, input),
   });
   if (error) throw new Error('PROVIDER_REVIEW_FAILED');
   revalidatePath('/admin/providers');
@@ -98,7 +104,7 @@ export async function setCategoryState(formData: FormData): Promise<void> {
     p_category_id: input.categoryId,
     p_enabled: input.enabled,
     p_reason: input.reason,
-    p_idempotency_key: stableCommandKey('category-state', input),
+    p_idempotency_key: formCommandKey('category-state', formData, input),
   });
   if (error) throw new Error('CATEGORY_UPDATE_FAILED');
   revalidatePath('/admin/catalog');
@@ -116,7 +122,7 @@ export async function setCustomerStatus(formData: FormData): Promise<void> {
     p_customer_id: input.customerId,
     p_status: input.status,
     p_reason: input.reason,
-    p_idempotency_key: stableCommandKey('customer-status', input),
+    p_idempotency_key: formCommandKey('customer-status', formData, input),
   });
   if (error) throw new Error('CUSTOMER_STATUS_UPDATE_FAILED');
   revalidatePath('/admin/customers');
@@ -142,7 +148,7 @@ export async function decideCancellation(formData: FormData): Promise<void> {
     p_fee_minor: input.feeMinor,
     p_reason: input.reason,
     p_expected_job_version: input.expectedJobVersion,
-    p_idempotency_key: stableCommandKey('cancellation-decision', input),
+    p_idempotency_key: formCommandKey('cancellation-decision', formData, input),
   });
   if (error) throw new Error('CANCELLATION_DECISION_FAILED');
   revalidatePath('/admin/support');
@@ -172,7 +178,7 @@ export async function resolveDispute(formData: FormData): Promise<void> {
     p_job_outcome: input.jobOutcome,
     p_reason: input.reason,
     p_expected_job_version: input.expectedJobVersion,
-    p_idempotency_key: stableCommandKey('dispute-resolution', input),
+    p_idempotency_key: formCommandKey('dispute-resolution', formData, input),
   });
   if (error) {
     console.error('DISPUTE_RESOLUTION_FAILED', { code: error.code, message: error.message });
@@ -195,7 +201,7 @@ export async function confirmFinancialAction(formData: FormData): Promise<void> 
     p_intent_id: input.intentId,
     p_provider_reference: input.providerReference,
     p_reason: input.reason,
-    p_idempotency_key: stableCommandKey('financial-confirmation', input),
+    p_idempotency_key: formCommandKey('financial-confirmation', formData, input),
   });
   if (error) throw new Error('FINANCIAL_ACTION_CONFIRMATION_FAILED');
   revalidatePath('/admin/support');
@@ -215,13 +221,15 @@ export async function assignSupportCase(formData: FormData): Promise<void> {
   const { client } = await requireAdmin(['operations.mutate']);
   const permissions = ['read', 'internal_note', 'evidence'];
   if (input.exactLocation) permissions.push('exact_location');
+  const expiresAt = input.expiresAt ?? new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
+  const commandPayload = { ...input, expiresAt };
   const { error } = await client.rpc('assign_support_case', {
     p_case_id: input.caseId,
     p_assignee_id: input.assigneeId,
     p_permissions: permissions,
     p_reason: input.reason,
-    p_expires_at: input.expiresAt ?? new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
-    p_idempotency_key: stableCommandKey('support-assignment', input),
+    p_expires_at: expiresAt,
+    p_idempotency_key: formCommandKey('support-assignment', formData, commandPayload),
   });
   if (error) throw new Error('SUPPORT_ASSIGNMENT_FAILED');
   revalidatePath('/admin/support');
@@ -236,7 +244,7 @@ export async function endSupportAssignment(formData: FormData): Promise<void> {
   const { error } = await client.rpc('end_support_case_assignment', {
     p_assignment_id: input.assignmentId,
     p_reason: input.reason,
-    p_idempotency_key: stableCommandKey('support-assignment-end', input),
+    p_idempotency_key: formCommandKey('support-assignment-end', formData, input),
   });
   if (error) throw new Error('SUPPORT_ASSIGNMENT_END_FAILED');
   revalidatePath('/admin/support');
@@ -260,7 +268,7 @@ export async function grantSupportAccess(formData: FormData): Promise<void> {
     p_permissions: permissions,
     p_reason: input.reason,
     p_expires_at: input.expiresAt,
-    p_idempotency_key: stableCommandKey('support-access-grant', input),
+    p_idempotency_key: formCommandKey('support-access-grant', formData, input),
   });
   if (error) throw new Error('SUPPORT_ACCESS_GRANT_FAILED');
   revalidatePath('/admin/support');
@@ -275,7 +283,7 @@ export async function revokeSupportAccess(formData: FormData): Promise<void> {
   const { error } = await client.rpc('revoke_support_case_access', {
     p_grant_id: input.grantId,
     p_reason: input.reason,
-    p_idempotency_key: stableCommandKey('support-access-revoke', input),
+    p_idempotency_key: formCommandKey('support-access-revoke', formData, input),
   });
   if (error) throw new Error('SUPPORT_ACCESS_REVOKE_FAILED');
   revalidatePath('/admin/support');

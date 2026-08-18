@@ -10,33 +10,46 @@ import {
 import * as Linking from 'expo-linking';
 import type { Session } from '@supabase/supabase-js';
 import { z } from 'zod';
+import { parseKnownUserRoles, userRoleSchema } from '@sallah/domain';
 import { supabase } from '@/lib/supabase';
 import { parseAuthLinkParams } from '@/features/auth/auth-link';
 
-const roleSchema = z.enum([
-  'customer',
-  'provider',
-  'operations_admin',
-  'verification_reviewer',
-  'support_agent',
-  'finance_reviewer',
-  'analyst',
-  'super_admin',
-]);
+const roleSchema = userRoleSchema;
 export type SessionRole = z.infer<typeof roleSchema>;
-const sessionContextSchema = z.object({
+const rawSessionContextSchema = z.object({
   authenticated: z.boolean(),
   allowed: z.boolean().default(false),
   userId: z.string().uuid().optional(),
   accountStatus: z.string().optional(),
   locale: z.enum(['ar', 'en', 'ur', 'hi']).optional(),
-  roles: z.array(roleSchema).default([]),
-  activeRole: roleSchema.nullable().optional(),
-  requestedRole: roleSchema.nullable().optional(),
+  roles: z.array(z.string()).default([]),
+  activeRole: z.string().nullable().optional(),
+  requestedRole: z.string().nullable().optional(),
   providerVerificationStatus: z.string().nullable().optional(),
   blockedReason: z.string().nullable().optional(),
 });
-export type SessionContext = z.infer<typeof sessionContextSchema>;
+export interface SessionContext extends Omit<
+  z.infer<typeof rawSessionContextSchema>,
+  'roles' | 'activeRole' | 'requestedRole'
+> {
+  roles: SessionRole[];
+  activeRole?: SessionRole | null;
+  requestedRole?: SessionRole | null;
+}
+function parseSessionContext(value: unknown): SessionContext {
+  const raw = rawSessionContextSchema.parse(value);
+  const parsed = parseKnownUserRoles(raw.roles);
+  const active = raw.activeRole ? roleSchema.safeParse(raw.activeRole) : null;
+  const requested = raw.requestedRole ? roleSchema.safeParse(raw.requestedRole) : null;
+  return {
+    ...raw,
+    roles: parsed.roles,
+    activeRole: active?.success ? active.data : null,
+    requestedRole: requested?.success ? requested.data : null,
+    allowed: parsed.unknownRoles.length ? false : raw.allowed,
+    blockedReason: parsed.unknownRoles.length ? 'UNSUPPORTED_ROLE_CONTRACT' : raw.blockedReason,
+  };
+}
 type Rpc = (
   name: string,
   args?: Record<string, unknown>,
@@ -96,7 +109,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
         blockedReason: 'SESSION_CONTEXT_UNAVAILABLE',
       });
     } else {
-      setContext(sessionContextSchema.parse(response.data));
+      setContext(parseSessionContext(response.data));
     }
     setLoading(false);
   }, []);
@@ -129,7 +142,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const setActiveRole = useCallback(async (role: SessionRole) => {
     const response = await (supabase.rpc as unknown as Rpc)('set_active_role', { p_role: role });
     if (response.error) throw new Error(response.error.message);
-    setContext(sessionContextSchema.parse(response.data));
+    setContext(parseSessionContext(response.data));
   }, []);
   const signOutAll = useCallback(async () => {
     await supabase.auth.signOut({ scope: 'global' });

@@ -5867,6 +5867,7 @@ export type Database = {
           structured_description: string;
           subcategory_id: string | null;
           suggested_category_id: string | null;
+          timing_mode: Database['public']['Enums']['request_timing_mode'];
           title: string;
           updated_at: string;
           urgency: Database['public']['Enums']['request_urgency'];
@@ -5898,6 +5899,7 @@ export type Database = {
           structured_description: string;
           subcategory_id?: string | null;
           suggested_category_id?: string | null;
+          timing_mode?: Database['public']['Enums']['request_timing_mode'];
           title: string;
           updated_at?: string;
           urgency?: Database['public']['Enums']['request_urgency'];
@@ -5929,6 +5931,7 @@ export type Database = {
           structured_description?: string;
           subcategory_id?: string | null;
           suggested_category_id?: string | null;
+          timing_mode?: Database['public']['Enums']['request_timing_mode'];
           title?: string;
           updated_at?: string;
           urgency?: Database['public']['Enums']['request_urgency'];
@@ -6521,6 +6524,7 @@ export type Database = {
       };
       transcription_jobs: {
         Row: {
+          client_message_id: string | null;
           completed_at: string | null;
           created_at: string;
           customer_edited_transcript: string | null;
@@ -6537,6 +6541,7 @@ export type Database = {
           user_id: string;
         };
         Insert: {
+          client_message_id?: string | null;
           completed_at?: string | null;
           created_at?: string;
           customer_edited_transcript?: string | null;
@@ -6553,6 +6558,7 @@ export type Database = {
           user_id: string;
         };
         Update: {
+          client_message_id?: string | null;
           completed_at?: string | null;
           created_at?: string;
           customer_edited_transcript?: string | null;
@@ -7267,6 +7273,10 @@ export type Database = {
         Args: { p_request_id: string };
         Returns: Json;
       };
+      get_provider_request_brief_without_timing_mode: {
+        Args: { p_request_id: string };
+        Returns: Json;
+      };
       get_provider_verification_identity: {
         Args: { p_provider_id: string; p_reason: string };
         Returns: Json;
@@ -7311,6 +7321,10 @@ export type Database = {
             Returns: string;
           };
       publish_service_request: { Args: { payload: Json }; Returns: string };
+      publish_service_request_without_timing_mode: {
+        Args: { payload: Json };
+        Returns: string;
+      };
       reconcile_blocked_account_deletions: {
         Args: { p_request_id?: string };
         Returns: Json;
@@ -7470,6 +7484,10 @@ export type Database = {
         Returns: Json;
       };
       upsert_provider_onboarding: { Args: { payload: Json }; Returns: Json };
+      upsert_provider_onboarding_without_final_diff: {
+        Args: { payload: Json };
+        Returns: Json;
+      };
     };
     Enums: {
       account_status: 'active' | 'suspended' | 'deletion_pending' | 'anonymized';
@@ -7517,6 +7535,7 @@ export type Database = {
         | 'provider_selected'
         | 'cancelled'
         | 'expired';
+      request_timing_mode: 'asap' | 'scheduled' | 'flexible';
       request_urgency: 'flexible' | 'normal' | 'urgent' | 'safety_critical';
       user_role:
         | 'customer'
@@ -7712,6 +7731,7 @@ export const Constants = {
         'cancelled',
         'expired',
       ],
+      request_timing_mode: ['asap', 'scheduled', 'flexible'],
       request_urgency: ['flexible', 'normal', 'urgent', 'safety_critical'],
       user_role: [
         'customer',

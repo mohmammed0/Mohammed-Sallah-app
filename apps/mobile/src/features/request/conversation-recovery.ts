@@ -13,10 +13,12 @@ const cleanUploadSchema = z.object({
 });
 export const pendingCustomerTurnSchema = z.object({
   clientMessageId: z.string().min(8).max(128),
-  text: z.string().min(1).max(8000),
+  text: z.string().max(8000),
   inputKind: z.enum(['text', 'voice', 'image']),
   mediaUploadIds: z.array(z.uuid()).max(4),
   localMediaIds: z.array(z.string().min(8).max(128)).max(4),
+  transcript: z.string().min(1).max(8000).nullable().default(null),
+  transcriptionStatus: z.enum(['none', 'pending', 'retryable', 'completed']).default('none'),
   confirmedCategorySlug: z.string().nullable(),
   summaryRequested: z.boolean(),
   createdAt: z.string(),
@@ -41,13 +43,18 @@ export const aiIntakeSnapshotSchema = z.object({
     description: z.string(),
     title: z.string(),
     summary: z.string(),
-    suggestedCategorySlug: z.string(),
+    suggestedCategorySlug: z
+      .string()
+      .nullable()
+      .transform((value) => value ?? ''),
     selectedCategorySlug: z.string(),
     categoryConfirmedByUser: z.boolean(),
     categorySelectionSource: z.enum(['ai_suggestion', 'customer_correction', 'manual']).nullable(),
     cityCode: z.string(),
     urgency: z.enum(['flexible', 'normal', 'urgent', 'safety_critical']),
-    schedule: z.enum(['asap', 'today', 'flexible']),
+    schedule: z
+      .enum(['asap', 'scheduled', 'today', 'flexible'])
+      .transform((value) => (value === 'today' ? ('scheduled' as const) : value)),
     coordinates: z.object({ latitude: z.number(), longitude: z.number() }).nullable(),
     diagnostic: z.unknown().nullable(),
     imageUpload: cleanUploadSchema.nullable(),
@@ -77,6 +84,22 @@ export async function saveAiIntakeSnapshot(
 
 export async function clearAiIntakeSnapshot(userId: string): Promise<void> {
   await chunkedSecureStorage.removeItem(storageKey(userId));
+}
+
+function abandonmentKey(userId: string): string {
+  return `sallah:ai-intake-abandonment:v1:${userId}`;
+}
+
+export async function queueAiIntakeAbandonment(userId: string, sessionId: string): Promise<void> {
+  await chunkedSecureStorage.setItem(abandonmentKey(userId), sessionId);
+}
+
+export async function takeAiIntakeAbandonment(userId: string): Promise<string | null> {
+  return chunkedSecureStorage.getItem(abandonmentKey(userId));
+}
+
+export async function clearAiIntakeAbandonment(userId: string): Promise<void> {
+  await chunkedSecureStorage.removeItem(abandonmentKey(userId));
 }
 
 export function enqueuePendingTurn(

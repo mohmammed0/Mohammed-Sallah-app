@@ -30,4 +30,32 @@ describe('scoped admin workflow surfaces', () => {
     expect(page).toContain("rpc('list_customer_pii'");
     expect(page).not.toContain(".from('profiles')");
   });
+
+  it('renders a unique command intent into every mutating form', () => {
+    for (const pagePath of [
+      '../app/admin/providers/page.tsx',
+      '../app/admin/catalog/page.tsx',
+      '../app/admin/customers/page.tsx',
+      '../app/admin/finance/page.tsx',
+      '../app/admin/support/page.tsx',
+    ]) {
+      const page = source(pagePath);
+      const forms = page.match(/<form\s[\s\S]*?action=/g)?.length ?? 0;
+      const intents = page.match(/name="commandIntentId"/g)?.length ?? 0;
+      expect(intents).toBe(forms);
+      expect(page).toContain('crypto.randomUUID()');
+    }
+  });
+
+  it('normalizes support expiry before hashing and reuses that exact value', () => {
+    const actions = source('../app/admin/actions.ts');
+    const normalized = actions.indexOf('const expiresAt = input.expiresAt');
+    const commandPayload = actions.indexOf('const commandPayload = { ...input, expiresAt }');
+    const rpcValue = actions.indexOf('p_expires_at: expiresAt');
+    const hash = actions.indexOf("formCommandKey('support-assignment', formData, commandPayload)");
+    expect(normalized).toBeGreaterThan(-1);
+    expect(commandPayload).toBeGreaterThan(normalized);
+    expect(rpcValue).toBeGreaterThan(commandPayload);
+    expect(hash).toBeGreaterThan(rpcValue);
+  });
 });

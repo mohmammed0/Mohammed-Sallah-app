@@ -1,5 +1,5 @@
 begin;
-select plan(27);
+select plan(31);
 
 select has_table('public','provider_restricted_qualifications','restricted qualifications have an authoritative reviewer-owned ledger');
 
@@ -213,6 +213,8 @@ set requested_start=(
     date_trunc('day',now() at time zone 'Asia/Riyadh')+interval '2 days 11 hours'
   ) at time zone 'Asia/Riyadh'
 where id='f2100000-0000-4000-8000-000000000001';
+select is((select timing_mode::text from public.service_requests where id='f2100000-0000-4000-8000-000000000001'),
+  'scheduled','a future requested window is authoritatively scheduled');
 delete from public.provider_availability
 where provider_id='f2000000-0000-4000-8000-000000000002';
 insert into public.provider_availability(provider_id,weekday,start_time,end_time)
@@ -251,6 +253,23 @@ select is(private.provider_request_eligibility(
   'blackout_overlap','only a blackout overlapping the requested window excludes the provider');
 delete from public.provider_blackout_periods
 where provider_id='f2000000-0000-4000-8000-000000000002';
+update public.service_requests set timing_mode='flexible',requested_start=null,requested_end=null
+where id='f2100000-0000-4000-8000-000000000001';
+delete from public.provider_availability where provider_id='f2000000-0000-4000-8000-000000000002';
+select is(private.provider_request_eligibility(
+  'f2000000-0000-4000-8000-000000000002','f2100000-0000-4000-8000-000000000001',now())->>'eligible',
+  'true','flexible matching does not exclude a qualified provider solely for current ordinary hours');
+select is(private.provider_request_eligibility(
+  'f2000000-0000-4000-8000-000000000002','f2100000-0000-4000-8000-000000000001',now())->>'windowStart',
+  null,'flexible matching never silently creates an ASAP window');
+update public.service_requests set timing_mode='asap',requested_start=now(),requested_end=now()+interval '60 minutes'
+where id='f2100000-0000-4000-8000-000000000001';
+insert into public.provider_availability(provider_id,weekday,start_time,end_time)
+select 'f2000000-0000-4000-8000-000000000002',extract(dow from now() at time zone 'Asia/Riyadh')::smallint,'00:00','23:59:59';
+select is(private.provider_request_eligibility(
+  'f2000000-0000-4000-8000-000000000002','f2100000-0000-4000-8000-000000000001',
+  '2026-08-18T12:00:00Z'::timestamptz)->>'windowStart','2026-08-18T12:00:00+00:00',
+  'ASAP eligibility evaluates the supplied current instant');
 update public.provider_profiles set active_workload=max_active_jobs
 where user_id='f2000000-0000-4000-8000-000000000002';
 select is(private.provider_request_eligibility(

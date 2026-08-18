@@ -3,3 +3,4 @@ export * from './job-machine';
 export * from './matching';
 export * from './payments';
 export * from './schemas';
+export * from './user-roles';

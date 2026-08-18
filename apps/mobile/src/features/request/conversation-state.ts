@@ -43,3 +43,11 @@ export function canPublishRequest(draft: PublishableRequestDraft): boolean {
     draft.approved
   );
 }
+
+export function categorySelectionSource(
+  selectedCategorySlug: string,
+  suggestedCategorySlug: string | null,
+): 'manual' | 'ai_suggestion' | 'customer_correction' {
+  if (!suggestedCategorySlug) return 'manual';
+  return selectedCategorySlug === suggestedCategorySlug ? 'ai_suggestion' : 'customer_correction';
+}

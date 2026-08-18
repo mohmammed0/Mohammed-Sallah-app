@@ -33,7 +33,11 @@ const briefSchema = z.object({
   subcategory: z.object({ id: z.uuid().nullable(), slug: z.string().nullable() }),
   area: z.object({ city: z.string(), district: z.string().nullable() }),
   approximateLocation: z.object({ latitude: z.coerce.number(), longitude: z.coerce.number() }),
-  schedule: z.object({ start: z.string().nullable(), end: z.string().nullable() }),
+  schedule: z.object({
+    mode: z.enum(['asap', 'scheduled', 'flexible']),
+    start: z.string().nullable(),
+    end: z.string().nullable(),
+  }),
   urgency: z.string(),
   answers: z.array(
     z.object({
@@ -175,7 +179,10 @@ export default function ProviderFeed() {
               </Text>
               <Text style={styles.lead}>
                 {t('providerBriefSchedule', {
-                  start: match.brief.schedule.start ?? t('timingFlexible'),
+                  start:
+                    match.brief.schedule.mode === 'flexible'
+                      ? t('timingFlexible')
+                      : (match.brief.schedule.start ?? t('timingAsap')),
                 })}
               </Text>
               <Text style={styles.lead}>

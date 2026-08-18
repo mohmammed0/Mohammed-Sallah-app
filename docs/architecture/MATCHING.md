@@ -25,15 +25,17 @@ produces real distance ordering instead of awarding every in-radius provider a f
 Exact customer addresses never participate in matching or provider briefs.
 
 Provider capacity is `active_workload < max_active_jobs`. Offer selection increments active workload;
-exactly-once terminal completion/cancellation decrements it. Eligibility uses the request execution
-window: `requested_start`/`requested_end`, or an ASAP fallback beginning at the evaluation time. The
-availability rule is full coverage by one availability row on the request's Riyadh-local weekday; a
-blackout intersecting any part of the requested window excludes the provider. Existing-offer viewing
-does not fail solely because the current clock moved outside normal hours, while offer submission and
-selection still revalidate capacity, account, verification, service, qualification, blackout, and
-the scheduled window.
+exactly-once terminal completion/cancellation decrements it. `service_requests.timing_mode` is the
+authoritative timing contract. `asap` evaluates from transaction time over a bounded 60-minute
+default window. `scheduled` requires a valid future `requested_start`/`requested_end` window and
+applies full availability coverage plus blackout overlap. `flexible` stores no synthetic window and
+does not exclude an otherwise eligible provider solely because the current time is outside ordinary
+availability; provider offers remain authoritative for arrival estimates. Matching, brief access,
+offer submission, and selection all call the same timing-aware eligibility policy.
 
-Suspension, verification loss, material resubmission, restricted qualification revocation, and
-service removal close open matches and withdraw active offers with customer notification. Already
-selected active jobs remain intact and receive an operations eligibility-review record rather than
-being silently removed.
+Suspension, verification loss, material identity resubmission, restricted qualification revocation,
+and service removal close affected open matches and withdraw affected active offers with customer
+notification. Onboarding diffs final services instead of disabling/re-enabling every row: biography,
+locale, unchanged services, and availability edits that still cover a request preserve valid offers.
+Category-specific loss does not invalidate unrelated categories. Already selected active jobs remain
+intact and receive an operations eligibility-review record rather than being silently removed.

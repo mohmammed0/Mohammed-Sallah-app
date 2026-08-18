@@ -13,6 +13,7 @@ const requestSchema = z.object({
   status: z.string(),
   version: z.number().int(),
   created_at: z.string(),
+  timing_mode: z.enum(['asap', 'scheduled', 'flexible']),
 });
 
 export default function Requests() {
@@ -22,7 +23,7 @@ export default function Requests() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('service_requests')
-        .select('id,title,status,version,created_at')
+        .select('id,title,status,version,created_at,timing_mode')
         .order('created_at', { ascending: false })
         .limit(50);
       if (error) throw error;
@@ -40,6 +41,13 @@ export default function Requests() {
           <Card key={request.id}>
             <Text style={styles.badge}>{formatStatusLabel(request.status, locale)}</Text>
             <Text>{request.title}</Text>
+            <Text style={styles.lead}>
+              {request.timing_mode === 'flexible'
+                ? t('timingFlexible')
+                : request.timing_mode === 'scheduled'
+                  ? t('timingToday')
+                  : t('timingAsap')}
+            </Text>
             <Text style={styles.lead}>
               {new Date(request.created_at).toLocaleString(locale === 'ar' ? 'ar-SA' : locale)} ·{' '}
               {t('versionSummary', { version: request.version })}

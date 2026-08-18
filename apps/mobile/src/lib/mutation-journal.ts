@@ -28,6 +28,10 @@ const journalEntrySchema = z.object({
   payloadFingerprint: z.string().min(1),
   payload: z.unknown(),
   idempotencyKey: z.uuid(),
+  state: z.enum(['pending', 'retryable', 'terminal_failed', 'completed', 'abandoned']),
+  result: z.unknown().optional(),
+  lastError: z.string().max(200).nullable().default(null),
+  updatedAt: z.string(),
   createdAt: z.string(),
   expiresAt: z.string(),
 });
@@ -35,9 +39,10 @@ export type MutationJournalEntry = z.infer<typeof journalEntrySchema>;
 
 const MAX_ENTRIES = 64;
 const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const TERMINAL_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 function key(userId: string): string {
-  return `sallah:mutation-journal:v1:${userId}`;
+  return `sallah:mutation-journal:v2:${userId}`;
 }
 
 function canonicalize(value: unknown): unknown {
@@ -62,9 +67,13 @@ async function load(userId: string): Promise<MutationJournalEntry[]> {
   const parsed = z.array(journalEntrySchema).safeParse(JSON.parse(raw));
   if (!parsed.success) return [];
   const now = Date.now();
-  return parsed.data.filter(
-    (entry) => entry.userId === userId && Date.parse(entry.expiresAt) > now,
-  );
+  return parsed.data.filter((entry) => {
+    if (entry.userId !== userId || Date.parse(entry.expiresAt) <= now) return false;
+    if (entry.state === 'terminal_failed' || entry.state === 'abandoned') {
+      return Date.parse(entry.updatedAt) + TERMINAL_RETENTION_MS > now;
+    }
+    return true;
+  });
 }
 
 async function save(userId: string, entries: readonly MutationJournalEntry[]): Promise<void> {
@@ -80,9 +89,17 @@ export async function beginMutation(input: {
   const entries = await load(input.userId);
   const payloadFingerprint = mutationFingerprint(input.payload);
   const existing = entries.find(
-    (entry) => entry.operation === input.operation && entry.entityKey === input.entityKey,
+    (entry) =>
+      entry.operation === input.operation &&
+      entry.entityKey === input.entityKey &&
+      (entry.state === 'pending' || entry.state === 'retryable'),
   );
-  if (existing) return existing;
+  if (existing) {
+    if (existing.payloadFingerprint !== payloadFingerprint) {
+      throw new Error('MUTATION_INTENT_STILL_PENDING');
+    }
+    return existing;
+  }
   const now = new Date();
   const entry = journalEntrySchema.parse({
     id: globalThis.crypto.randomUUID(),
@@ -92,6 +109,9 @@ export async function beginMutation(input: {
     payloadFingerprint,
     payload: canonicalize(input.payload),
     idempotencyKey: globalThis.crypto.randomUUID(),
+    state: 'pending',
+    lastError: null,
+    updatedAt: now.toISOString(),
     createdAt: now.toISOString(),
     expiresAt: new Date(now.getTime() + RETENTION_MS).toISOString(),
   });
@@ -99,12 +119,58 @@ export async function beginMutation(input: {
   return entry;
 }
 
-export async function completeMutation(entry: MutationJournalEntry): Promise<void> {
+async function updateMutation(
+  entry: MutationJournalEntry,
+  update: Partial<MutationJournalEntry>,
+): Promise<MutationJournalEntry> {
+  const entries = await load(entry.userId);
+  const next = journalEntrySchema.parse({
+    ...entry,
+    ...update,
+    updatedAt: new Date().toISOString(),
+  });
+  await save(
+    entry.userId,
+    entries.map((item) => (item.id === entry.id ? next : item)),
+  );
+  return next;
+}
+
+export async function completeMutation(
+  entry: MutationJournalEntry,
+  result: unknown,
+): Promise<void> {
+  const completed = await updateMutation(entry, { state: 'completed', result, lastError: null });
   const entries = await load(entry.userId);
   await save(
     entry.userId,
-    entries.filter((item) => item.id !== entry.id),
+    entries.filter((item) => item.id !== completed.id),
   );
+}
+
+export async function abandonMutation(entry: MutationJournalEntry): Promise<void> {
+  await updateMutation(entry, { state: 'abandoned', lastError: null });
+}
+
+function errorCode(error: unknown): string {
+  if (error && typeof error === 'object') {
+    const candidate = error as { code?: unknown; message?: unknown };
+    if (typeof candidate.code === 'string') return candidate.code;
+    if (typeof candidate.message === 'string') return candidate.message;
+  }
+  return String(error);
+}
+
+export function mutationFailureState(error: unknown): 'retryable' | 'terminal_failed' {
+  const value = errorCode(error).toUpperCase();
+  if (
+    /NETWORK|OFFLINE|TIMEOUT|TIMED_OUT|FETCH|CONNECTION|RESPONSE_LOST|IDEMPOTENCY_COMMAND_IN_PROGRESS/.test(
+      value,
+    )
+  ) {
+    return 'retryable';
+  }
+  return 'terminal_failed';
 }
 
 export async function executeJournaledMutation<T>(input: {
@@ -115,7 +181,15 @@ export async function executeJournaledMutation<T>(input: {
   execute: (idempotencyKey: string, persistedPayload: unknown) => Promise<T>;
 }): Promise<T> {
   const entry = await beginMutation(input);
-  const result = await input.execute(entry.idempotencyKey, entry.payload);
-  await completeMutation(entry);
-  return result;
+  try {
+    const result = await input.execute(entry.idempotencyKey, entry.payload);
+    await completeMutation(entry, result);
+    return result;
+  } catch (error) {
+    await updateMutation(entry, {
+      state: mutationFailureState(error),
+      lastError: errorCode(error).slice(0, 200),
+    });
+    throw error;
+  }
 }
