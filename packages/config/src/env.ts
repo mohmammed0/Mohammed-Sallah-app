@@ -25,6 +25,9 @@ export const serverEnvironmentSchema = publicEnvironmentSchema.extend({
   PUSH_ENABLED: booleanString.default(false),
   EXPO_ACCESS_TOKEN: z.string().optional(),
   ADMIN_BOOTSTRAP_EMAIL: z.email().optional(),
+  UPLOAD_SCANNER_MODE: z.enum(['deterministic', 'external']).default('deterministic'),
+  UPLOAD_SCANNER_URL: url.optional(),
+  UPLOAD_SCANNER_SECRET: z.string().min(24).optional(),
   SALLAH_PUBLIC_URL: url,
   SALLAH_SUPPORT_EMAIL: z.email(),
 });
@@ -53,6 +56,13 @@ export function validateServerEnvironment(
         'Deterministic AI is test/local-only; use a real provider or disable AI in production',
       );
     }
+    if (env.UPLOAD_SCANNER_MODE !== 'external') {
+      throw new Error(
+        'Deterministic upload scanning is test/local-only; external scanning is required in production',
+      );
+    }
+    if (!env.UPLOAD_SCANNER_URL) missing.push('UPLOAD_SCANNER_URL');
+    if (!env.UPLOAD_SCANNER_SECRET) missing.push('UPLOAD_SCANNER_SECRET');
     if (env.PUSH_ENABLED && !env.EXPO_ACCESS_TOKEN) missing.push('EXPO_ACCESS_TOKEN');
     if (missing.length > 0) throw new Error(`Missing production variables: ${missing.join(', ')}`);
   }

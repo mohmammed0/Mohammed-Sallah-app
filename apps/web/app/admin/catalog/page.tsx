@@ -1,8 +1,9 @@
 import { requireAdmin } from '@/lib/auth';
+import { DurableCommandIntent } from '@/components/durable-command-intent';
 import { setCategoryState } from '../actions';
 
 export default async function CatalogPage() {
-  const { client, roles } = await requireAdmin();
+  const { client, roles } = await requireAdmin(['operations.mutate']);
   const { data, error } = await client
     .from('service_categories')
     .select(
@@ -29,6 +30,10 @@ export default async function CatalogPage() {
             </p>
             {canWrite && (
               <form action={setCategoryState} className="form">
+                <DurableCommandIntent
+                  intentKey={`category-state:${category.id}`}
+                  initialIntentId={crypto.randomUUID()}
+                />
                 <input type="hidden" name="categoryId" value={category.id} />
                 <input type="hidden" name="enabled" value={category.enabled ? 'false' : 'true'} />
                 <label className="field">

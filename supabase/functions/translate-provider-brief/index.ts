@@ -51,7 +51,7 @@ Deno.serve(async (request) => {
       db
         .from('service_requests')
         .select(
-          'title,structured_description,original_text,original_locale,urgency,requested_start,version,category_id,city_id,district_id',
+          'title,structured_description,original_text,original_locale,urgency,requested_start,timing_mode,version,category_id,city_id,district_id',
         )
         .eq('id', input.requestId)
         .single(),
@@ -87,6 +87,7 @@ Deno.serve(async (request) => {
       districtId: serviceRequest.district_id,
       urgency: serviceRequest.urgency,
       requestedStart: serviceRequest.requested_start,
+      timingMode: serviceRequest.timing_mode,
       requestVersion: serviceRequest.version,
       safetyNotes: (safetyRows ?? []).map(
         (entry: { flag_type: string; severity: string }) =>

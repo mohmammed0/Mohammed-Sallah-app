@@ -12,11 +12,9 @@ export default function Welcome() {
           locale === 'ar' && { direction: 'rtl' },
         ]}
       >
-        <Text style={styles.badge}>SAUDI SERVICES · خدمات السعودية</Text>
+        <Text style={styles.badge}>{t('welcomeBadge')}</Text>
         <Text style={[styles.title, { fontSize: 44 }]}>{t('appName')}</Text>
-        <Text style={styles.lead}>
-          اشرح المشكلة، راجع الطلب، وقارن عروضًا خاصة من مقدمي خدمة مؤهلين.
-        </Text>
+        <Text style={styles.lead}>{t('welcomeLead')}</Text>
         <View style={styles.row}>
           {(['ar', 'en', 'ur', 'hi'] as const).map((code) => (
             <Button
@@ -31,7 +29,7 @@ export default function Welcome() {
           <Button label={t('home')} />
         </Link>
         <Link href="/auth" asChild>
-          <Button kind="secondary" label="تسجيل الدخول · Sign in" />
+          <Button kind="secondary" label={t('signInBilingual')} />
         </Link>
       </View>
     </SafeAreaView>

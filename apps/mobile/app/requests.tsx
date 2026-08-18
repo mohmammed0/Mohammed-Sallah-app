@@ -2,8 +2,10 @@ import { Link } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { ScrollView, Text } from 'react-native';
 import { z } from 'zod';
-import { Button, Card, Screen, styles } from '@/components/ui';
+import { formatStatusLabel } from '@sallah/i18n';
+import { Button, Card, LoadingSkeleton, Screen, styles } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
+import { useLocale } from '@/providers/locale-provider';
 
 const requestSchema = z.object({
   id: z.uuid(),
@@ -11,15 +13,17 @@ const requestSchema = z.object({
   status: z.string(),
   version: z.number().int(),
   created_at: z.string(),
+  timing_mode: z.enum(['asap', 'scheduled', 'flexible']),
 });
 
 export default function Requests() {
+  const { locale, t } = useLocale();
   const query = useQuery({
     queryKey: ['customer-requests'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('service_requests')
-        .select('id,title,status,version,created_at')
+        .select('id,title,status,version,created_at,timing_mode')
         .order('created_at', { ascending: false })
         .limit(50);
       if (error) throw error;
@@ -29,29 +33,37 @@ export default function Requests() {
   return (
     <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
       <Screen>
-        <Text style={styles.title}>طلباتي والعروض</Text>
-        <Text style={styles.lead}>العروض خاصة بك وحدك، ولا يستطيع مقدم خدمة رؤية عرض منافس.</Text>
-        {query.isPending && <Text style={styles.lead}>جارٍ تحميل الطلبات…</Text>}
-        {query.isError && <Text style={styles.error}>تعذر تحميل الطلبات الحالية.</Text>}
+        <Text style={styles.title}>{t('requestsAndOffers')}</Text>
+        <Text style={styles.lead}>{t('requestsPrivacyNotice')}</Text>
+        {query.isPending && <LoadingSkeleton label={t('loadingRequests')} />}
+        {query.isError && <Text style={styles.error}>{t('loadRequestsFailed')}</Text>}
         {query.data?.map((request) => (
           <Card key={request.id}>
-            <Text style={styles.badge}>{request.status}</Text>
+            <Text style={styles.badge}>{formatStatusLabel(request.status, locale)}</Text>
             <Text>{request.title}</Text>
             <Text style={styles.lead}>
-              {new Date(request.created_at).toLocaleString('ar-SA')} · نسخة {request.version}
+              {request.timing_mode === 'flexible'
+                ? t('timingFlexible')
+                : request.timing_mode === 'scheduled'
+                  ? t('timingToday')
+                  : t('timingAsap')}
+            </Text>
+            <Text style={styles.lead}>
+              {new Date(request.created_at).toLocaleString(locale === 'ar' ? 'ar-SA' : locale)} ·{' '}
+              {t('versionSummary', { version: request.version })}
             </Text>
             {request.status === 'receiving_offers' && (
               <Link href={{ pathname: '/offers', params: { requestId: request.id } }} asChild>
-                <Button label="عرض المقارنة الخاصة" />
+                <Button label={t('viewPrivateComparison')} />
               </Link>
             )}
           </Card>
         ))}
         {!query.isPending && query.data?.length === 0 && (
           <Card>
-            <Text style={styles.lead}>لا توجد طلبات بعد.</Text>
+            <Text style={styles.lead}>{t('noRequests')}</Text>
             <Link href="/request/new" asChild>
-              <Button label="إنشاء أول طلب" />
+              <Button label={t('createFirstRequest')} />
             </Link>
           </Card>
         )}

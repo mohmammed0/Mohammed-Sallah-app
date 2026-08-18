@@ -17,3 +17,5 @@ flowchart LR
 ```
 
 All values are integer minor units. Settlement guards compare gross settlement with captured-minus-refunded events. Payout tables store provider tokens/references only, never raw card or bank credentials.
+
+Refund state is cumulative: a confirmed amount between zero and capture produces `partially_refunded`; equality with capture produces `refunded`; zero, negative, above-capture, and cumulative over-refund confirmations are rejected. A dispute may resolve the non-financial job outcome immediately while a separate financial action remains `pending_confirmation`. Only an authenticated service-role reconciliation step with a unique provider reference records the external result and changes payment accounting; retries are idempotent and conflicting payloads fail.

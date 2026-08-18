@@ -1,7 +1,6 @@
-import { spawnSync } from 'node:child_process';
-const check = spawnSync('maestro', ['--version'], {
+import { spawnTool } from './resolve-tool.mjs';
+const check = spawnTool('maestro', ['--version'], {
   encoding: 'utf8',
-  shell: process.platform === 'win32',
 });
 if (check.status !== 0) {
   console.error(
@@ -9,8 +8,7 @@ if (check.status !== 0) {
   );
   process.exit(2);
 }
-const result = spawnSync('maestro', ['test', 'tests/e2e-mobile'], {
+const result = spawnTool('maestro', ['test', 'tests/e2e-mobile'], {
   stdio: 'inherit',
-  shell: process.platform === 'win32',
 });
 process.exit(result.status ?? 1);

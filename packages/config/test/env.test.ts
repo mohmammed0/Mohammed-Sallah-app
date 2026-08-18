@@ -20,4 +20,27 @@ describe('environment safety', () => {
     expect(() =>
       validateServerEnvironment({ ...base, APP_ENV: 'production', SUPABASE_SECRET_KEY: 'secret' }),
     ).toThrow(/test\/local-only/));
+  it('rejects deterministic upload scanning in production', () =>
+    expect(() =>
+      validateServerEnvironment({
+        ...base,
+        APP_ENV: 'production',
+        SUPABASE_SECRET_KEY: 'secret',
+        AI_PROVIDER: 'openai',
+        OPENAI_API_KEY: 'test-key',
+      }),
+    ).toThrow(/external scanning is required/));
+  it('accepts a fully configured external production scanner contract', () =>
+    expect(
+      validateServerEnvironment({
+        ...base,
+        APP_ENV: 'production',
+        SUPABASE_SECRET_KEY: 'secret',
+        AI_PROVIDER: 'openai',
+        OPENAI_API_KEY: 'test-key',
+        UPLOAD_SCANNER_MODE: 'external',
+        UPLOAD_SCANNER_URL: 'https://scanner.example.invalid/v1/scan',
+        UPLOAD_SCANNER_SECRET: 'scanner-secret-at-least-24-characters',
+      }).UPLOAD_SCANNER_MODE,
+    ).toBe('external'));
 });

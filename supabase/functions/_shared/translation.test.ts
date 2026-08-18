@@ -19,6 +19,7 @@ const original = originalBriefSchema.parse({
   districtId: null,
   urgency: 'normal',
   requestedStart: '2026-08-18T10:00:00.000Z',
+  timingMode: 'scheduled',
   requestVersion: 3,
   safetyNotes: [],
 });
@@ -34,4 +35,5 @@ Deno.test('translation cannot alter protected marketplace fields', () => {
   assert(protectedFields.categorySlug === 'ac-hvac', 'category identifier must remain original');
   assert(protectedFields.urgency === 'normal', 'urgency must remain original');
   assert(protectedFields.requestVersion === 3, 'request version must remain original');
+  assert(protectedFields.timingMode === 'scheduled', 'timing semantics must remain original');
 });

@@ -10,6 +10,7 @@ const required = [
   'EAS_PROJECT_ID',
   'SALLAH_IOS_BUNDLE_ID',
   'SALLAH_ANDROID_PACKAGE',
+  'EXPO_PUBLIC_GOOGLE_MAPS_API_KEY',
 ];
 const missing = required.filter((key) => !process.env[key]);
 const placeholderPattern = /example\.|\.invalid|REQUIRES_HUMAN_INPUT|changeme|placeholder/i;

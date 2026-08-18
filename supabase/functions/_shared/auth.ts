@@ -15,7 +15,10 @@ export async function authenticatedUser(request: Request) {
   ) {
     throw new Error('AUTH_REQUIRED');
   }
-  return { id: payload.id };
+  return {
+    id: payload.id,
+    email: 'email' in payload && typeof payload.email === 'string' ? payload.email : null,
+  };
 }
 export function serviceClient() {
   const url = Deno.env.get('SUPABASE_URL');

@@ -2,6 +2,13 @@ packages:
   - apps/*
   - packages/*
 
+overrides:
+  xcode>uuid: 11.1.1
+
+ignoredOptionalDependencies:
+  - sharp
+  - '@img/sharp-*'
+
 allowBuilds:
   libxmljs2: true
 
@@ -22,6 +29,5 @@ minimumReleaseAgeExclude:
 
 onlyBuiltDependencies:
   - esbuild
-  - sharp
   - libxmljs2
   - supabase

@@ -1,11 +1,6 @@
 import { requireAdmin } from '@/lib/auth';
 export default async function RequestsPage() {
-  const { client } = await requireAdmin([
-    'operations_admin',
-    'support_agent',
-    'analyst',
-    'super_admin',
-  ]);
+  const { client } = await requireAdmin(['operations.marketplace.read']);
   const { data, error } = await client
     .from('service_requests')
     .select(

@@ -34,6 +34,7 @@ jobs:
       - run: pnpm test
       - run: pnpm test:integration
       - run: pnpm i18n:check
+      - run: pnpm data-inventory:check
       - run: pnpm licenses:check
       - name: Verify production fails closed without human inputs
         run: if pnpm config:validate:production; then echo 'validator unexpectedly passed' && exit 1; else echo 'fail-closed behavior verified'; fi
@@ -67,14 +68,26 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - uses: actions/setup-node@v4
         with: { node-version-file: .nvmrc }
+      - uses: supabase/setup-cli@v1
+        with: { version: 2.114.0 }
       - run: corepack enable && corepack prepare pnpm@11.19.0 --activate
       - run: pnpm install --frozen-lockfile
+      - run: supabase start
+      - run: supabase db reset
+      - name: Export local Supabase public web config
+        shell: bash
+        run: |
+          eval "$(supabase status -o env)"
+          printf '%s\n' "NEXT_PUBLIC_SUPABASE_URL=$API_URL" >> "$GITHUB_ENV"
+          printf '%s\n' "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$PUBLISHABLE_KEY" >> "$GITHUB_ENV"
       - run: pnpm --filter @sallah/web lint
       - run: pnpm --filter @sallah/web typecheck
       - run: pnpm --filter @sallah/web test
       - run: pnpm --filter @sallah/web build
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e:web
+        env:
+          SALLAH_E2E_DATABASE_PREPARED: 'true'
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -98,11 +111,14 @@ jobs:
       - run: corepack enable && corepack prepare pnpm@11.19.0 --activate
       - run: pnpm install --frozen-lockfile
       - run: supabase start
+      - run: pnpm test:legacy-upgrade
       - run: supabase db reset
       - run: supabase test db
+      - run: supabase db lint --local --schema public,private --level error --fail-on error
+      - run: pnpm test:local-supabase
       - name: Verify generated types current
-        run: supabase gen types typescript --local > /tmp/database.types.ts && pnpm exec prettier --write /tmp/database.types.ts && diff -u packages/database/src/database.types.ts /tmp/database.types.ts
+        run: supabase gen types typescript --local --schema public > /tmp/database.types.ts && pnpm exec prettier --config .prettierrc.json --write /tmp/database.types.ts && diff -u packages/database/src/database.types.ts /tmp/database.types.ts
       - run: deno fmt --check --config supabase/functions/deno.json supabase/functions
       - run: deno lint --config supabase/functions/deno.json supabase/functions
-      - run: deno check --config supabase/functions/deno.json supabase/functions/ai-diagnostic/index.ts supabase/functions/transcribe/index.ts supabase/functions/notification-worker/index.ts supabase/functions/translate-provider-brief/index.ts
+      - run: deno check --config supabase/functions/deno.json supabase/functions/ai-diagnostic/index.ts supabase/functions/media-access/index.ts supabase/functions/notification-worker/index.ts supabase/functions/privacy-worker/index.ts supabase/functions/reauthenticate/index.ts supabase/functions/scan-upload/index.ts supabase/functions/transcribe/index.ts supabase/functions/translate-provider-brief/index.ts
       - run: deno test --config supabase/functions/deno.json --allow-env --allow-read supabase/functions

@@ -1,6 +1,6 @@
 import { requireAdmin } from '@/lib/auth';
 export default async function AuditPage() {
-  const { client } = await requireAdmin(['operations_admin', 'super_admin']);
+  const { client } = await requireAdmin(['operations.mutate']);
   const { data, error } = await client
     .from('admin_audit_logs')
     .select('id,actor_id,action,target_type,target_id,reason,correlation_id,created_at')

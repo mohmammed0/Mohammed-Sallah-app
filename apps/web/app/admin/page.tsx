@@ -5,7 +5,7 @@ const healthResult = z.object({
   error: z.unknown().nullable(),
 });
 export default async function AdminPage() {
-  const { client } = await requireAdmin();
+  const { client } = await requireAdmin(['dashboard.aggregate.read']);
   const raw: unknown = await client.rpc('admin_marketplace_health');
   const parsed = healthResult.safeParse(raw);
   const error = !parsed.success || parsed.data.error !== null;

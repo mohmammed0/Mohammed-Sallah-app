@@ -6,6 +6,8 @@ import { z } from 'zod';
 import { Button, Card, Screen, styles } from '@/components/ui';
 import { MarketplaceApi } from '@sallah/api';
 import { supabase } from '@/lib/supabase';
+import { useLocale } from '@/providers/locale-provider';
+import { executeJournaledMutation } from '@/lib/mutation-journal';
 
 const offerFormSchema = z.object({
   amount: z.coerce.number().positive().max(1_000_000),
@@ -16,8 +18,23 @@ const offerFormSchema = z.object({
   note: z.string().trim().max(2000),
 });
 type OfferForm = z.input<typeof offerFormSchema>;
+const offerCommandSchema = z.object({
+  requestId: z.uuid(),
+  totalAmountMinor: z.number().int(),
+  visitFeeMinor: z.number().int(),
+  laborAmountMinor: z.number().int().nullable(),
+  materialsIncluded: z.boolean(),
+  materialsEstimateMinor: z.number().int().nullable(),
+  estimatedArrivalMinutes: z.number().int(),
+  estimatedDurationMinutes: z.number().int(),
+  warrantyDays: z.number().int(),
+  note: z.string(),
+  expiresAt: z.string(),
+  expectedRequestVersion: z.number().int(),
+});
 
 export default function ProviderOffer() {
+  const { t } = useLocale();
   const params = useLocalSearchParams<{ requestId?: string; requestVersion?: string }>();
   const [materialsIncluded, setMaterialsIncluded] = useState(false);
   const [done, setDone] = useState(false);
@@ -34,12 +51,12 @@ export default function ProviderOffer() {
   async function submit(raw: OfferForm) {
     const parsed = offerFormSchema.safeParse(raw);
     if (!parsed.success || !params.requestId || !params.requestVersion) {
-      setError('root', { message: 'تحقق من جميع الحقول وافتح الشاشة من طلب مؤهل.' });
+      setError('root', { message: t('providerOfferInvalid') });
       return;
     }
     try {
       const value = parsed.data;
-      await new MarketplaceApi(supabase).submitOffer({
+      const commandPayload = {
         requestId: params.requestId,
         totalAmountMinor: Math.round(value.amount * 100),
         visitFeeMinor: Math.round(value.visitFee * 100),
@@ -52,12 +69,24 @@ export default function ProviderOffer() {
         note: value.note,
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         expectedRequestVersion: Number(params.requestVersion),
-        idempotencyKey: globalThis.crypto.randomUUID(),
+      };
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) throw new Error('AUTH_REQUIRED');
+      await executeJournaledMutation({
+        userId: userData.user.id,
+        operation: 'submit_offer',
+        entityKey: `${params.requestId}:${params.requestVersion}`,
+        payload: commandPayload,
+        execute: async (idempotencyKey, persistedPayload) =>
+          new MarketplaceApi(supabase).submitOffer({
+            ...offerCommandSchema.parse(persistedPayload),
+            idempotencyKey,
+          }),
       });
       setDone(true);
     } catch {
       setError('root', {
-        message: 'تعذر إرسال العرض؛ يلزم تحقق ساري ودعوة مطابقة ونسخة طلب حديثة.',
+        message: t('providerOfferFailed'),
       });
     }
   }
@@ -65,20 +94,18 @@ export default function ProviderOffer() {
     name: 'amount' | 'visitFee' | 'arrivalMinutes' | 'durationMinutes' | 'warrantyDays';
     label: string;
   }> = [
-    { name: 'amount', label: 'السعر الإجمالي بالريال' },
-    { name: 'visitFee', label: 'رسوم الزيارة بالريال' },
-    { name: 'arrivalMinutes', label: 'الوصول بالدقائق' },
-    { name: 'durationMinutes', label: 'مدة العمل بالدقائق' },
-    { name: 'warrantyDays', label: 'الضمان بالأيام' },
+    { name: 'amount', label: t('totalPriceSar') },
+    { name: 'visitFee', label: t('visitFeeSar') },
+    { name: 'arrivalMinutes', label: t('arrivalMinutes') },
+    { name: 'durationMinutes', label: t('workDurationMinutes') },
+    { name: 'warrantyDays', label: t('warrantyDays') },
   ];
   return (
     <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
       <Screen>
-        <Text style={styles.title}>عرض خاص ومختوم</Text>
+        <Text style={styles.title}>{t('privateSealedOfferTitle')}</Text>
         <Card>
-          <Text style={styles.lead}>
-            لا يرى مقدمو الخدمة الآخرون هذا العرض. القيم المالية تحفظ كهللات صحيحة.
-          </Text>
+          <Text style={styles.lead}>{t('privateSealedOfferNotice')}</Text>
         </Card>
         {fields.map((item) => (
           <Controller
@@ -100,7 +127,7 @@ export default function ProviderOffer() {
         ))}
         <View style={styles.row}>
           <Button
-            label={materialsIncluded ? 'المواد مشمولة' : 'المواد غير مشمولة'}
+            label={materialsIncluded ? t('materialsIncluded') : t('materialsNotIncluded')}
             kind={materialsIncluded ? 'primary' : 'secondary'}
             onPress={() => setMaterialsIncluded((value) => !value)}
           />
@@ -112,8 +139,8 @@ export default function ProviderOffer() {
             <TextInput
               style={[styles.input, { minHeight: 110, textAlignVertical: 'top' }]}
               multiline
-              accessibilityLabel="ملاحظة العرض"
-              placeholder="النطاق والاستثناءات"
+              accessibilityLabel={t('offerNoteA11y')}
+              placeholder={t('offerScopePlaceholder')}
               value={field.value}
               onBlur={field.onBlur}
               onChangeText={field.onChange}
@@ -123,8 +150,8 @@ export default function ProviderOffer() {
         {formState.errors.root?.message && (
           <Text style={styles.error}>{formState.errors.root.message}</Text>
         )}
-        {done && <Text>تم إرسال العرض وتسجيله.</Text>}
-        <Button label="إرسال العرض" onPress={() => void handleSubmit(submit)()} />
+        {done && <Text>{t('offerSubmitted')}</Text>}
+        <Button label={t('submitOfferAction')} onPress={() => void handleSubmit(submit)()} />
       </Screen>
     </ScrollView>
   );

@@ -7,7 +7,16 @@ insert into auth.users(
   raw_app_meta_data,raw_user_meta_data,created_at,updated_at
 )
 select id,'00000000-0000-0000-0000-000000000000','authenticated','authenticated',email,
-  crypt(gen_random_uuid()::text,gen_salt('bf')),now(),'','','','',now(),
+  crypt(
+    case
+      -- Known only to local Playwright runs. This seed file is never used by production config.
+      when email='admin.demo@example.invalid' then 'LocalE2E-Only!2026'
+      when email='finance.demo@example.invalid' then 'LocalFinanceE2E-Only!2026'
+      when email='provider.demo@example.invalid' then 'LocalProviderE2E-Only!2026'
+      else gen_random_uuid()::text
+    end,
+    gen_salt('bf')
+  ),now(),'','','','',now(),
   '{"provider":"email","providers":["email"]}'::jsonb,
   jsonb_build_object('display_name',display_name,'preferred_locale',locale),now(),now()
 from (values
@@ -18,7 +27,8 @@ from (values
   ('d2000000-0000-4000-8000-000000000003'::uuid,'provider.suspended@example.invalid','مقدم خدمة موقوف','ar'),
   ('d3000000-0000-4000-8000-000000000001'::uuid,'admin.demo@example.invalid','مدير العمليات','ar'),
   ('d3000000-0000-4000-8000-000000000002'::uuid,'support.demo@example.invalid','موظف الدعم','ar'),
-  ('d3000000-0000-4000-8000-000000000003'::uuid,'reviewer.demo@example.invalid','مراجع التحقق','ar')
+  ('d3000000-0000-4000-8000-000000000003'::uuid,'reviewer.demo@example.invalid','مراجع التحقق','ar'),
+  ('d3000000-0000-4000-8000-000000000004'::uuid,'finance.demo@example.invalid','مراجع المالية','ar')
 ) demo(id,email,display_name,locale)
 on conflict(id) do nothing;
 
@@ -32,7 +42,8 @@ from (values
   ('d2000000-0000-4000-8000-000000000003'::uuid,'provider.suspended@example.invalid'),
   ('d3000000-0000-4000-8000-000000000001'::uuid,'admin.demo@example.invalid'),
   ('d3000000-0000-4000-8000-000000000002'::uuid,'support.demo@example.invalid'),
-  ('d3000000-0000-4000-8000-000000000003'::uuid,'reviewer.demo@example.invalid')
+  ('d3000000-0000-4000-8000-000000000003'::uuid,'reviewer.demo@example.invalid'),
+  ('d3000000-0000-4000-8000-000000000004'::uuid,'finance.demo@example.invalid')
 ) demo(id,email)
 on conflict(provider_id,provider) do nothing;
 
@@ -43,7 +54,8 @@ insert into public.user_roles(user_id,role) values
  ('d2000000-0000-4000-8000-000000000003','provider'),
  ('d3000000-0000-4000-8000-000000000001','operations_admin'),
  ('d3000000-0000-4000-8000-000000000002','support_agent'),
- ('d3000000-0000-4000-8000-000000000003','verification_reviewer')
+ ('d3000000-0000-4000-8000-000000000003','verification_reviewer'),
+ ('d3000000-0000-4000-8000-000000000004','finance_reviewer')
 on conflict(user_id,role) do nothing;
 
 insert into public.admin_role_assignments(user_id,admin_role_id,granted_by,reason)
@@ -75,6 +87,26 @@ from (values
 cross join lateral(select id from public.service_categories where slug='air-conditioning') category
 on conflict(provider_id,category_id) do nothing;
 
+do $$
+begin
+  if exists(
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='provider_services'
+      and column_name='review_status'
+  ) then
+    perform set_config('sallah.provider_onboarding_command','true',true);
+    execute $sql$
+      update public.provider_services
+      set review_status='approved',reviewed_at=coalesce(reviewed_at,now())
+      where provider_id in (
+        'd2000000-0000-4000-8000-000000000001'::uuid,
+        'd2000000-0000-4000-8000-000000000002'::uuid
+      ) and enabled
+    $sql$;
+    perform set_config('sallah.provider_onboarding_command','false',true);
+  end if;
+end $$;
+
 insert into public.provider_service_areas(provider_id,city_id,center,radius_m)
 select provider_id,city.id,st_setsrid(st_makepoint(0,0),4326)::geography,40000
 from (values
@@ -101,7 +133,7 @@ select request_id,customer_id,category.id,city.id,title,description,original_tex
   now()+schedule_offset,approximate_location,address_id,now()-interval '2 days',now()-interval '2 days',status
 from (values
  ('db000000-0000-4000-8000-000000000001'::uuid,'d1000000-0000-4000-8000-000000000001'::uuid,'مكيف لا يبرد','ضعف تبريد مستمر مع صوت خفيف، دون مؤشرات خطر فورية.','المكيف لا يبرد من أمس ويصدر صوتًا خفيفًا.','ar','normal'::public.request_urgency,interval '1 day',st_setsrid(st_makepoint(0,0),4326)::geography,'da000000-0000-4000-8000-000000000001'::uuid,'provider_selected'::public.request_status),
- ('db000000-0000-4000-8000-000000000002'::uuid,'d1000000-0000-4000-8000-000000000002'::uuid,'AC maintenance quote','Routine split AC maintenance requested.','The split AC needs routine maintenance.','en','flexible'::public.request_urgency,interval '3 days',st_setsrid(st_makepoint(0,0),4326)::geography,'da000000-0000-4000-8000-000000000002'::uuid,'receiving_offers'::public.request_status),
+ ('db000000-0000-4000-8000-000000000002'::uuid,'d1000000-0000-4000-8000-000000000002'::uuid,'AC maintenance quote','Routine split AC maintenance requested.','The split AC needs routine maintenance.','en','flexible'::public.request_urgency,interval '3 days',st_setsrid(st_makepoint(0,0),4326)::geography,'da000000-0000-4000-8000-000000000002'::uuid,'provider_selected'::public.request_status),
  ('db000000-0000-4000-8000-000000000003'::uuid,'d1000000-0000-4000-8000-000000000001'::uuid,'تنظيف وحدة تكييف','تم تنظيف الوحدة واختبارها.','أحتاج تنظيف المكيف.','ar','normal'::public.request_urgency,-interval '4 days',st_setsrid(st_makepoint(0,0),4326)::geography,'da000000-0000-4000-8000-000000000001'::uuid,'provider_selected'::public.request_status)
 ) requests(request_id,customer_id,title,description,original_text,locale,urgency,schedule_offset,approximate_location,address_id,status)
 cross join lateral(select id from public.service_categories where slug='air-conditioning') category
@@ -126,16 +158,17 @@ insert into public.offers(
  estimated_arrival_minutes,estimated_duration_minutes,warranty_days,provider_note,expires_at,status,idempotency_key
 ) values
  ('dd000000-0000-4000-8000-000000000001','db000000-0000-4000-8000-000000000001','d2000000-0000-4000-8000-000000000001',28000,5000,23000,false,45,120,30,'عرض محلي تجريبي',now()+interval '2 days','selected','demo-offer-1'),
- ('dd000000-0000-4000-8000-000000000002','db000000-0000-4000-8000-000000000002','d2000000-0000-4000-8000-000000000001',24000,4000,20000,false,60,90,14,'Local demo offer A',now()+interval '2 days','active','demo-offer-2a'),
- ('dd000000-0000-4000-8000-000000000003','db000000-0000-4000-8000-000000000002','d2000000-0000-4000-8000-000000000002',26000,3000,23000,true,40,100,30,'Local demo offer B',now()+interval '2 days','active','demo-offer-2b'),
+ ('dd000000-0000-4000-8000-000000000002','db000000-0000-4000-8000-000000000002','d2000000-0000-4000-8000-000000000001',24000,4000,20000,false,60,90,14,'Local demo offer A',now()+interval '2 days','selected','demo-offer-2a'),
+ ('dd000000-0000-4000-8000-000000000003','db000000-0000-4000-8000-000000000002','d2000000-0000-4000-8000-000000000002',26000,3000,23000,true,40,100,30,'Local demo offer B',now()+interval '2 days','rejected','demo-offer-2b'),
  ('dd000000-0000-4000-8000-000000000004','db000000-0000-4000-8000-000000000003','d2000000-0000-4000-8000-000000000001',18000,3000,15000,false,30,60,7,'عرض مكتمل تجريبي',now()+interval '2 days','selected','demo-offer-3');
 
 insert into public.jobs(
  id,request_id,selected_offer_id,customer_id,provider_id,exact_address_id,status,scheduled_start,approved_total_minor,completed_at
 ) values
  ('de000000-0000-4000-8000-000000000001','db000000-0000-4000-8000-000000000001','dd000000-0000-4000-8000-000000000001','d1000000-0000-4000-8000-000000000001','d2000000-0000-4000-8000-000000000001','da000000-0000-4000-8000-000000000001','awaiting_change_order_approval',now()+interval '1 day',28000,null),
- ('de000000-0000-4000-8000-000000000002','db000000-0000-4000-8000-000000000003','dd000000-0000-4000-8000-000000000004','d1000000-0000-4000-8000-000000000001','d2000000-0000-4000-8000-000000000001','da000000-0000-4000-8000-000000000001','completed',now()-interval '4 days',18000,now()-interval '3 days');
-update public.provider_profiles set active_workload=1 where user_id='d2000000-0000-4000-8000-000000000001';
+ ('de000000-0000-4000-8000-000000000002','db000000-0000-4000-8000-000000000003','dd000000-0000-4000-8000-000000000004','d1000000-0000-4000-8000-000000000001','d2000000-0000-4000-8000-000000000001','da000000-0000-4000-8000-000000000001','completed',now()-interval '4 days',18000,now()-interval '3 days'),
+ ('de000000-0000-4000-8000-000000000003','db000000-0000-4000-8000-000000000002','dd000000-0000-4000-8000-000000000002','d1000000-0000-4000-8000-000000000002','d2000000-0000-4000-8000-000000000001','da000000-0000-4000-8000-000000000002','in_progress',now()+interval '3 days',24000,null);
+update public.provider_profiles set active_workload=2 where user_id='d2000000-0000-4000-8000-000000000001';
 
 insert into public.change_orders(
  id,job_id,provider_id,reason,description,added_amount_minor,revised_total_minor,status,expires_at,idempotency_key
@@ -145,6 +178,20 @@ insert into public.change_orders(
 );
 insert into public.change_order_items(change_order_id,description,quantity,unit_amount_minor)
 values('df000000-0000-4000-8000-000000000001','مكثف بديل وتركيب',1,7000);
+insert into public.file_uploads(
+  id,user_id,purpose,resource_id,original_filename,extension,declared_mime_type,
+  detected_mime_type,size_bytes,max_size_bytes,quarantine_path,target_bucket,target_path,
+  final_path,content_sha256,status,scanner,sanitized,scanned_at
+)
+values(
+  'dd000000-0000-4000-8000-000000000099','d2000000-0000-4000-8000-000000000001',
+  'completion_proof','de000000-0000-4000-8000-000000000002','completion.jpg','jpg',
+  'image/jpeg','image/jpeg',1024,20971520,
+  'd2000000-0000-4000-8000-000000000001/dd000000-0000-4000-8000-000000000099/completion.jpg',
+  'completion-proofs','d2000000-0000-4000-8000-000000000001/jobs/demo/completion.jpg',
+  'd2000000-0000-4000-8000-000000000001/jobs/demo/completion.jpg',repeat('0',64),
+  'clean','deterministic-demo-fixture',true,now()-interval '3 days'
+);
 insert into public.completion_proofs(job_id,provider_id,storage_path,mime_type,size_bytes,description,captured_at)
 values('de000000-0000-4000-8000-000000000002','d2000000-0000-4000-8000-000000000001','d2000000-0000-4000-8000-000000000001/jobs/demo/completion.jpg','image/jpeg',1024,'إثبات محلي غير مرفوع',now()-interval '3 days');
 insert into public.customer_acceptances(job_id,customer_id,accepted,reason,accepted_total_minor)
@@ -176,12 +223,39 @@ insert into public.support_case_assignments(case_id,assignee_id,assigned_by)
 values('e2000000-0000-4000-8000-000000000001','d3000000-0000-4000-8000-000000000002','d3000000-0000-4000-8000-000000000001');
 insert into public.support_case_messages(case_id,sender_id,body,visible_to_user)
 values('e2000000-0000-4000-8000-000000000001','d1000000-0000-4000-8000-000000000001','أحتاج توضيح القطعة الإضافية.',true);
-insert into public.disputes(id,job_id,opened_by,reason,priority,status,assigned_to)
-values('e3000000-0000-4000-8000-000000000001','de000000-0000-4000-8000-000000000001','d1000000-0000-4000-8000-000000000001','نزاع عرض محلي غير نهائي','normal','open','d3000000-0000-4000-8000-000000000002');
+insert into public.cancellation_requests(
+  id,job_id,requester_id,lifecycle_state,reason,status,expected_job_version,idempotency_key
+) values(
+  'e2500000-0000-4000-8000-000000000001','de000000-0000-4000-8000-000000000001',
+  'd1000000-0000-4000-8000-000000000001','awaiting_change_order_approval',
+  'طلب إلغاء تجريبي للاختبار المتكامل','pending',1,'demo-cancellation-request'
+);
+insert into public.disputes(
+  id,job_id,opened_by,reason,priority,status,assigned_to,
+  expected_job_version,idempotency_key,pre_dispute_job_status
+)
+values(
+  'e3000000-0000-4000-8000-000000000001','de000000-0000-4000-8000-000000000003',
+  'd1000000-0000-4000-8000-000000000002','نزاع عرض محلي غير نهائي','normal','open',
+  'd3000000-0000-4000-8000-000000000002',1,'demo-dispute-open','in_progress'
+);
+update public.jobs set status='disputed',version=2
+where id='de000000-0000-4000-8000-000000000003';
 insert into public.dispute_events(dispute_id,actor_id,event_type,reason)
-values('e3000000-0000-4000-8000-000000000001','d1000000-0000-4000-8000-000000000001','opened','طلب مراجعة تجريبي');
-insert into public.financial_holds(job_id,amount_minor,reason,created_by)
-values('de000000-0000-4000-8000-000000000001',28000,'demo_dispute_hold','d3000000-0000-4000-8000-000000000002');
+values('e3000000-0000-4000-8000-000000000001','d1000000-0000-4000-8000-000000000002','opened','طلب مراجعة تجريبي');
+insert into public.financial_holds(job_id,amount_minor,reason,created_by,dispute_id)
+values(
+  'de000000-0000-4000-8000-000000000003',24000,'demo_dispute_hold',
+  'd3000000-0000-4000-8000-000000000002','e3000000-0000-4000-8000-000000000001'
+);
+insert into public.financial_action_intents(
+  id,source_type,source_id,payment_id,action_type,amount_minor,status,idempotency_key,created_by
+) values(
+  'e4000000-0000-4000-8000-000000000001','cancellation',
+  'e2500000-0000-4000-8000-000000000001','e1000000-0000-4000-8000-000000000001',
+  'manual_refund',1000,'pending','demo-finance-review-intent',
+  'd3000000-0000-4000-8000-000000000001'
+);
 insert into public.notification_outbox(user_id,event_type,channel,payload,deduplication_key,status) values
  ('d1000000-0000-4000-8000-000000000001','change_order','in_app','{"jobId":"de000000-0000-4000-8000-000000000001"}','demo-change-order-customer','pending'),
  ('d2000000-0000-4000-8000-000000000001','provider_matched','in_app','{"requestId":"db000000-0000-4000-8000-000000000002"}','demo-provider-match','pending');

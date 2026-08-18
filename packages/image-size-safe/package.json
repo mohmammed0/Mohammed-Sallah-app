@@ -1,0 +1,27 @@
+{
+  "name": "@sallah/image-size-safe",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "index.cjs",
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "require": "./index.cjs",
+      "default": "./index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "node -e \"require('./index.cjs')\"",
+    "lint": "eslint index.cjs test",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@sallah/typescript-config": "workspace:*",
+    "@types/node": "24.3.0",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
+  }
+}

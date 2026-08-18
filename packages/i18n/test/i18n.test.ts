@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { direction, resources, supportedLocales, translate } from '../src';
+import { direction, formatStatusLabel, resources, supportedLocales, translate } from '../src';
 
 describe('localization', () => {
   it('keeps key parity', () => {
@@ -15,5 +15,16 @@ describe('localization', () => {
   it('never returns an empty key', () => {
     for (const locale of supportedLocales)
       expect(translate(locale, 'publishRequest').length).toBeGreaterThan(0);
+  });
+  it('interpolates named values without evaluating content', () => {
+    expect(translate('en', 'versionSummary', { version: 7 })).toBe('Version 7');
+    expect(translate('ar', 'requestNumber', { id: '<unsafe>' })).toContain('<unsafe>');
+  });
+  it('localizes workflow statuses instead of exposing database tokens', () => {
+    for (const locale of supportedLocales) {
+      expect(formatStatusLabel('in_progress', locale)).not.toBe('in_progress');
+      expect(formatStatusLabel('blocked_retention', locale)).not.toBe('blocked_retention');
+      expect(formatStatusLabel('unrecognized_state', locale).length).toBeGreaterThan(0);
+    }
   });
 });

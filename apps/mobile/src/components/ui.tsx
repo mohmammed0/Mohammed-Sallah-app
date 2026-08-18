@@ -6,6 +6,15 @@ export function Screen({ children }: { children: React.ReactNode }) {
 export function Card({ children }: { children: React.ReactNode }) {
   return <View style={styles.card}>{children}</View>;
 }
+export function LoadingSkeleton({ label }: { label: string }) {
+  return (
+    <View accessibilityLabel={label} accessibilityRole="progressbar" style={styles.skeletonCard}>
+      <View style={[styles.skeletonLine, { width: '42%' }]} />
+      <View style={[styles.skeletonLine, { width: '100%' }]} />
+      <View style={[styles.skeletonLine, { width: '72%' }]} />
+    </View>
+  );
+}
 export function Button({
   label,
   kind = 'primary',
@@ -75,4 +84,13 @@ export const styles = StyleSheet.create({
     fontWeight: '800',
   },
   error: { color: theme.colors.danger, textAlign: 'left' },
+  skeletonCard: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.radius.lg,
+    padding: 18,
+    gap: 12,
+  },
+  skeletonLine: { height: 16, borderRadius: 8, backgroundColor: '#DCE6E2' },
+  offlineBanner: { backgroundColor: '#6B3B08', paddingHorizontal: 18, paddingVertical: 10 },
+  offlineText: { color: theme.colors.white, fontWeight: '800', textAlign: 'center' },
 });

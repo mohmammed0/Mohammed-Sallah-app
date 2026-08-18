@@ -1,53 +1,86 @@
 # Final validation report
 
-Date: 2026-08-17. Environment: Windows/WSL workspace, Node 24.19.0, pnpm 11.19.0, Supabase CLI 2.114.0, Docker Desktop, Deno 2.5.4, Playwright Chromium 151.
+Date: 2026-08-18. Environment: Windows/WSL, Node 24.19.0, pnpm 11.19.0,
+Supabase CLI 2.114.0, Docker Desktop, Deno 2.9.5, Playwright Chromium 151, k6 2.2.0,
+and Expo SDK 54.
 
-Statuses reflect the command result. `NOT RUN` is never presented as a pass. Production remains blocked until every FAIL/NOT RUN and launch gate below is cleared.
+Scope: four repository-controlled pre-merge corrections continued on draft PR #5 from reviewed HEAD
+`f8b4e83cc87cd3954566c5d175d56efd43c96249`. The implementation commits are:
 
-## Command results
+- `fa8462a` — `fix: make integration persistence atomic`
+- `222827c` — `fix: scope request media and mobile mutations`
+- `978c853` — `fix: persist admin intents across retries`
 
-| Command                                 | Result  |        Duration | Notes                                                                                                                                             | Evidence/artifact                                           |
-| --------------------------------------- | ------- | --------------: | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `pnpm install --frozen-lockfile`        | PASS    |           0.29s | All 10 workspaces already current                                                                                                                 | Task log, `pnpm-lock.yaml`                                  |
-| `pnpm format:check`                     | PASS    |           1.49s | All matched files formatted                                                                                                                       | Task log                                                    |
-| `pnpm lint`                             | PASS    |           6.46s | 8 Turbo tasks                                                                                                                                     | Task log                                                    |
-| `pnpm typecheck`                        | PASS    |           0.87s | 8 TypeScript tasks                                                                                                                                | Task log                                                    |
-| `pnpm test`                             | PASS    |           6.34s | Package unit suites pass                                                                                                                          | Task log                                                    |
-| `pnpm test:integration`                 | PASS    |           1.91s | 2 contract tests                                                                                                                                  | Task log                                                    |
-| `pnpm test:db` / `supabase test db`     | PASS    |    1.79s latest | 3 pgTAP files, 45 tests                                                                                                                           | `supabase/tests/database/`                                  |
-| `pnpm test:security`                    | PASS    |           1.13s | 4 static boundary tests                                                                                                                           | `tests/security/`                                           |
-| `pnpm test:e2e:web`                     | PASS    |            3.6s | 6/6 Chromium desktop/Pixel 7 tests                                                                                                                | `playwright-report/` (gitignored)                           |
-| `pnpm test:e2e:mobile`                  | NOT RUN |     0.55s probe | Maestro and emulator/device unavailable                                                                                                           | `tests/e2e-mobile/`; run `maestro test tests/e2e-mobile`    |
-| `pnpm test:load:smoke`                  | NOT RUN |     0.53s probe | k6 is not installed                                                                                                                               | `tests/load/smoke.js`; run `k6 run tests/load/smoke.js`     |
-| `pnpm build`                            | PASS    |          52.05s | Next 16 production build and Android Hermes export                                                                                                | `.next/`, `apps/mobile/dist/` (gitignored)                  |
-| `pnpm mobile:expo-check`                | PASS    | 15.85s bundling | Android export succeeds                                                                                                                           | `apps/mobile/.expo-check/` (gitignored)                     |
-| `pnpm mobile:expo-doctor`               | PASS    |          16.87s | 21/21 checks                                                                                                                                      | Task log                                                    |
-| `pnpm config:validate:production`       | NOT RUN |     0.44s probe | Correctly rejected absent production project, legal, domain, store, and OpenAI inputs                                                             | `docs/HUMAN_INPUTS.md`                                      |
-| `pnpm licenses:check`                   | PASS    |           1.56s | Permissive policy and documented package-scoped exceptions                                                                                        | `oss-inventory.json`                                        |
-| `pnpm security:scan`                    | FAIL    |           1.85s | Secret patterns clean; audit reports 2 high and 1 moderate advisories through Metro `image-size@1.2.1`; advertised patched 2.0.3 is not published | pnpm audit output; GHSA-w3rx-r6r6-pgpr, GHSA-5p2g-fcmc-qvqq |
-| `pnpm run sbom:generate`                | PASS    |           1.86s | CycloneDX generated with 801 components; renamed because pnpm 11 reserves `sbom`                                                                  | `artifacts/sbom.cdx.json` (gitignored artifact)             |
-| `supabase start`                        | PASS    |    already warm | Local API/Auth/Storage/Realtime available                                                                                                         | `supabase/config.toml`                                      |
-| `supabase db reset`                     | PASS    |       about 39s | 9 migrations plus catalog and deterministic demo seeds                                                                                            | `supabase/migrations/`, `supabase/seed*.sql`                |
-| `supabase gen types typescript --local` | PASS    |           3.84s | Formatted output exactly matches committed types                                                                                                  | `packages/database/src/database.types.ts`                   |
-| Deno fmt/lint/check                     | PASS    |  1.4s/1.1s/2.2s | 12 formatted files, 11 linted files, 4 function entry points checked                                                                              | `supabase/functions/`                                       |
-| Deno function tests                     | PASS    |           0.22s | 7/7 diagnostic, HTTP, and translation tests                                                                                                       | `supabase/functions/_shared/*.test.ts`                      |
-| `pnpm i18n:check`                       | PASS    |             <1s | ar/en/ur/hi dictionaries and resource registration                                                                                                | `packages/i18n/`                                            |
-| Web screenshots                         | PASS    |           2.92s | Full-page Arabic desktop and Pixel 7 captures                                                                                                     | `docs/screenshots/`                                         |
+The final full branch SHA and CI links are recorded in the PR merge-gate table and release handoff,
+because a tracked file cannot contain the SHA of its own commit. No production deployment, secret
+change, merge, force-push, or history rewrite occurred.
 
-## Acceptance scenarios A-G
+## Migration and upgrade path
 
-| Scenario                             | Status             | Evidence and remaining requirement                                                                                                                                                                                                                                                                                                                                                     |
-| ------------------------------------ | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A — Arabic customer to Urdu provider | NOT RUN end-to-end | Customer/provider UI, Arabic request composer, deterministic AI, translation authorization, sealed offers, address gating, job/change-order/completion/rating RPCs, location sharing, audit tables, and a deterministic seeded journey exist. A full device journey requires Maestro plus emulator/physical devices; live external translation is disabled pending processor approval. |
-| B — AI unavailable                   | PASS               | Unit/integration and Deno tests prove schema-valid deterministic fallback, preserved input, editable output, safety flags, and no publish authority.                                                                                                                                                                                                                                   |
-| C — Sealed bid security              | PASS               | pgTAP proves each provider sees only its own offer, customer sees both, and unrelated actors see none; administrative mutations require reason and create audit records.                                                                                                                                                                                                               |
-| D — Location privacy                 | PASS               | pgTAP proves the selected provider sees the exact address and the unselected provider does not; matching uses approximate geography.                                                                                                                                                                                                                                                   |
-| E — Cancellation and dispute         | PARTIAL            | Request/open-dispute RPCs, private evidence model, financial hold, support queues, audit/event tables, and seeded records exist. Admin decision/resolution commands and a complete device E2E remain code blockers.                                                                                                                                                                    |
-| F — Account deletion                 | PARTIAL            | Recent-auth request, status change, push-token revocation, scheduled job, mobile UI, and public external request are implemented. The retention/anonymization worker is intentionally not activated until the legally approved matrix exists; implementation and E2E remain blockers.                                                                                                  |
-| G — Admin authorization              | PASS               | pgTAP proves analyst read access and mutation denial, reviewer verification success with an audit record, operations customer suspension, and least-privilege Edge grants.                                                                                                                                                                                                             |
+No migration was added or replaced. The existing unmerged migration
+`20260818183816_merge_fix_integration_contracts.sql` was corrected in place, as required, because a
+later migration could not repair its own predecessor failing on legacy timing rows. A reset from zero
+applies all 30 migrations.
 
-## Security and residual risks
+The pre-migration upgrade fixture starts at `20260818140300`, creates all five legacy timing shapes,
+applies the corrected migration, and passes **5/5 conversions**:
 
-RLS is enabled on tenant-sensitive tables and tested adversarially. Offers, exact addresses, provider documents, messages, payments, and admin commands use role checks; service-role grants are column/table scoped. Storage is private, AI is server-side/schema-bound/fallback-safe, translation preserves originals, production config fails closed, and committed-secret patterns are clean.
+- both null becomes explicit flexible with both values null;
+- start-only becomes a bounded 60-minute scheduled window;
+- a valid start/end pair is preserved;
+- end-only becomes explicit flexible and clears the orphan end;
+- an invalid pair keeps its start and receives a bounded 60-minute end.
 
-Launch blockers: the unresolved upstream Metro `image-size` advisories; no physical-device/Maestro evidence; no k6 evidence; unimplemented dispute/cancellation decision commands; unimplemented legally configured deletion/export workers; no malware scanning for provider uploads; and all credentials/legal/store inputs in `docs/HUMAN_INPUTS.md`.
+## Validation evidence
+
+| Command or suite                                     | Result | Evidence                                                                                              |
+| ---------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------- |
+| `pnpm test:legacy-upgrade`                           | PASS   | **5/5** legacy timing combinations                                                                    |
+| `supabase db reset --local`                          | PASS   | Clean zero-to-head reset applied all **30 migrations** and seed                                       |
+| Generated database types                             | PASS   | Regenerated from rebuilt PostgreSQL; zero formatted drift                                             |
+| `supabase test db`                                   | PASS   | **20 pgTAP files, 445 assertions**, including RLS and concurrency                                     |
+| `supabase db lint -s public,private --fail-on error` | PASS   | No application-schema errors                                                                          |
+| Deno format, lint, check, and tests                  | PASS   | **32 tests**                                                                                          |
+| Workspace Vitest                                     | PASS   | **78 tests**: mobile 39, web 15, domain 8, config 5, i18n 5, image parser 6                           |
+| `pnpm test:integration`                              | PASS   | **2 tests**                                                                                           |
+| `pnpm test:security`                                 | PASS   | **4 tests**                                                                                           |
+| `pnpm test:local-supabase`                           | PASS   | Storage, AI, and true concurrent core idempotency scenarios                                           |
+| `pnpm test:e2e:web`                                  | PASS   | **8 passed, 2 intentionally skipped** duplicate mobile-project cases                                  |
+| `pnpm validate`                                      | PASS   | Format, lint, strict types, i18n, inventory, tests, web build, and Android bundle                     |
+| Data inventory                                       | PASS   | 76 categories and exactly one classification for each of 130 tables                                   |
+| Expo dependency check / Doctor                       | PASS   | Dependencies current; **21/21 checks**                                                                |
+| Android export                                       | PASS   | Hermes bundle, **1,555 modules**                                                                      |
+| k6 smoke                                             | PASS   | **200/200 checks**, zero failures, p95 **4.02 ms**                                                    |
+| License, vulnerability, and secret checks            | PASS   | Approved license policy; no known high-severity vulnerability or committed production secret          |
+| SBOM                                                 | PASS   | CycloneDX, 773 components; SHA-256 `b5d17a38dec3d07d1aa246456b2c5f0be3d2ea1850eccad4349779014a8067b5` |
+
+The countable repository suites contain **569 passing tests/assertions**: 445 pgTAP, 32 Deno, 78
+workspace Vitest, 2 integration, 4 security, and 8 Playwright. The 5 legacy conversion assertions,
+local-Supabase scenarios, and 200 k6 checks are reported separately.
+
+## Pre-merge correction gates
+
+| Gate                             | Status | Repository-controlled result                                                                                                                                                                                                                                                                                                                                                                             |
+| -------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PRE-MERGE-1 — atomic timing      | PASS   | Publication inserts `timing_mode` and the authoritative window before the automatic matching trigger. Scheduled first-run matching excludes unavailable providers; flexible creates no fabricated window; ASAP reuses its stored 60-minute window through match/offer/selection and returns `asap_window_expired`. Failed publication rolls back request and matching state.                             |
+| PRE-MERGE-2 — turn-scoped media  | PASS   | Each pending turn owns exact local/upload bindings. Successful turns detach active media; a following text turn is text-only. Multiple offline recordings remain distinct, active replacement preserves pending files, retries work without restart, publication retains intended request attachments, and a 15-minute ownership-token lease serializes transcription while permitting stale recovery.   |
+| PRE-MERGE-3 — per-service review | PASS   | Service rows use six reviewer-owned states. New services remain draft/submitted while the verified account and old approved offers remain valid. Matching/brief/offer/selection require the applicable approved service. Reviewer approval enables matching; removal affects only that category; returned and stored idempotent JSON matches final database state without contradictory account history. |
+| PRE-MERGE-4 — serialized intents | PASS   | Mobile Promise-all tests prove one in-flight Promise, journal, key, and result for publication, selection, completion rejection, and onboarding. Browser intents and normalized expiry survive response loss/reconstruction, rotate after completed/terminal responses, and database replay leaves one assignment/grant, idempotency record, and audit event.                                            |
+
+Focused evidence: atomic publication **16/16**, provider timing/qualification **32/32**,
+per-service onboarding **18/18**, transcription claims **10/10**, browser reconstruction **8/8**,
+mobile media/recovery **12/12**, and mobile mutation journal **8/8**.
+
+## Remaining external NOT RUN gates
+
+- Maestro and physical Android journey: **NOT RUN** because no ADB executable or Android target was
+  available. Per policy, Maestro was not attempted without a real target.
+- Physical iOS build/journey and store signing: **NOT RUN**; no Apple target/account was supplied.
+- Live payment, SMS/OTP, push, production AI/provider integrations, production migration rehearsal,
+  backup restore drill, penetration test, legal approval, and store release remain external human gates.
+- Production configuration validation remains fail-closed until the approved production values in
+  `docs/HUMAN_INPUTS.md` are supplied.
+
+Application rollback is an additive Git revert. Applied database changes require a reviewed forward
+compensation migration or backup restore; migration and Git history must not be rewritten. PR #5
+must remain draft, open, and unmerged until all external gates are approved.

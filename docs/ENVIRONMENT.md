@@ -9,6 +9,7 @@ Environments are `local`, `test`, `preview`, and `production`. Copy `.env.exampl
 | `AI_PROVIDER`, model and provider keys                    | Edge/server    | Deterministic provider local/test only                  |
 | `PAYMENT_PROVIDER`                                        | Server         | `offline` default; fake/sandbox forbidden in production |
 | `EAS_PROJECT_ID`, `EXPO_ACCESS_TOKEN`, bundle/package IDs | Mobile release | Human-owned production identifiers                      |
+| `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY`                         | Public mobile  | Android Maps key restricted to the production app       |
 | Brand/legal/support/privacy/terms values                  | Build/runtime  | Placeholders rejected in production                     |
 
 Production is fail-closed: missing values, `.invalid`/`example`/placeholder content, deterministic AI, and fake/sandbox payment adapters cause a non-zero validator exit. Rotate a leaked key immediately, revoke affected sessions/tokens, review audit logs, and follow the incident runbook.
