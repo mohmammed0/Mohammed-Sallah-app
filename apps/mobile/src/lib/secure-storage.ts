@@ -141,9 +141,7 @@ export const chunkedSecureStorage = {
     }
 
     const chunks = await Promise.all(
-      Array.from({ length: count }, (_, index) =>
-        readSecureValue(chunkKey(normalizedKey, index)),
-      ),
+      Array.from({ length: count }, (_, index) => readSecureValue(chunkKey(normalizedKey, index))),
     );
     if (chunks.some((value) => value === null)) {
       await clearNormalizedValue(normalizedKey);
@@ -167,9 +165,7 @@ export const chunkedSecureStorage = {
 
     try {
       await Promise.all(
-        chunks.map((chunk, index) =>
-          writeSecureValue(chunkKey(normalizedKey, index), chunk),
-        ),
+        chunks.map((chunk, index) => writeSecureValue(chunkKey(normalizedKey, index), chunk)),
       );
       await writeSecureValue(countKey(normalizedKey), String(chunks.length));
     } catch (error) {

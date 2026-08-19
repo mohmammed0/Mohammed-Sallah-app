@@ -57,9 +57,7 @@ describe('chunked secure storage', () => {
     expect(normalized).toMatch(SECURE_STORE_KEY_PATTERN);
     expect(`${normalized}.count`).toMatch(SECURE_STORE_KEY_PATTERN);
     expect(`${normalized}.chunk.49`).toMatch(SECURE_STORE_KEY_PATTERN);
-    expect(`${normalized}.chunk.49`.length).toBeLessThanOrEqual(
-      MAX_SECURE_STORE_KEY_LENGTH,
-    );
+    expect(`${normalized}.chunk.49`.length).toBeLessThanOrEqual(MAX_SECURE_STORE_KEY_LENGTH);
   });
 
   it('uses the original key digest to avoid sanitized-prefix collisions', () => {

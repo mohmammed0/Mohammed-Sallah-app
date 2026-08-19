@@ -14,9 +14,7 @@ const categoryKeys = {
   startup_unavailable: 'startupErrorUnknown',
 } satisfies Readonly<Record<StartupErrorCategory, TranslationKey>>;
 
-export function startupErrorTranslationKey(
-  category: StartupErrorCategory,
-): TranslationKey {
+export function startupErrorTranslationKey(category: StartupErrorCategory): TranslationKey {
   return categoryKeys[category];
 }
 
@@ -36,11 +34,7 @@ export function StartupRecoveryScreen({
         <Text accessibilityRole="header" style={styles.title}>
           {t('startupErrorTitle')}
         </Text>
-        <View
-          accessible
-          accessibilityLiveRegion="assertive"
-          accessibilityRole="alert"
-        >
+        <View accessible accessibilityLiveRegion="assertive" accessibilityRole="alert">
           <Text style={styles.error}>{t('startupErrorMessage')}</Text>
           <Text style={styles.lead}>
             {t('startupErrorCategory', {

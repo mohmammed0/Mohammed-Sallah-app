@@ -13,14 +13,8 @@ import { canEnterProductArea, productLandingRoute } from '@/features/auth/route-
 
 function LocalizedStack() {
   const { t } = useLocale();
-  const {
-    loading,
-    session,
-    context,
-    startupError,
-    refresh,
-    clearLocalSession,
-  } = useSessionContext();
+  const { loading, session, context, startupError, refresh, clearLocalSession } =
+    useSessionContext();
   const segments = useSegments();
   useEffect(() => {
     if (loading || startupError) return;

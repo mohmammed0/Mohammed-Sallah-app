@@ -14,10 +14,7 @@ import type { Session } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { parseKnownUserRoles, userRoleSchema } from '@sallah/domain';
 import { supabase } from '@/lib/supabase';
-import {
-  clearLocalAuthStorage,
-  isSecureStorageError,
-} from '@/lib/secure-storage';
+import { clearLocalAuthStorage, isSecureStorageError } from '@/lib/secure-storage';
 import { parseAuthLinkParams } from '@/features/auth/auth-link';
 import {
   LatestSerialExecutor,
@@ -123,12 +120,10 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const [context, setContext] = useState<SessionContext | null>(null);
   const [authLinkError, setAuthLinkError] = useState<string | null>(null);
   const [startupError, setStartupError] = useState<StartupErrorCategory | null>(null);
-  const [localSessionStatus, setLocalSessionStatus] =
-    useState<LocalSessionStatus>('unknown');
+  const [localSessionStatus, setLocalSessionStatus] = useState<LocalSessionStatus>('unknown');
   const mountedRef = useRef(true);
   const executorRef = useRef<LatestSerialExecutor | null>(null);
-  const executor =
-    executorRef.current ?? (executorRef.current = new LatestSerialExecutor());
+  const executor = executorRef.current ?? (executorRef.current = new LatestSerialExecutor());
 
   const applyBootstrapOutcome = useCallback(
     (outcome: SessionBootstrapOutcome<Session, SessionContext>) => {
@@ -172,8 +167,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
               error: result.error,
             };
           },
-          getSessionContext: () =>
-            (supabase.rpc as unknown as Rpc)('get_session_context'),
+          getSessionContext: () => (supabase.rpc as unknown as Rpc)('get_session_context'),
           parseContext: parseSessionContext,
           isStorageError: isSecureStorageError,
           timeoutMs: SESSION_BOOTSTRAP_TIMEOUT_MS,

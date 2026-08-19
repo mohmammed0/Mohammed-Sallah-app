@@ -22,9 +22,7 @@ describe('startup recovery screen', () => {
   it('announces a privacy-safe category and exposes Retry and local-clear actions', async () => {
     const onRetry = vi.fn();
     const onClearLocalSession = vi.fn();
-    const { StartupRecoveryScreen } = await import(
-      '../src/features/auth/startup-recovery-screen'
-    );
+    const { StartupRecoveryScreen } = await import('../src/features/auth/startup-recovery-screen');
 
     let renderer: ReturnType<typeof create> | undefined;
     await act(() => {
@@ -45,9 +43,7 @@ describe('startup recovery screen', () => {
     const buttons = renderer?.root.findAllByType('Pressable') ?? [];
     expect(buttons).toHaveLength(2);
     expect(buttons[0]?.props.accessibilityLabel).toBe('startupRetryAccessibility');
-    expect(buttons[1]?.props.accessibilityLabel).toBe(
-      'clearLocalSessionAccessibility',
-    );
+    expect(buttons[1]?.props.accessibilityLabel).toBe('clearLocalSessionAccessibility');
 
     await act(() => {
       buttons[0]?.props.onPress();
@@ -56,9 +52,7 @@ describe('startup recovery screen', () => {
     expect(onRetry).toHaveBeenCalledOnce();
     expect(onClearLocalSession).toHaveBeenCalledOnce();
 
-    const text = renderer?.root
-      .findAllByType('Text')
-      .map((node) => node.children.join(' '));
+    const text = renderer?.root.findAllByType('Text').map((node) => node.children.join(' '));
     expect(text).toContain('startupErrorCategory:startupErrorTimeout');
     expect(text?.join(' ')).not.toContain('access_token');
   });

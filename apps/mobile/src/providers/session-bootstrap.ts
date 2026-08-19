@@ -43,9 +43,7 @@ interface SessionBootstrapDependencies<SessionValue, ContextValue> {
   timeoutMs?: number;
 }
 
-export type BoundedOperationResult<Value> =
-  | { timedOut: false; value: Value }
-  | { timedOut: true };
+export type BoundedOperationResult<Value> = { timedOut: false; value: Value } | { timedOut: true };
 
 export async function runBoundedOperation<Value>(
   operation: () => Promise<Value>,
@@ -75,9 +73,7 @@ async function bootstrapWithoutTimeout<SessionValue, ContextValue>(
   } catch (error) {
     return {
       status: 'error',
-      category: dependencies.isStorageError(error)
-        ? 'storage_unavailable'
-        : 'session_unavailable',
+      category: dependencies.isStorageError(error) ? 'storage_unavailable' : 'session_unavailable',
       session: null,
       context: null,
       localSessionStatus: 'unknown',
