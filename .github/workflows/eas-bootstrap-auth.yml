@@ -213,7 +213,9 @@ jobs:
             throw new Error('EAS initialization returned unexpected or ambiguous project data');
           }
           process.stdout.write(
-            [result.status, result.projectId, result.owner, result.slug, result.dashboardUrl].join('\t'),
+            `${[result.status, result.projectId, result.owner, result.slug, result.dashboardUrl].join(
+              '\t',
+            )}\n`,
           );
           NODE
           )
