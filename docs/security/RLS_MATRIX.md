@@ -36,7 +36,7 @@ The authoritative runtime role list is exported by `@sallah/domain` and includes
 the same contract. Staff-only roles never imply customer/provider navigation. An unknown future role
 produces a controlled restricted mobile state instead of an endless initialization state.
 
-Automated evidence: 17 pgTAP files execute 397 assertions, including
+Automated evidence: 21 pgTAP files execute 492 assertions, including
 `scoped_support_authorization.test.sql`, `cross_role.test.sql`, `rls.test.sql`,
 `pii_admin_scope.test.sql`, `schema.test.sql`, and `launch_readiness_p0.test.sql`. They cover direct
 raw-table PII denial, purpose-scoped projections, assigned/unassigned/expired support,
@@ -45,3 +45,24 @@ analyst denial, operations access, competing offers, unmatched location denial, 
 authorization, message attachment ownership, and completion-proof access. Quarantine writes require
 the first object-path segment to equal `auth.uid()`; promoted clean buckets have no client read policy
 and are accessed only through short broker-issued URLs.
+
+
+## Preview security-hardening gate
+
+The exposed provider projections use invoker semantics. `provider_request_briefs` reads
+`service_requests` through its existing RLS and `private.can_read_request` participant check.
+`provider_public_profiles` reads a fixed, eleven-field projection supplied by
+`private.provider_public_profile_rows()`; the helper exposes only active, verified providers and
+does not grant clients raw-table access. The projection contains no email, phone, customer identity,
+exact address, or private-document field.
+
+Every `SECURITY DEFINER` function in `public` and `private` has inherited `PUBLIC` execution
+revoked. Anonymous execution is limited to the explicitly reviewed external-deletion intake and the
+private helper behind the safe public provider view. Authenticated user, staff, and service-worker
+RPCs are granted by exact signature. Staff RPCs retain their server-side role/permission checks;
+worker and compatibility helpers remain service-only.
+
+RLS-enabled tables with no policy are classified as internal/service-only and have no direct
+`anon` or `authenticated` table privileges. This is intentional deny-by-default behavior, not a
+missing allow policy. Public RLS predicates cache `auth.uid()` with scalar subqueries; policy
+semantics and role coverage are otherwise unchanged.

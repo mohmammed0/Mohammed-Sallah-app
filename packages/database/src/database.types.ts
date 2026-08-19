@@ -6960,15 +6960,7 @@ export type Database = {
           user_id: string | null;
           verification_status: Database['public']['Enums']['verification_status'] | null;
         };
-        Relationships: [
-          {
-            foreignKeyName: 'provider_profiles_user_id_fkey';
-            columns: ['user_id'];
-            isOneToOne: true;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
-          },
-        ];
+        Relationships: [];
       };
       provider_request_briefs: {
         Row: {
@@ -7062,30 +7054,18 @@ export type Database = {
         Args: { p_session_id: string };
         Returns: undefined;
       };
-      accept_completion:
-        | {
-            Args: {
-              p_accept: boolean;
-              p_idempotency_key: string;
-              p_job_id: string;
-              p_reason: string;
-              p_review: string;
-              p_score: number;
-            };
-            Returns: Json;
-          }
-        | {
-            Args: {
-              p_accept: boolean;
-              p_evidence_upload_ids: string[];
-              p_idempotency_key: string;
-              p_job_id: string;
-              p_reason: string;
-              p_review: string;
-              p_score: number;
-            };
-            Returns: Json;
-          };
+      accept_completion: {
+        Args: {
+          p_accept: boolean;
+          p_evidence_upload_ids: string[];
+          p_idempotency_key: string;
+          p_job_id: string;
+          p_reason: string;
+          p_review: string;
+          p_score: number;
+        };
+        Returns: Json;
+      };
       admin_marketplace_health: { Args: never; Returns: Json };
       admin_set_category: {
         Args: {
