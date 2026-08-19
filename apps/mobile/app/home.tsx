@@ -1,6 +1,7 @@
 import { Link, router } from 'expo-router';
 import { ScrollView, Text, View } from 'react-native';
 import { Button, Card, Screen, styles } from '@/components/ui';
+import { CustomerHome } from '@/features/customer/customer-home';
 import { useLocale } from '@/providers/locale-provider';
 import { useSessionContext } from '@/providers/session-provider';
 
@@ -8,17 +9,9 @@ export default function Home() {
   const { t, locale } = useLocale();
   const { context, setActiveRole } = useSessionContext();
   const role = context?.activeRole === 'provider' ? 'provider' : 'customer';
-  const providerRestricted =
-    role === 'provider' && context?.providerVerificationStatus !== 'verified';
-  const customer = [
-    ['/request/new', t('newRequest')],
-    ['/requests', t('offers')],
-    ['/jobs', t('jobs')],
-    ['/messages', t('messages')],
-    ['/notifications', t('notifications')],
-    ['/support', t('support')],
-    ['/account', t('account')],
-  ] as const;
+  if (role === 'customer') return <CustomerHome />;
+
+  const providerRestricted = context?.providerVerificationStatus !== 'verified';
   async function switchRole(nextRole: 'customer' | 'provider') {
     await setActiveRole(nextRole);
     router.replace(
@@ -42,37 +35,32 @@ export default function Home() {
   return (
     <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
       <Screen>
-        <Text style={styles.title}>
-          {role === 'customer' ? t('customerHomeTitle') : t('providerHomeTitle')}
-        </Text>
+        <Text style={styles.title}>{t('providerHomeTitle')}</Text>
         <View style={styles.row}>
           <Button
             disabled={!context?.roles.includes('customer')}
             label={t('customer')}
-            kind={role === 'customer' ? 'primary' : 'secondary'}
+            kind="secondary"
             onPress={() => void switchRole('customer')}
           />
           <Button
             disabled={!context?.roles.includes('provider')}
             label={t('provider')}
-            kind={role === 'provider' ? 'primary' : 'secondary'}
             onPress={() => void switchRole('provider')}
           />
         </View>
         <Card>
-          <Text style={styles.badge}>{role === 'customer' ? t('customer') : t('provider')}</Text>
-          <Text style={styles.lead}>
-            {role === 'customer' ? t('customerPrivacyNotice') : t('providerPrivacyNotice')}
-          </Text>
+          <Text style={styles.badge}>{t('provider')}</Text>
+          <Text style={styles.lead}>{t('providerPrivacyNotice')}</Text>
         </Card>
-        {providerRestricted && (
+        {providerRestricted ? (
           <Card>
             <Text accessibilityLiveRegion="polite" style={styles.error}>
               {t('providerRestrictedUntilVerified')}
             </Text>
           </Card>
-        )}
-        {(role === 'customer' ? customer : provider)
+        ) : null}
+        {provider
           .filter(
             ([href]) =>
               !providerRestricted ||

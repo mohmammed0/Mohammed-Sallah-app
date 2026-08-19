@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-17",
+  "generatedAt": "2026-08-19",
   "policy": "Exact versions from pnpm lock; ship permissive dependencies. Package-scoped build/data exceptions are documented.",
   "adopted": [
     {
@@ -71,8 +71,24 @@
       "package": "react-native-maps",
       "version": "1.27.2",
       "license": "MIT",
-      "use": "authorized foreground job tracking map and markers",
+      "use": "foreground customer location picker and authorized job tracking maps",
       "security": "GitHub advisories"
+    },
+    {
+      "project": "lucide-icons/lucide",
+      "package": "lucide-react-native",
+      "version": "1.18.0",
+      "license": "ISC",
+      "use": "cross-platform customer interface iconography",
+      "security": "GitHub security policy/advisories"
+    },
+    {
+      "project": "software-mansion/react-native-svg",
+      "package": "react-native-svg",
+      "version": "15.15.4",
+      "license": "MIT",
+      "use": "Expo-compatible SVG runtime for Lucide icons",
+      "security": "GitHub security policy/advisories"
     },
     {
       "project": "expo/expo",
@@ -171,20 +187,29 @@
   ],
   "excludedOptionalDependencies": [
     {
-      "packages": ["sharp", "@img/sharp-*"],
+      "packages": [
+        "sharp",
+        "@img/sharp-*"
+      ],
       "license": "Apache-2.0 AND LGPL-3.0-or-later",
       "reason": "Next image optimization is disabled; pnpm skips these optional packages so libvips is not installed or shipped"
     }
   ],
   "reviewedExceptions": [
     {
-      "packages": ["lightningcss", "platform binaries"],
+      "packages": [
+        "lightningcss",
+        "platform binaries"
+      ],
       "version": "1.33.0",
       "license": "MPL-2.0",
       "reason": "Next build tool; unmodified upstream files, not application source"
     },
     {
-      "packages": ["caniuse-lite", "spdx-exceptions"],
+      "packages": [
+        "caniuse-lite",
+        "spdx-exceptions"
+      ],
       "license": "CC-BY-4.0 / CC-BY-3.0",
       "reason": "build/SPDX data; attribution preserved"
     }
