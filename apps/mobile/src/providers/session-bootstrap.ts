@@ -35,9 +35,9 @@ export type SessionBootstrapOutcome<SessionValue, ContextValue> =
 interface SessionBootstrapDependencies<SessionValue, ContextValue> {
   getSession: () => Promise<{
     data: { session: SessionValue | null };
-    error: unknown | null;
+    error: unknown;
   }>;
-  getSessionContext: () => Promise<{ data: unknown; error: unknown | null }>;
+  getSessionContext: () => Promise<{ data: unknown; error: unknown }>;
   parseContext: (value: unknown) => ContextValue;
   isStorageError: (error: unknown) => boolean;
   timeoutMs?: number;
@@ -171,7 +171,7 @@ export type StartupSurface = 'loading' | 'recovery' | 'public' | 'authenticated'
 export function startupSurfaceFor(state: {
   loading: boolean;
   startupError: StartupErrorCategory | null;
-  session: unknown | null;
+  session: unknown;
 }): StartupSurface {
   if (state.loading) return 'loading';
   if (state.startupError) return 'recovery';
