@@ -8,14 +8,16 @@ import { useLocale } from '@/providers/locale-provider';
 import { SessionProvider, useSessionContext } from '@/providers/session-provider';
 import { Screen, styles } from '@/components/ui';
 import { ConnectivityBanner } from '@/components/connectivity-banner';
+import { StartupRecoveryScreen } from '@/features/auth/startup-recovery-screen';
 import { canEnterProductArea, productLandingRoute } from '@/features/auth/route-policy';
 
 function LocalizedStack() {
   const { t } = useLocale();
-  const { loading, session, context } = useSessionContext();
+  const { loading, session, context, startupError, refresh, clearLocalSession } =
+    useSessionContext();
   const segments = useSegments();
   useEffect(() => {
-    if (loading) return;
+    if (loading || startupError) return;
     const first = segments[0];
     const publicRoute =
       first === undefined ||
@@ -30,14 +32,32 @@ function LocalizedStack() {
     if (session && context && !context.allowed && first !== 'account') {
       router.replace('/account');
     }
-  }, [loading, session, context, segments]);
+  }, [loading, session, context, startupError, segments]);
   if (loading) {
     return (
       <Screen>
-        <Text accessibilityLiveRegion="polite" style={styles.lead}>
+        <Text
+          accessibilityLabel={t('loading')}
+          accessibilityLiveRegion="polite"
+          accessibilityRole="progressbar"
+          style={styles.lead}
+        >
           {t('loading')}
         </Text>
       </Screen>
+    );
+  }
+  if (startupError) {
+    return (
+      <StartupRecoveryScreen
+        category={startupError}
+        onClearLocalSession={() => {
+          void clearLocalSession();
+        }}
+        onRetry={() => {
+          void refresh();
+        }}
+      />
     );
   }
   const customerAllowed = Boolean(session) && canEnterProductArea(context, 'customer');
