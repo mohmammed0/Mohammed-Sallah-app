@@ -258,8 +258,8 @@ select is(
   'anon cannot read a provider pending verification'
 );
 select throws_like(
-  $select count(*) from public.provider_profiles
-    where user_id='91000000-0000-4000-8000-000000000001'$,
+  $sql$select count(*) from public.provider_profiles
+    where user_id='91000000-0000-4000-8000-000000000001'$sql$,
   '%permission denied for table provider_profiles%',
   'anon cannot bypass the projection to read a raw provider profile'
 );
