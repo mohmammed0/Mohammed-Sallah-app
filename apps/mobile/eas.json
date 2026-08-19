@@ -9,10 +9,16 @@
       "env": { "EXPO_PUBLIC_APP_ENV": "local" }
     },
     "preview": {
+      "environment": "preview",
       "distribution": "internal",
       "channel": "preview",
       "autoIncrement": true,
-      "env": { "EXPO_PUBLIC_APP_ENV": "preview" }
+      "android": { "buildType": "apk" },
+      "env": {
+        "EXPO_PUBLIC_APP_ENV": "preview",
+        "SALLAH_ANDROID_PACKAGE": "com.mohmammed0.sallah.preview",
+        "SALLAH_IOS_BUNDLE_ID": "com.mohmammed0.sallah.preview"
+      }
     },
     "production": {
       "channel": "production",

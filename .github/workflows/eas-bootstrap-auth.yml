@@ -258,9 +258,18 @@ jobs:
           if (
             appConfig?.extra?.eas?.projectId !== init.projectId ||
             appConfig?.android?.package !== 'com.mohmammed0.sallah.preview' ||
+            buildProfile?.environment !== 'preview' ||
             buildProfile?.distribution !== 'internal' ||
             buildProfile?.channel !== 'preview' ||
-            buildProfile?.env?.EXPO_PUBLIC_APP_ENV !== 'preview'
+            buildProfile?.autoIncrement !== true ||
+            buildProfile?.android?.buildType !== 'apk' ||
+            buildProfile?.env?.EXPO_PUBLIC_APP_ENV !== 'preview' ||
+            appConfig?.ios?.bundleIdentifier !== 'com.mohmammed0.sallah.preview' ||
+            !(
+              appConfig?.runtimeVersion?.policy === 'fingerprint' ||
+              (typeof appConfig?.runtimeVersion === 'string' &&
+                appConfig.runtimeVersion.length > 0)
+            )
           ) {
             throw new Error('Resolved preview EAS configuration did not match the safe bootstrap inputs');
           }
@@ -292,9 +301,15 @@ jobs:
             previewResolution: {
               androidPackage: appConfig.android.package,
               projectId: appConfig.extra.eas.projectId,
+              iosBundleIdentifier: appConfig.ios.bundleIdentifier,
+              environment: buildProfile.environment,
               distribution: buildProfile.distribution,
               channel: buildProfile.channel,
+              autoIncrement: buildProfile.autoIncrement,
+              androidBuildType: buildProfile.android.buildType,
               appEnvironment: buildProfile.env.EXPO_PUBLIC_APP_ENV,
+              runtimeVersion:
+                appConfig.runtimeVersion?.policy ?? appConfig.runtimeVersion,
             },
             safety: {
               commandAllowlist: ['whoami', 'init', 'account:usage', 'config'],
