@@ -8,7 +8,14 @@ vi.mock('react-native', () => ({
   View: 'View',
 }));
 
-vi.mock('@/providers/locale-provider', () => ({
+vi.mock('../src/components/ui', () => ({
+  Button: 'Button',
+  Card: 'Card',
+  Screen: 'Screen',
+  styles: { error: {}, lead: {}, title: {} },
+}));
+
+vi.mock('../src/providers/locale-provider', () => ({
   useLocale: () => ({
     t: (key: string, variables?: Readonly<Record<string, string | number>>) =>
       variables?.category ? `${key}:${variables.category}` : key,
@@ -40,7 +47,7 @@ describe('startup recovery screen', () => {
     );
     expect(liveRegions).toHaveLength(1);
 
-    const buttons = renderer?.root.findAllByType('Pressable') ?? [];
+    const buttons = renderer?.root.findAllByType('Button') ?? [];
     expect(buttons).toHaveLength(2);
     expect(buttons[0]?.props.accessibilityLabel).toBe('startupRetryAccessibility');
     expect(buttons[1]?.props.accessibilityLabel).toBe('clearLocalSessionAccessibility');
