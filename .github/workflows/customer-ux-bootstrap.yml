@@ -1,6 +1,9 @@
 name: Customer UX cloud bootstrap
 
 on:
+  push:
+    branches:
+      - codex/customer-experience-redesign-v1
   workflow_dispatch:
 
 permissions:
