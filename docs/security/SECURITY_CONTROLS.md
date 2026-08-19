@@ -18,8 +18,8 @@ Production actions still required: operator MFA/SSO, WAF/rate-limit tuning, cent
 
 - Exposed views run as the caller. Provider request briefs keep participant RLS; the public provider
   directory uses a narrow security-definer projection without raw profile grants.
-- Function defaults grant no execution to `PUBLIC`, `anon`, `authenticated`, or
-  `service_role`. Every supported RPC is granted by exact signature in a reviewed migration.
+- Application-migration function defaults grant no execution to `PUBLIC`, `anon`, `authenticated`,
+  or `service_role`; Supabase-owned platform defaults remain provider-managed. Every supported RPC is granted by exact signature in a reviewed migration.
 - Legacy and internal compatibility overloads are removed from or denied to the client API.
 - External account-deletion intake returns `void`, never checks account existence, validates a
   bounded email input, hashes the email, redacts email-shaped text from the optional reason, and

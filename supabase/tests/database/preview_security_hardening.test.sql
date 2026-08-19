@@ -150,8 +150,10 @@ select is(
   (select count(*)
    from pg_default_acl d
    join pg_namespace n on n.oid=d.defaclnamespace
+   join pg_roles owner_role on owner_role.oid=d.defaclrole
    cross join lateral aclexplode(d.defaclacl) acl
    where d.defaclobjtype='f' and n.nspname in ('public','private')
+     and owner_role.rolname='postgres'
      and (
        acl.grantee=0
        or acl.grantee in (
@@ -162,7 +164,7 @@ select is(
      )
      and acl.privilege_type='EXECUTE'),
   0::bigint,
-  'future public/private functions receive no implicit client or service execute grant'
+  'future application functions receive no implicit client or service execute grant'
 );
 select is(
   (select count(*)

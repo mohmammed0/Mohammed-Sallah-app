@@ -3,8 +3,6 @@ begin;
 -- Safe defaults: future functions are private until a migration grants EXECUTE explicitly.
 alter default privileges for role postgres in schema public revoke execute on functions from public, anon, authenticated, service_role;
 alter default privileges for role postgres in schema private revoke execute on functions from public, anon, authenticated, service_role;
-alter default privileges for role supabase_admin in schema public revoke execute on functions from public, anon, authenticated, service_role;
-alter default privileges for role supabase_admin in schema private revoke execute on functions from public, anon, authenticated, service_role;
 
 -- Remove mutable search paths from trigger functions; qualify all referenced relations.
 create or replace function private.set_updated_at()
