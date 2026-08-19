@@ -208,7 +208,9 @@ insert into public.provider_profiles(
   user_id,kind,business_name,bio,verification_status,accepting_requests
 ) values
  ('91000000-0000-4000-8000-000000000001','individual','Verified Fixture','Safe public bio','verified',true),
- ('91000000-0000-4000-8000-000000000002','individual','Pending Fixture','Must remain private','submitted',true);
+ ('91000000-0000-4000-8000-000000000002','individual','Pending Fixture','Must remain private','submitted',true),
+ ('91000000-0000-4000-8000-000000000004','individual','Matched Fixture','Synthetic','submitted',true),
+ ('91000000-0000-4000-8000-000000000005','individual','Unmatched Fixture','Synthetic','submitted',true);
 
 insert into public.service_requests(
   id,customer_id,category_id,city_id,title,structured_description,original_text,
