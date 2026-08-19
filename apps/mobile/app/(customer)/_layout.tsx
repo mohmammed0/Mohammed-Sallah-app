@@ -4,18 +4,25 @@ import { customerTokens as tokens } from '@/design-system/tokens';
 import { useLocale } from '@/providers/locale-provider';
 
 export default function CustomerTabs() {
-  const { t } = useLocale();
+  const { dir, t } = useLocale();
   const options = {
     headerShown: false,
     tabBarHideOnKeyboard: true,
     tabBarActiveTintColor: tokens.colors.primaryStrong,
     tabBarInactiveTintColor: tokens.colors.textMuted,
-    tabBarLabelStyle: { fontSize: 12, fontWeight: '800' as const, paddingBottom: 4 },
+    tabBarLabelStyle: {
+      fontSize: 12,
+      fontWeight: '800' as const,
+      paddingBottom: 4,
+      writingDirection: dir,
+      textAlign: dir === 'rtl' ? ('right' as const) : ('left' as const),
+    },
     tabBarStyle: {
       height: 72,
       paddingTop: 8,
       backgroundColor: tokens.colors.surface,
       borderTopColor: tokens.colors.border,
+      direction: dir,
     },
   };
   return (

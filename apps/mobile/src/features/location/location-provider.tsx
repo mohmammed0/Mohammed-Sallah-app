@@ -10,14 +10,19 @@ import {
 } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
-import { listMySavedAddresses } from './location-service';
+import {
+  archiveMyAddress,
+  listMySavedAddresses,
+  makeMyAddressDefault,
+  saveMyAddress,
+} from './location-service';
 import {
   customerLocationStorageKey,
   resolveActiveSavedAddress,
   toActiveServiceLocation,
   type ActiveServiceLocation,
 } from './location-state';
-import type { SavedAddress } from './location-model';
+import type { SavedAddress, SavedAddressInput } from './location-model';
 import { useSessionContext } from '@/providers/session-provider';
 
 export type { ActiveServiceLocation } from './location-state';
@@ -28,9 +33,14 @@ interface CustomerLocationState {
   addresses: SavedAddress[];
   activeLocation: ActiveServiceLocation | null;
   loading: boolean;
+  loaded: boolean;
   error: boolean;
   selectSavedAddress: (addressId: string) => Promise<void>;
   selectTransientLocation: (location: ActiveServiceLocation) => void;
+  clearTransientLocation: () => void;
+  saveAddress: (input: SavedAddressInput) => Promise<string>;
+  archiveAddress: (addressId: string) => Promise<void>;
+  makeDefault: (addressId: string) => Promise<void>;
   refresh: () => Promise<void>;
 }
 
@@ -93,19 +103,57 @@ export function CustomerLocationProvider({ children }: PropsWithChildren) {
   const selectTransientLocation = useCallback((location: ActiveServiceLocation) => {
     setTransientLocation({ ...location, savedAddressId: null });
   }, []);
+  const clearTransientLocation = useCallback(() => setTransientLocation(null), []);
 
   const refresh = useCallback(async () => {
     await query.refetch();
   }, [query]);
+
+  const saveAddress = useCallback(
+    async (input: SavedAddressInput) => {
+      const addressId = await saveMyAddress(input);
+      await query.refetch();
+      await selectSavedAddress(addressId);
+      return addressId;
+    },
+    [query, selectSavedAddress],
+  );
+
+  const archiveAddress = useCallback(
+    async (addressId: string) => {
+      const validId = persistedAddressIdSchema.parse(addressId);
+      await archiveMyAddress(validId);
+      if (preferredAddressId === validId && userId) {
+        await AsyncStorage.removeItem(customerLocationStorageKey(userId));
+        setPreferredAddressId(null);
+      }
+      await query.refetch();
+    },
+    [preferredAddressId, query, userId],
+  );
+
+  const makeDefault = useCallback(
+    async (addressId: string) => {
+      await makeMyAddressDefault(addressId);
+      await query.refetch();
+      await selectSavedAddress(addressId);
+    },
+    [query, selectSavedAddress],
+  );
 
   const value = useMemo<CustomerLocationState>(
     () => ({
       addresses: query.data ?? [],
       activeLocation,
       loading: storageLoading || (customerEnabled && query.isPending),
+      loaded: !storageLoading && (!customerEnabled || !query.isPending),
       error: query.isError,
       selectSavedAddress,
       selectTransientLocation,
+      clearTransientLocation,
+      saveAddress,
+      archiveAddress,
+      makeDefault,
       refresh,
     }),
     [
@@ -117,6 +165,10 @@ export function CustomerLocationProvider({ children }: PropsWithChildren) {
       customerEnabled,
       selectSavedAddress,
       selectTransientLocation,
+      clearTransientLocation,
+      saveAddress,
+      archiveAddress,
+      makeDefault,
       refresh,
     ],
   );

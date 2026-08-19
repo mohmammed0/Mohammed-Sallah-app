@@ -41,6 +41,9 @@ const conversationMessageSchema = z.object({
   authoritative: z.boolean().optional(),
   temporary: z.boolean().optional(),
   mediaUploadIds: z.array(z.uuid()).optional(),
+  delivery: z.enum(['pending', 'retryable', 'offline', 'sent']).optional(),
+  inputKind: z.enum(['text', 'voice', 'image']).optional(),
+  transcriptStatus: z.enum(['pending', 'retryable', 'completed']).optional(),
 });
 
 export const aiIntakeSnapshotSchema = z.object({
@@ -84,6 +87,24 @@ export const aiIntakeSnapshotSchema = z.object({
     activeImageMediaId: z.string().min(8).max(128).nullable().default(null),
     activeVoiceMediaId: z.string().min(8).max(128).nullable().default(null),
     requestMediaUploadIds: z.array(z.uuid()).max(8).default([]),
+    activeLocation: z
+      .object({
+        savedAddressId: z.uuid().nullable(),
+        label: z.string().max(80),
+        formattedAddress: z.string().max(500),
+        building: z.string().max(80).nullable(),
+        unit: z.string().max(80).nullable(),
+        accessNotes: z.string().max(500).nullable(),
+        cityCode: z.string().min(2).max(80),
+        cityNameAr: z.string(),
+        cityNameEn: z.string(),
+        coordinates: z.object({
+          latitude: z.number().finite().min(-90).max(90),
+          longitude: z.number().finite().min(-180).max(180),
+        }),
+      })
+      .nullable()
+      .optional(),
   }),
 });
 export type AiIntakeSnapshot = z.infer<typeof aiIntakeSnapshotSchema>;
@@ -183,13 +204,17 @@ export function reconcileAuthoritativeTurn(
       text: turn.text,
       clientMessageId: turn.clientMessageId,
       authoritative: true,
+      delivery: 'sent',
       mediaUploadIds: turn.mediaUploadIds,
+      inputKind: turn.inputKind,
+      transcriptStatus: turn.inputKind === 'voice' ? 'completed' : undefined,
     },
     {
       role: 'assistant',
       text: assistantText,
       clientMessageId: turn.clientMessageId,
       authoritative: true,
+      delivery: 'sent',
     },
   ];
 }
@@ -199,17 +224,25 @@ export function appendTemporaryFallback(
   turn: PendingCustomerTurn,
   assistantText: string,
 ): ConversationMessage[] {
-  if (conversation.some((message) => message.clientMessageId === turn.clientMessageId)) {
-    return [...conversation];
-  }
+  const retained = conversation.filter(
+    (message) => message.clientMessageId !== turn.clientMessageId,
+  );
   return [
-    ...conversation,
+    ...retained,
     {
       role: 'user',
       text: turn.text,
       clientMessageId: turn.clientMessageId,
       authoritative: false,
+      delivery: 'offline',
       mediaUploadIds: turn.mediaUploadIds,
+      inputKind: turn.inputKind,
+      transcriptStatus:
+        turn.inputKind === 'voice'
+          ? turn.transcriptionStatus === 'retryable'
+            ? 'retryable'
+            : 'pending'
+          : undefined,
     },
     {
       role: 'assistant',
@@ -217,6 +250,7 @@ export function appendTemporaryFallback(
       clientMessageId: turn.clientMessageId,
       authoritative: false,
       temporary: true,
+      delivery: 'offline',
     },
   ];
 }

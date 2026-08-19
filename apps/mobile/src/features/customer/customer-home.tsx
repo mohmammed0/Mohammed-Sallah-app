@@ -9,13 +9,13 @@ import {
   CustomerScreen,
   EmptyState,
   Field,
-  IconButton,
   LoadingBlock,
   Notice,
   SectionHeader,
   Surface,
   customerStyles,
 } from '@/design-system/primitives';
+import { LocationHeader } from '@/design-system/customer-components';
 import { AppIcon, categoryIconName } from '@/design-system/icon';
 import { customerTokens as tokens } from '@/design-system/tokens';
 import { useCustomerLocation } from '@/features/location/location-provider';
@@ -51,7 +51,7 @@ const activeStatuses = new Set([
 ]);
 
 export function CustomerHome() {
-  const { locale, t } = useLocale();
+  const { dir, locale, t } = useLocale();
   const { activeLocation: defaultAddress } = useCustomerLocation();
   const [search, setSearch] = useState('');
   const catalog = useQuery({
@@ -106,36 +106,15 @@ export function CustomerHome() {
     requests.data?.filter((request) => !activeStatuses.has(request.status)).slice(0, 3) ?? [];
   return (
     <CustomerScreen testID="customer-home">
-      <View style={styles.topbar}>
-        <Pressable
-          accessibilityLabel={t('changeLocation')}
-          accessibilityRole="button"
-          onPress={() => router.push('/locations')}
-          style={styles.locationButton}
-        >
-          <View style={styles.locationIcon}>
-            <AppIcon color={tokens.colors.primaryStrong} name="location" size={20} />
-          </View>
-          <View style={styles.locationCopy}>
-            <Text style={customerStyles.caption}>{t('currentLocation')}</Text>
-            <Text numberOfLines={1} style={styles.locationValue}>
-              {defaultAddress?.label ?? t('locationNotSelected')}
-            </Text>
-            {defaultAddress?.formattedAddress ? (
-              <Text numberOfLines={1} style={customerStyles.caption}>
-                {defaultAddress.formattedAddress}
-              </Text>
-            ) : null}
-          </View>
-          <AppIcon color={tokens.colors.textMuted} name="chevron-forward" size={18} />
-        </Pressable>
-        <IconButton
-          {...(notifications.data === undefined ? {} : { badge: notifications.data })}
-          icon="bell"
-          label={t('notificationAccessibility')}
-          onPress={() => router.push('/notifications')}
-        />
-      </View>
+      <LocationHeader
+        address={defaultAddress?.formattedAddress ?? t('locationNotSelected')}
+        changeLabel={t('changeLocation')}
+        label={defaultAddress?.label ?? t('currentLocation')}
+        notificationLabel={t('notificationAccessibility')}
+        onNotifications={() => router.push('/notifications')}
+        onPress={() => router.push('/locations')}
+        {...(notifications.data === undefined ? {} : { unreadCount: notifications.data })}
+      />
 
       <View style={styles.hero}>
         <View style={styles.heroIcon}>
@@ -169,7 +148,7 @@ export function CustomerHome() {
             {t('catalogLoadFailed')}
           </Notice>
         ) : null}
-        <View style={styles.categoryGrid}>
+        <View style={[styles.categoryGrid, dir === 'rtl' && styles.rowReverse]}>
           {filteredCategories.map((category) => {
             const translation = category.service_category_translations[0];
             return (
@@ -205,7 +184,7 @@ export function CustomerHome() {
       </View>
 
       <Surface tone="muted">
-        <View style={customerStyles.row}>
+        <View style={[customerStyles.row, dir === 'rtl' && styles.rowReverse]}>
           <View style={styles.aiIcon}>
             <AppIcon color={tokens.colors.primaryStrong} name="sparkles" size={24} />
           </View>
@@ -240,7 +219,7 @@ export function CustomerHome() {
             style={({ pressed }) => pressed && styles.pressed}
           >
             <Surface>
-              <View style={customerStyles.between}>
+              <View style={[customerStyles.between, dir === 'rtl' && styles.rowReverse]}>
                 <Text style={styles.requestTitle}>{activeRequest.title}</Text>
                 <Text style={styles.statusPill}>
                   {formatStatusLabel(activeRequest.status, locale)}
@@ -266,7 +245,7 @@ export function CustomerHome() {
 
       {receivingOffers.length > 0 ? (
         <Surface tone="accent">
-          <View style={customerStyles.between}>
+          <View style={[customerStyles.between, dir === 'rtl' && styles.rowReverse]}>
             <View style={styles.flex}>
               <Text style={customerStyles.section}>{t('offersWaiting')}</Text>
               <Text style={customerStyles.bodyMuted}>
@@ -290,7 +269,7 @@ export function CustomerHome() {
         {recentRequests.length ? (
           recentRequests.map((request) => (
             <Surface key={request.id}>
-              <View style={customerStyles.between}>
+              <View style={[customerStyles.between, dir === 'rtl' && styles.rowReverse]}>
                 <Text numberOfLines={1} style={styles.requestTitle}>
                   {request.title}
                 </Text>
@@ -307,7 +286,7 @@ export function CustomerHome() {
 
       <View style={styles.section}>
         <SectionHeader title={t('recommendedServices')} />
-        <View style={customerStyles.wrap}>
+        <View style={[customerStyles.wrap, dir === 'rtl' && styles.rowReverse]}>
           {(catalog.data ?? []).slice(0, 4).map((category) => (
             <Pressable
               key={category.id}
@@ -315,7 +294,7 @@ export function CustomerHome() {
               onPress={() =>
                 router.push({ pathname: '/request/new', params: { category: category.slug } })
               }
-              style={styles.recommendation}
+              style={[styles.recommendation, dir === 'rtl' && styles.rowReverse]}
             >
               <AppIcon
                 color={tokens.colors.primaryStrong}
@@ -331,7 +310,7 @@ export function CustomerHome() {
       </View>
 
       <Surface tone="muted">
-        <View style={customerStyles.row}>
+        <View style={[customerStyles.row, dir === 'rtl' && styles.rowReverse]}>
           <AppIcon color={tokens.colors.primaryStrong} name="shield" size={24} />
           <View style={styles.flex}>
             <Text style={customerStyles.section}>{t('safetyAndSupport')}</Text>
@@ -349,6 +328,7 @@ export function CustomerHome() {
 }
 
 const styles = StyleSheet.create({
+  rowReverse: { flexDirection: 'row-reverse' },
   topbar: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm },
   locationButton: {
     flex: 1,
@@ -366,7 +346,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   locationCopy: { flex: 1 },
-  locationValue: { ...tokens.type.label, color: tokens.colors.ink, textAlign: 'left' },
+  locationValue: { ...tokens.type.label, color: tokens.colors.ink, textAlign: 'auto' },
   hero: {
     borderRadius: tokens.radius.xl,
     backgroundColor: tokens.colors.primarySoft,
@@ -403,7 +383,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: tokens.colors.primarySoft,
   },
-  categoryName: { ...tokens.type.label, color: tokens.colors.ink, textAlign: 'left' },
+  categoryName: { ...tokens.type.label, color: tokens.colors.ink, textAlign: 'auto' },
   aiIcon: {
     width: 48,
     height: 48,
@@ -413,7 +393,7 @@ const styles = StyleSheet.create({
     backgroundColor: tokens.colors.surface,
   },
   flex: { flex: 1, gap: 3 },
-  requestTitle: { flex: 1, ...tokens.type.label, color: tokens.colors.ink, textAlign: 'left' },
+  requestTitle: { flex: 1, ...tokens.type.label, color: tokens.colors.ink, textAlign: 'auto' },
   statusPill: {
     ...tokens.type.caption,
     color: tokens.colors.primaryStrong,

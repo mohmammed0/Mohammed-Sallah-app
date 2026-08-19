@@ -22,14 +22,14 @@ select provider_id,c.id,state.review_status from (values('22222222-2222-4222-822
 cross join lateral(select id from public.service_categories where slug='general-handyman') c
 cross join lateral(select 'approved'::public.provider_service_review_status review_status) state;
 insert into public.provider_service_areas(provider_id,city_id,center,radius_m)
-select provider_id,c.id,st_setsrid(st_makepoint(0,0),4326)::geography,50000
+select provider_id,c.id,st_setsrid(st_makepoint(46.6753,24.7136),4326)::geography,50000
 from (values('22222222-2222-4222-8222-222222222222'::uuid),('33333333-3333-4333-8333-333333333333'::uuid)) p(provider_id)
 cross join lateral(select id from public.cities where code='riyadh') c;
 
 insert into public.addresses(id,user_id,city_id,label,formatted_address,location)
-select 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','11111111-1111-4111-8111-111111111111',id,'Fixture','Synthetic test fixture with no real address',st_setsrid(st_makepoint(0,0),4326)::geography from public.cities where code='riyadh';
+select 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','11111111-1111-4111-8111-111111111111',id,'Fixture','Synthetic test fixture with no real address',st_setsrid(st_makepoint(46.6753,24.7136),4326)::geography from public.cities where code='riyadh';
 insert into public.service_requests(id,customer_id,category_id,city_id,title,structured_description,original_text,approximate_location,exact_address_id,status,published_at,customer_approved_at)
-select 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','11111111-1111-4111-8111-111111111111',cat.id,city.id,'Test request','Test request structured description','Test request original description',st_setsrid(st_makepoint(0,0),4326)::geography,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','draft',now(),now()
+select 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','11111111-1111-4111-8111-111111111111',cat.id,city.id,'Test request','Test request structured description','Test request original description',st_setsrid(st_makepoint(46.6753,24.7136),4326)::geography,'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','draft',now(),now()
 from public.service_categories cat cross join public.cities city where cat.slug='general-handyman' and city.code='riyadh';
 insert into public.matching_runs(id,request_id,configuration_version,weights,status) values('cccccccc-cccc-4ccc-8ccc-cccccccccccc','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','test','{}','completed');
 insert into public.request_provider_matches(request_id,provider_id,matching_run_id,score,status,expires_at) values

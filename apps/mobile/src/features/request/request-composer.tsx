@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Alert, Image, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
-import MapView, { Marker, type MapPressEvent } from 'react-native-maps';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
-import * as Location from 'expo-location';
 import { useNetworkState } from 'expo-network';
 import {
   AudioModule,
@@ -22,13 +20,14 @@ import {
   LoadingBlock,
   Notice,
   Pill,
-  SectionHeader,
   StepHeader,
   Surface,
   customerStyles,
 } from '@/design-system/primitives';
 import { AppIcon, categoryIconName } from '@/design-system/icon';
 import { customerTokens as tokens } from '@/design-system/tokens';
+import { ChatComposer, MediaPreview, QuickReplyChip } from '@/design-system/customer-components';
+import { logicalChevron } from '@/design-system/rtl';
 import { supabase } from '@/lib/supabase';
 import { secureUpload, type CleanUpload } from '@/lib/secure-upload';
 import { useLocale } from '@/providers/locale-provider';
@@ -36,6 +35,8 @@ import {
   canPublishRequest,
   categorySelectionSource as resolveCategorySelectionSource,
   conversationOriginalText,
+  markConversationMessageRetryable,
+  upsertPendingCustomerMessage,
   type ConversationMessage,
 } from './conversation-state';
 import { ConversationTimeline } from './conversation-timeline';
@@ -67,13 +68,9 @@ import {
   bindingsForActiveTurn,
   collectRequestMediaUploadIds,
 } from './turn-media';
-import {
-  addressDisplayName,
-  sanitizeReverseGeocode,
-  type Coordinates,
-  type SavedAddress,
-} from '@/features/location/location-model';
-import { listMySavedAddresses, saveMyAddress } from '@/features/location/location-service';
+import { useCustomerLocation } from '@/features/location/location-provider';
+import { shouldOfferTransientSave } from '@/features/location/location-editor-state';
+import { resolveServiceLocation } from '@/features/location/location-service';
 import {
   buildRiyadhScheduleWindow,
   isRequestReadyForReview,
@@ -98,7 +95,6 @@ const subcategorySchema = z.object({
     z.object({ name: z.string(), description: z.string() }),
   ),
 });
-const citySchema = z.object({ code: z.string(), name_ar: z.string(), name_en: z.string() });
 const functionResultSchema = z.object({ data: z.unknown(), error: z.unknown().nullable() });
 const restoredSessionSchema = z.object({
   session: z.object({ id: z.uuid() }).nullable(),
@@ -111,6 +107,7 @@ const restoredSessionSchema = z.object({
       clientMessageId: z.string().nullable(),
       inReplyToMessageId: z.uuid().nullable(),
       mediaUploadIds: z.array(z.uuid()),
+      inputKind: z.enum(['text', 'voice', 'image', 'system']),
     }),
   ),
   latestDiagnostic: z.object({ output: z.unknown() }).nullable(),
@@ -118,7 +115,17 @@ const restoredSessionSchema = z.object({
 
 export function RequestComposer() {
   const { category: initialCategory } = useLocalSearchParams<{ category?: string }>();
-  const { locale, t } = useLocale();
+  const { dir, locale, t } = useLocale();
+  const customerLocation = useCustomerLocation();
+  const activeLocation = customerLocation.activeLocation;
+  const coordinates = activeLocation?.coordinates ?? null;
+  const selectedAddressId = activeLocation?.savedAddressId ?? null;
+  const formattedAddress = activeLocation?.formattedAddress ?? '';
+  const addressLabel = activeLocation?.label ?? '';
+  const building = activeLocation?.building ?? '';
+  const unit = activeLocation?.unit ?? '';
+  const accessNotes = activeLocation?.accessNotes ?? '';
+  const cityCode = activeLocation?.cityCode ?? '';
   const networkState = useNetworkState();
   const online = isNetworkOnline(networkState);
   const [description, setDescription] = useState('');
@@ -130,7 +137,6 @@ export function RequestComposer() {
   const [image, setImage] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [imageUpload, setImageUpload] = useState<CleanUpload | null>(null);
   const [voiceUpload, setVoiceUpload] = useState<CleanUpload | null>(null);
-  const [coordinates, setCoordinates] = useState<Coordinates | null>(null);
   const [suggestedCategorySlug, setSuggestedCategorySlug] = useState('');
   const [selectedCategorySlug, setSelectedCategorySlug] = useState('');
   const [selectedSubcategorySlug, setSelectedSubcategorySlug] = useState('');
@@ -138,24 +144,15 @@ export function RequestComposer() {
   const [categorySelectionSource, setCategorySelectionSource] = useState<
     'ai_suggestion' | 'customer_correction' | 'manual' | null
   >(null);
-  const [cityCode, setCityCode] = useState('');
   const [urgency, setUrgency] = useState<'flexible' | 'normal' | 'urgent' | 'safety_critical'>(
     'normal',
   );
   const [schedule, setSchedule] = useState<'asap' | 'scheduled' | 'flexible'>('flexible');
   const [approved, setApproved] = useState(false);
   const [journeyStep, setJourneyStep] = useState<RequestJourneyStep>('category');
-  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
-  const [formattedAddress, setFormattedAddress] = useState('');
-  const [addressLabel, setAddressLabel] = useState('');
-  const [building, setBuilding] = useState('');
-  const [unit, setUnit] = useState('');
-  const [accessNotes, setAccessNotes] = useState('');
-  const [addressIsDefault, setAddressIsDefault] = useState(false);
   const [requestedStart, setRequestedStart] = useState<string | null>(null);
   const [requestedEnd, setRequestedEnd] = useState<string | null>(null);
   const [publishedRequestId, setPublishedRequestId] = useState<string | null>(null);
-  const [locationBusy, setLocationBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [userId, setUserId] = useState<string | null>(null);
@@ -169,6 +166,7 @@ export function RequestComposer() {
   const replayingRef = useRef(false);
   const replaySignatureRef = useRef('');
   const reconnectRestoredRef = useRef(false);
+  const chatScrollRef = useRef<ScrollView | null>(null);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder, 250);
 
@@ -200,16 +198,35 @@ export function RequestComposer() {
         setSelectedSubcategorySlug(local.draft.selectedSubcategorySlug);
         setCategoryConfirmedByUser(local.draft.categoryConfirmedByUser);
         setCategorySelectionSource(local.draft.categorySelectionSource);
-        setCityCode(local.draft.cityCode);
         setUrgency(local.draft.urgency);
         setSchedule(local.draft.schedule);
-        setCoordinates(local.draft.coordinates);
-        setSelectedAddressId(local.draft.selectedAddressId);
-        setFormattedAddress(local.draft.formattedAddress);
-        setAddressLabel(local.draft.addressLabel);
-        setBuilding(local.draft.building);
-        setUnit(local.draft.unit);
-        setAccessNotes(local.draft.accessNotes);
+        if (local.draft.activeLocation?.savedAddressId) {
+          await customerLocation.selectSavedAddress(local.draft.activeLocation.savedAddressId);
+        } else if (local.draft.activeLocation) {
+          customerLocation.selectTransientLocation(local.draft.activeLocation);
+        } else if (local.draft.selectedAddressId) {
+          await customerLocation.selectSavedAddress(local.draft.selectedAddressId);
+        } else if (online && local.draft.coordinates) {
+          try {
+            const resolvedLocation = await resolveServiceLocation(local.draft.coordinates);
+            if (resolvedLocation.status === 'supported') {
+              customerLocation.selectTransientLocation({
+                savedAddressId: null,
+                label: local.draft.addressLabel || t('serviceLocation'),
+                formattedAddress: local.draft.formattedAddress,
+                building: local.draft.building || null,
+                unit: local.draft.unit || null,
+                accessNotes: local.draft.accessNotes || null,
+                cityCode: resolvedLocation.city.code,
+                cityNameAr: resolvedLocation.city.nameAr,
+                cityNameEn: resolvedLocation.city.nameEn,
+                coordinates: local.draft.coordinates,
+              });
+            }
+          } catch {
+            // Legacy drafts remain intact; the customer can reselect a verified location.
+          }
+        }
         setRequestedStart(local.draft.requestedStart);
         setRequestedEnd(local.draft.requestedEnd);
         setJourneyStep(
@@ -253,7 +270,16 @@ export function RequestComposer() {
                 text: message.content,
                 clientMessageId,
                 authoritative: true,
+                delivery: 'sent',
                 mediaUploadIds: message.mediaUploadIds,
+                inputKind:
+                  message.actor === 'user' && message.inputKind !== 'system'
+                    ? message.inputKind
+                    : undefined,
+                transcriptStatus:
+                  message.actor === 'user' && message.inputKind === 'voice'
+                    ? 'completed'
+                    : undefined,
               },
             ];
           });
@@ -322,7 +348,14 @@ export function RequestComposer() {
             text: message.content,
             clientMessageId,
             authoritative: true,
+            delivery: 'sent',
             mediaUploadIds: message.mediaUploadIds,
+            inputKind:
+              message.actor === 'user' && message.inputKind !== 'system'
+                ? message.inputKind
+                : undefined,
+            transcriptStatus:
+              message.actor === 'user' && message.inputKind === 'voice' ? 'completed' : undefined,
           },
         ];
       });
@@ -382,6 +415,7 @@ export function RequestComposer() {
           activeImageMediaId,
           activeVoiceMediaId,
           requestMediaUploadIds,
+          activeLocation,
         },
       });
     }, 100);
@@ -420,11 +454,12 @@ export function RequestComposer() {
     activeImageMediaId,
     activeVoiceMediaId,
     requestMediaUploadIds,
+    activeLocation,
   ]);
   const catalog = useQuery({
     queryKey: ['request-catalog', locale],
     queryFn: async () => {
-      const [categoriesResult, subcategoriesResult, citiesResult] = await Promise.all([
+      const [categoriesResult, subcategoriesResult] = await Promise.all([
         supabase
           .from('service_categories')
           .select('id,slug,icon_key,service_category_translations(name,description)')
@@ -437,31 +472,15 @@ export function RequestComposer() {
           .eq('service_subcategory_translations.locale', locale)
           .eq('enabled', true)
           .order('sort_order'),
-        supabase.from('cities').select('code,name_ar,name_en').eq('enabled', true).order('name_ar'),
       ]);
       if (categoriesResult.error) throw categoriesResult.error;
       if (subcategoriesResult.error) throw subcategoriesResult.error;
-      if (citiesResult.error) throw citiesResult.error;
       return {
         categories: z.array(categorySchema).parse(categoriesResult.data ?? []),
         subcategories: z.array(subcategorySchema).parse(subcategoriesResult.data ?? []),
-        cities: z.array(citySchema).parse(citiesResult.data ?? []),
       };
     },
   });
-  const savedAddresses = useQuery({
-    queryKey: ['customer-saved-addresses'],
-    queryFn: listMySavedAddresses,
-    enabled: Boolean(userId),
-  });
-  useEffect(() => {
-    if (!cityCode && catalog.data?.cities.length)
-      setCityCode(
-        catalog.data.cities.find((item) => item.code === 'riyadh')?.code ??
-          catalog.data.cities[0]?.code ??
-          '',
-      );
-  }, [catalog.data, cityCode]);
   useEffect(() => {
     if (
       !selectedCategorySlug &&
@@ -475,6 +494,9 @@ export function RequestComposer() {
   }, [catalog.data, initialCategory, selectedCategorySlug]);
   const selectedCategory = catalog.data?.categories.find(
     (item) => item.slug === selectedCategorySlug,
+  );
+  const suggestedCategory = catalog.data?.categories.find(
+    (item) => item.slug === suggestedCategorySlug,
   );
   const availableSubcategories = (catalog.data?.subcategories ?? []).filter(
     (item) => item.category_id === selectedCategory?.id,
@@ -619,88 +641,27 @@ export function RequestComposer() {
       setError(t('publishOrUploadFailed'));
     }
   }
-  async function resolveLocation(nextCoordinates: Coordinates) {
-    setCoordinates(nextCoordinates);
-    setSelectedAddressId(null);
-    try {
-      const [result] = await Location.reverseGeocodeAsync(nextCoordinates);
-      const resolved = sanitizeReverseGeocode(result);
-      if (resolved) setFormattedAddress(resolved);
-      else setError(t('reverseGeocodeFailed'));
-    } catch {
-      setError(t('reverseGeocodeFailed'));
-    }
-    invalidateApproval();
-  }
-  async function locate() {
-    setLocationBusy(true);
+  async function saveActiveTransientLocation() {
+    if (!activeLocation || activeLocation.savedAddressId !== null) return;
+    setBusy(true);
     setError('');
     try {
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (!permission.granted) {
-        setError(t('locationPermissionDenied'));
-        return;
-      }
-      const current = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
+      await customerLocation.saveAddress({
+        id: null,
+        label: activeLocation.label,
+        formattedAddress: activeLocation.formattedAddress,
+        building: activeLocation.building ?? '',
+        unit: activeLocation.unit ?? '',
+        accessNotes: activeLocation.accessNotes ?? '',
+        cityCode: activeLocation.cityCode,
+        isDefault: customerLocation.loaded && customerLocation.addresses.length === 0,
+        coordinates: activeLocation.coordinates,
       });
-      await resolveLocation({
-        latitude: current.coords.latitude,
-        longitude: current.coords.longitude,
-      });
-    } catch {
-      setError(t('reverseGeocodeFailed'));
-    } finally {
-      setLocationBusy(false);
-    }
-  }
-  function onMapPress(event: MapPressEvent) {
-    const nextCoordinates = event.nativeEvent.coordinate;
-    void resolveLocation({
-      latitude: nextCoordinates.latitude,
-      longitude: nextCoordinates.longitude,
-    });
-  }
-  function chooseSavedAddress(address: SavedAddress) {
-    setSelectedAddressId(address.id);
-    setCoordinates(address.coordinates);
-    setFormattedAddress(address.formattedAddress);
-    setAddressLabel(address.label);
-    setBuilding(address.building ?? '');
-    setUnit(address.unit ?? '');
-    setAccessNotes(address.accessNotes ?? '');
-    setAddressIsDefault(address.isDefault);
-    setCityCode(address.cityCode);
-    setError('');
-    invalidateApproval();
-  }
-  async function saveCurrentAddress() {
-    if (!coordinates || !userId) {
-      setError(t('locationRequired'));
-      return;
-    }
-    setLocationBusy(true);
-    setError('');
-    try {
-      const id = selectedAddressId ?? globalThis.crypto.randomUUID();
-      await saveMyAddress({
-        id,
-        label: addressLabel.trim() || t('serviceLocation'),
-        formattedAddress: formattedAddress.trim(),
-        building,
-        unit,
-        accessNotes,
-        cityCode,
-        isDefault: addressIsDefault,
-        coordinates,
-      });
-      setSelectedAddressId(id);
-      await savedAddresses.refetch();
       setError(t('locationSaved'));
     } catch {
-      setError(t('publishOrUploadFailed'));
+      setError(t('saveLocationFailed'));
     } finally {
-      setLocationBusy(false);
+      setBusy(false);
     }
   }
   async function startRecording() {
@@ -895,6 +856,16 @@ export function RequestComposer() {
           current.filter((turn) => !completedIds.has(turn.clientMessageId)),
         );
         if (replayed.pending.length) {
+          const retryableIds = new Set(replayed.pending.map((turn) => turn.clientMessageId));
+          setConversation((current) =>
+            current.map((message) =>
+              message.role === 'user' &&
+              message.clientMessageId &&
+              retryableIds.has(message.clientMessageId)
+                ? { ...message, delivery: 'retryable' as const }
+                : message,
+            ),
+          );
           setError(
             replayed.pending.some((turn) => turn.inputKind === 'voice')
               ? t('transcriptionFailed')
@@ -908,9 +879,37 @@ export function RequestComposer() {
       });
   }, [restored, online, busy, pendingTurns]);
 
-  function retryFailedTranscriptions() {
+  function retryPendingTurn(clientMessageId?: string) {
+    if (!online) {
+      setError(t('offline'));
+      return;
+    }
     replaySignatureRef.current = '';
-    setPendingTurns(retryFailedTranscriptionTurns);
+    setPendingTurns((current) =>
+      retryFailedTranscriptionTurns(current).map((turn) =>
+        !clientMessageId || turn.clientMessageId === clientMessageId
+          ? {
+              ...turn,
+              transcriptionStatus:
+                turn.inputKind === 'voice' ? 'pending' : turn.transcriptionStatus,
+            }
+          : turn,
+      ),
+    );
+    setConversation((current) =>
+      current.map((message) =>
+        message.role === 'user' &&
+        (!clientMessageId || message.clientMessageId === clientMessageId) &&
+        !message.authoritative
+          ? {
+              ...message,
+              delivery: 'pending' as const,
+              transcriptStatus:
+                message.inputKind === 'voice' ? ('pending' as const) : message.transcriptStatus,
+            }
+          : message,
+      ),
+    );
     setError('');
   }
 
@@ -955,6 +954,15 @@ export function RequestComposer() {
       };
       const queued = enqueuePendingTurn(pendingTurns, turn);
       setPendingTurns(queued);
+      setConversation((current) =>
+        upsertPendingCustomerMessage(current, {
+          clientMessageId: turn!.clientMessageId,
+          text: userText || t('recordVoice'),
+          offline: !online,
+          mediaUploadIds,
+          inputKind: turn!.inputKind,
+        }),
+      );
       const nextRequestMediaUploadIds = collectRequestMediaUploadIds(
         requestMediaUploadIds,
         activeBindings,
@@ -1000,6 +1008,7 @@ export function RequestComposer() {
             activeImageMediaId: null,
             activeVoiceMediaId: null,
             requestMediaUploadIds: nextRequestMediaUploadIds,
+            activeLocation,
           },
         });
       }
@@ -1017,6 +1026,9 @@ export function RequestComposer() {
         return;
       }
       if (turn?.inputKind === 'voice' && turn.transcriptionStatus !== 'completed') {
+        setConversation((current) =>
+          markConversationMessageRetryable(current, turn!.clientMessageId),
+        );
         setError(t('transcriptionFailed'));
         return;
       }
@@ -1143,6 +1155,7 @@ export function RequestComposer() {
       setActiveImageMediaId(null);
       setActiveVoiceMediaId(null);
       setRequestMediaUploadIds([]);
+      if (activeLocation?.savedAddressId === null) customerLocation.clearTransientLocation();
       setPublishedRequestId(requestId);
       setJourneyStep('success');
     } catch {
@@ -1181,14 +1194,7 @@ export function RequestComposer() {
       setActiveImageMediaId(null);
       setActiveVoiceMediaId(null);
       setRequestMediaUploadIds([]);
-      setCoordinates(null);
-      setSelectedAddressId(null);
-      setFormattedAddress('');
-      setAddressLabel('');
-      setBuilding('');
-      setUnit('');
-      setAccessNotes('');
-      setAddressIsDefault(false);
+      customerLocation.clearTransientLocation();
       setRequestedStart(null);
       setRequestedEnd(null);
       setPublishedRequestId(null);
@@ -1198,7 +1204,6 @@ export function RequestComposer() {
       setSelectedSubcategorySlug('');
       setCategoryConfirmedByUser(false);
       setCategorySelectionSource(null);
-      setCityCode('');
       setUrgency('normal');
       setSchedule('flexible');
       setApproved(false);
@@ -1225,13 +1230,7 @@ export function RequestComposer() {
     setImage(null);
     setImageUpload(null);
     setVoiceUpload(null);
-    setCoordinates(null);
-    setSelectedAddressId(null);
-    setFormattedAddress('');
-    setAddressLabel('');
-    setBuilding('');
-    setUnit('');
-    setAccessNotes('');
+    customerLocation.clearTransientLocation();
     setRequestedStart(null);
     setRequestedEnd(null);
     setPublishedRequestId(null);
@@ -1245,7 +1244,6 @@ export function RequestComposer() {
     setApproved(false);
     setJourneyStep('category');
   }
-  const mapCoordinates = coordinates ?? { latitude: 24.7136, longitude: 46.6753 };
   const selectedSubcategory = availableSubcategories.find(
     (item) => item.slug === selectedSubcategorySlug,
   );
@@ -1268,6 +1266,37 @@ export function RequestComposer() {
               }),
             })
           : t('timingRequired');
+  const structuredAnswers = conversation.filter((message) => message.role === 'user');
+  const reviewImages = retainedMedia.filter((media) => media.kind === 'image');
+  const attachedImageCount = reviewImages.length;
+  const voiceTurns = pendingTurns.filter((turn) => turn.inputKind === 'voice');
+  const latestVoiceTurn = voiceTurns.at(-1);
+  const completedVoiceMessage = conversation
+    .filter((message) => message.role === 'user' && message.inputKind === 'voice')
+    .at(-1);
+  const voiceReview =
+    completedVoiceMessage?.transcriptStatus === 'completed'
+      ? `${t('transcriptReady')}: ${completedVoiceMessage.text}`
+      : latestVoiceTurn?.transcript
+        ? `${t('transcriptReady')}: ${latestVoiceTurn.transcript}`
+        : latestVoiceTurn?.transcriptionStatus === 'retryable'
+          ? t('transcriptRetryRequired')
+          : activeVoiceMediaId || latestVoiceTurn
+            ? t('transcriptPending')
+            : t('voiceNotAttached');
+  const urgencySummary =
+    urgency === 'flexible'
+      ? t('priorityFlexible')
+      : urgency === 'urgent' || urgency === 'safety_critical'
+        ? t('priorityUrgent')
+        : t('priorityNormal');
+  const aiReview = !diagnostic
+    ? t('aiNotUsedReview')
+    : diagnostic.metadata.fallback
+      ? t('aiFallbackReview')
+      : diagnostic.enoughInformation
+        ? t('aiReadyReview', { confidence: Math.round(diagnostic.confidence * 100) })
+        : t('aiUncertainReview', { confidence: Math.round(diagnostic.confidence * 100) });
 
   if (journeyStep === 'success') {
     return (
@@ -1304,10 +1333,10 @@ export function RequestComposer() {
   }
 
   return (
-    <CustomerScreen testID={`request-step-${journeyStep}`}>
+    <CustomerScreen scroll={journeyStep !== 'chat'} testID={`request-step-${journeyStep}`}>
       {journeyStep !== 'category' ? (
         <ActionButton
-          icon="chevron-back"
+          icon={logicalChevron(locale, 'back')}
           label={t('back')}
           onPress={() =>
             moveToStep(
@@ -1362,7 +1391,7 @@ export function RequestComposer() {
               {t('catalogLoadFailed')}
             </Notice>
           ) : null}
-          <View style={journeyStyles.categoryGrid}>
+          <View style={[journeyStyles.categoryGrid, dir === 'rtl' && journeyStyles.rowReverse]}>
             {catalog.data?.categories.map((category) => {
               const selected = selectedCategorySlug === category.slug;
               const translation = category.service_category_translations[0];
@@ -1417,7 +1446,7 @@ export function RequestComposer() {
           {selectedCategorySlug ? (
             <Surface tone="muted">
               <Text style={customerStyles.section}>{t('optionalSubcategory')}</Text>
-              <View style={customerStyles.wrap}>
+              <View style={[customerStyles.wrap, dir === 'rtl' && journeyStyles.rowReverse]}>
                 <Pill
                   label={t('noSubcategory')}
                   onPress={() => setSelectedSubcategorySlug('')}
@@ -1456,301 +1485,189 @@ export function RequestComposer() {
       ) : null}
 
       {journeyStep === 'chat' ? (
-        <>
-          <Notice>{t('aiDisclaimer')}</Notice>
-          <ConversationTimeline
-            assistantLabel={t('aiAssistantName')}
-            messages={conversation}
-            userLabel={t('you')}
-          />
-          <View style={customerStyles.wrap}>
-            {[t('quickReplyToday'), t('quickReplyEarlier'), t('quickReplyUnsure')].map((reply) => (
-              <Pill
-                key={reply}
-                label={reply}
-                onPress={() => {
-                  setDescription(reply);
-                  invalidateApproval();
-                }}
-                selected={description === reply}
-              />
-            ))}
-          </View>
-          {diagnostic?.safetyFlags.length ? (
-            <Notice tone="danger">{t('safetyGuidance')}</Notice>
-          ) : null}
-          <Surface style={journeyStyles.composer}>
-            <Field
-              label={
-                conversation.length
-                  ? t('answerFollowUpPlaceholder')
-                  : t('problemDescriptionPlaceholder')
-              }
-              maxLength={8000}
-              multiline
-              onChangeText={(value) => {
-                setDescription(value);
-                invalidateApproval();
-              }}
-              placeholder={
-                conversation.length
-                  ? t('answerFollowUpPlaceholder')
-                  : t('problemDescriptionPlaceholder')
-              }
-              value={description}
+        <View style={journeyStyles.chatLayout}>
+          <ScrollView
+            contentContainerStyle={journeyStyles.chatTimeline}
+            keyboardShouldPersistTaps="handled"
+            onContentSizeChange={() => chatScrollRef.current?.scrollToEnd({ animated: true })}
+            ref={chatScrollRef}
+            showsVerticalScrollIndicator={false}
+            style={journeyStyles.chatScroll}
+          >
+            <Notice>{t('aiDisclaimer')}</Notice>
+            <ConversationTimeline
+              assistantLabel={t('aiAssistantName')}
+              messages={conversation}
+              offlineLabel={t('messageOffline')}
+              onRetry={retryPendingTurn}
+              pendingLabel={t('messagePending')}
+              retryLabel={t('messageRetry')}
+              userLabel={t('you')}
             />
+            {diagnostic?.quickReplies.length ? (
+              <View style={[customerStyles.wrap, dir === 'rtl' && journeyStyles.rowReverse]}>
+                {diagnostic.quickReplies.map((reply) => (
+                  <QuickReplyChip
+                    key={reply}
+                    label={reply}
+                    onPress={() => {
+                      setDescription(reply);
+                      invalidateApproval();
+                    }}
+                    selected={description === reply}
+                  />
+                ))}
+              </View>
+            ) : null}
+            {diagnostic?.safetyFlags.length ? (
+              <Notice tone="danger">{t('safetyGuidance')}</Notice>
+            ) : null}
+            {diagnostic ? (
+              <Surface tone="muted">
+                <View style={[customerStyles.row, dir === 'rtl' && journeyStyles.rowReverse]}>
+                  <AppIcon color={tokens.colors.primaryStrong} name="sparkles" size={20} />
+                  <Text style={customerStyles.section}>{t('aiAssistantName')}</Text>
+                </View>
+                <Text style={customerStyles.caption}>
+                  {t('confidenceSummary', {
+                    confidence: Math.round(diagnostic.confidence * 100),
+                  })}
+                </Text>
+                {!diagnostic.enoughInformation ? (
+                  <ActionButton
+                    label={t('createSummaryNow')}
+                    onPress={() => void analyze(true)}
+                    variant="secondary"
+                  />
+                ) : null}
+              </Surface>
+            ) : null}
+            {error ? (
+              <Notice live tone="warning">
+                {error}
+              </Notice>
+            ) : null}
+            {title.trim().length < 3 || summary.trim().length < 10 ? (
+              <Text style={customerStyles.caption}>{t('informationIncomplete')}</Text>
+            ) : null}
+          </ScrollView>
+
+          <View style={journeyStyles.composerDock}>
             {activeImageMediaId ? (
-              <Image
-                accessibilityLabel={t('attachedImageA11y')}
-                source={{
+              <MediaPreview
+                imageSource={{
                   uri:
                     image?.uri ??
                     retainedMedia.find((item) => item.id === activeImageMediaId)?.localUri ??
                     '',
                 }}
-                style={journeyStyles.previewImage}
+                kind="image"
+                label={t('attachedImageA11y')}
               />
             ) : null}
-            {activeImageMediaId || activeVoiceMediaId ? (
-              <Notice tone="success">{t('turnAttachmentReady')}</Notice>
+            {activeVoiceMediaId ? (
+              <MediaPreview kind="voice" label={t('turnAttachmentReady')} />
             ) : null}
-            <View style={journeyStyles.mediaActions}>
-              <ActionButton
-                icon="camera"
-                label={t('cameraPhoto')}
-                onPress={() => void pickImage('camera')}
-                variant="secondary"
-              />
-              <ActionButton
-                icon="image"
-                label={activeImageMediaId ? t('changePhoto') : t('galleryPhoto')}
-                onPress={() => void pickImage('library')}
-                variant="secondary"
-              />
-              <ActionButton
-                icon="microphone"
-                label={
-                  recorderState.isRecording
-                    ? t('stopRecordingSeconds', {
-                        seconds: Math.ceil(recorderState.durationMillis / 1000),
-                      })
-                    : t('recordVoice')
-                }
-                onPress={() =>
-                  void (recorderState.isRecording ? stopRecording() : startRecording())
-                }
-                variant="secondary"
-              />
-            </View>
-            <ActionButton
+            <ChatComposer
+              cameraLabel={t('cameraPhoto')}
               disabled={busy}
-              icon="send"
-              label={busy ? t('analyzing') : t('send')}
-              loading={busy}
-              onPress={() => void analyze(false)}
+              galleryLabel={activeImageMediaId ? t('changePhoto') : t('galleryPhoto')}
+              onCamera={() => void pickImage('camera')}
+              onChangeText={(value) => {
+                setDescription(value);
+                invalidateApproval();
+              }}
+              onGallery={() => void pickImage('library')}
+              onSend={() => void analyze(false)}
+              onVoice={() => void (recorderState.isRecording ? stopRecording() : startRecording())}
+              placeholder={
+                conversation.length
+                  ? t('answerFollowUpPlaceholder')
+                  : t('problemDescriptionPlaceholder')
+              }
+              sendLabel={busy ? t('analyzing') : t('send')}
+              value={description}
+              voiceLabel={
+                recorderState.isRecording
+                  ? t('stopRecordingSeconds', {
+                      seconds: Math.ceil(recorderState.durationMillis / 1000),
+                    })
+                  : t('recordVoice')
+              }
             />
-          </Surface>
-          {diagnostic ? (
-            <Surface tone="muted">
-              <View style={customerStyles.row}>
-                <AppIcon color={tokens.colors.primaryStrong} name="sparkles" size={20} />
-                <Text style={customerStyles.section}>{t('aiAssistantName')}</Text>
-              </View>
-              <Text style={customerStyles.caption}>
-                {t('confidenceSummary', {
-                  confidence: Math.round(diagnostic.confidence * 100),
-                })}
-              </Text>
-              {diagnostic.followUpQuestions.map((question) => (
-                <Text key={question} style={customerStyles.body}>
-                  • {question}
-                </Text>
-              ))}
-              {!diagnostic.enoughInformation ? (
-                <ActionButton
-                  label={t('createSummaryNow')}
-                  onPress={() => void analyze(true)}
-                  variant="secondary"
-                />
-              ) : null}
-            </Surface>
-          ) : null}
-          {pendingTurns.some((turn) => turn.transcriptionStatus === 'retryable') ? (
             <ActionButton
-              disabled={busy || !online}
-              icon="refresh"
-              label={t('retryTranscription')}
-              onPress={retryFailedTranscriptions}
-              variant="secondary"
+              disabled={
+                pendingTurns.length > 0 || title.trim().length < 3 || summary.trim().length < 10
+              }
+              label={t('continueToLocation')}
+              onPress={() => moveToStep('location')}
             />
-          ) : null}
-          {error ? (
-            <Notice live tone="warning">
-              {error}
-            </Notice>
-          ) : null}
-          <ActionButton
-            disabled={
-              pendingTurns.length > 0 || title.trim().length < 3 || summary.trim().length < 10
-            }
-            label={t('continueToLocation')}
-            onPress={() => moveToStep('location')}
-          />
-          {title.trim().length < 3 || summary.trim().length < 10 ? (
-            <Text style={customerStyles.caption}>{t('informationIncomplete')}</Text>
-          ) : null}
-          <ActionButton
-            disabled={busy || !userId}
-            label={t('deleteDraft')}
-            onPress={() =>
-              Alert.alert(t('deleteDraftTitle'), t('deleteDraftMessage'), [
-                { text: t('cancel'), style: 'cancel' },
-                {
-                  text: t('deleteDraft'),
-                  style: 'destructive',
-                  onPress: () => void deleteDraft(),
-                },
-              ])
-            }
-            variant="ghost"
-          />
-        </>
+            <ActionButton
+              disabled={busy || !userId}
+              label={t('deleteDraft')}
+              onPress={() =>
+                Alert.alert(t('deleteDraftTitle'), t('deleteDraftMessage'), [
+                  { text: t('cancel'), style: 'cancel' },
+                  {
+                    text: t('deleteDraft'),
+                    style: 'destructive',
+                    onPress: () => void deleteDraft(),
+                  },
+                ])
+              }
+              variant="ghost"
+            />
+          </View>
+        </View>
       ) : null}
 
       {journeyStep === 'location' ? (
         <>
           <Notice>{t('customerPrivacyNotice')}</Notice>
-          <ActionButton
-            icon="navigation"
-            label={t('useCurrentLocation')}
-            loading={locationBusy}
-            onPress={() => void locate()}
-            variant="secondary"
-          />
-          {savedAddresses.isPending ? <LoadingBlock label={t('loading')} rows={2} /> : null}
-          {savedAddresses.isError ? (
+          {customerLocation.loading ? <LoadingBlock label={t('loading')} rows={2} /> : null}
+          {customerLocation.error ? (
             <Notice tone="warning">{t('savedAddressLoadFailed')}</Notice>
           ) : null}
-          {savedAddresses.data?.length ? (
-            <View style={journeyStyles.locationSection}>
-              <SectionHeader title={t('savedLocations')} />
-              {savedAddresses.data.map((address) => (
-                <Pressable
-                  key={address.id}
-                  accessibilityRole="button"
-                  onPress={() => chooseSavedAddress(address)}
-                  style={({ pressed }) => [
-                    journeyStyles.savedAddress,
-                    selectedAddressId === address.id && journeyStyles.savedAddressSelected,
-                    pressed && journeyStyles.pressed,
-                  ]}
-                >
-                  <AppIcon
-                    color={tokens.colors.primaryStrong}
-                    name={address.isDefault ? 'home' : 'location'}
-                    size={21}
-                  />
-                  <View style={journeyStyles.flex}>
-                    <Text style={customerStyles.section}>{address.label}</Text>
-                    <Text numberOfLines={2} style={customerStyles.caption}>
-                      {addressDisplayName(address, locale)}
+          {activeLocation ? (
+            <Surface tone="accent">
+              <View style={[journeyStyles.locationLead, dir === 'rtl' && journeyStyles.rowReverse]}>
+                <AppIcon color={tokens.colors.primaryStrong} name="location" size={24} />
+                <View style={journeyStyles.flex}>
+                  <Text style={customerStyles.section}>{activeLocation.label}</Text>
+                  <Text numberOfLines={3} style={customerStyles.body}>
+                    {activeLocation.formattedAddress}
+                  </Text>
+                  <Text style={customerStyles.caption}>
+                    {locale === 'ar' || locale === 'ur'
+                      ? activeLocation.cityNameAr
+                      : activeLocation.cityNameEn}
+                  </Text>
+                  {building || unit || accessNotes ? (
+                    <Text style={customerStyles.caption}>
+                      {[building, unit, accessNotes].filter(Boolean).join(' · ')}
                     </Text>
-                  </View>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
-          <View
-            accessibilityLabel={t('mapAccessibility')}
-            accessibilityRole="adjustable"
-            style={journeyStyles.mapShell}
-          >
-            <MapView
-              initialRegion={{
-                ...mapCoordinates,
-                latitudeDelta: 0.025,
-                longitudeDelta: 0.025,
-              }}
-              onPress={onMapPress}
-              style={StyleSheet.absoluteFill}
-            >
-              {coordinates ? (
-                <Marker
-                  coordinate={coordinates}
-                  draggable
-                  onDragEnd={(event) =>
-                    void resolveLocation({
-                      latitude: event.nativeEvent.coordinate.latitude,
-                      longitude: event.nativeEvent.coordinate.longitude,
-                    })
-                  }
-                />
-              ) : null}
-            </MapView>
-          </View>
-          <Text style={customerStyles.caption}>{t('mapPinHint')}</Text>
-          <Field
-            label={t('addressLabel')}
-            maxLength={80}
-            onChangeText={setAddressLabel}
-            placeholder={t('addressLabelPlaceholder')}
-            value={addressLabel}
-          />
-          <Field
-            label={t('formattedAddress')}
-            maxLength={500}
-            multiline
-            onChangeText={setFormattedAddress}
-            value={formattedAddress}
-          />
-          <View style={journeyStyles.twoColumns}>
-            <View style={journeyStyles.flex}>
-              <Field
-                label={t('building')}
-                maxLength={80}
-                onChangeText={setBuilding}
-                value={building}
-              />
-            </View>
-            <View style={journeyStyles.flex}>
-              <Field label={t('unit')} maxLength={80} onChangeText={setUnit} value={unit} />
-            </View>
-          </View>
-          <Field
-            label={t('accessNotes')}
-            maxLength={500}
-            multiline
-            onChangeText={setAccessNotes}
-            value={accessNotes}
-          />
-          <Text style={customerStyles.section}>{t('city')}</Text>
-          <View style={customerStyles.wrap}>
-            {catalog.data?.cities.map((city) => (
-              <Pill
-                key={city.code}
-                label={locale === 'ar' || locale === 'ur' ? city.name_ar : city.name_en}
-                onPress={() => setCityCode(city.code)}
-                selected={cityCode === city.code}
-              />
-            ))}
-          </View>
-          <View style={journeyStyles.switchRow}>
-            <Text style={customerStyles.body}>{t('makeDefault')}</Text>
-            <Switch
-              accessibilityLabel={t('makeDefault')}
-              onValueChange={setAddressIsDefault}
-              value={addressIsDefault}
-            />
-          </View>
+                  ) : null}
+                </View>
+              </View>
+            </Surface>
+          ) : (
+            <Notice tone="warning">{t('locationRequired')}</Notice>
+          )}
           <ActionButton
-            disabled={
-              !coordinates || formattedAddress.trim().length < 3 || !cityCode || locationBusy
-            }
-            label={t('saveThisLocation')}
-            loading={locationBusy}
-            onPress={() => void saveCurrentAddress()}
+            icon="location"
+            label={activeLocation ? t('changeLocation') : t('chooseLocation')}
+            onPress={() => router.push('/locations')}
             variant="secondary"
           />
+          {shouldOfferTransientSave(activeLocation) ? (
+            <ActionButton
+              disabled={busy || !customerLocation.loaded}
+              label={t('saveThisLocation')}
+              loading={busy}
+              onPress={() => void saveActiveTransientLocation()}
+              variant="secondary"
+            />
+          ) : null}
           {error ? (
             <Notice live tone={error === t('locationSaved') ? 'success' : 'warning'}>
               {error}
@@ -1792,6 +1709,7 @@ export function RequestComposer() {
                 }}
                 style={[
                   journeyStyles.choiceCard,
+                  dir === 'rtl' && journeyStyles.rowReverse,
                   schedule === value && journeyStyles.choiceCardSelected,
                 ]}
               >
@@ -1821,7 +1739,7 @@ export function RequestComposer() {
           {schedule === 'scheduled' ? (
             <Surface tone="muted">
               <Text style={customerStyles.section}>{t('schedule')}</Text>
-              <View style={customerStyles.wrap}>
+              <View style={[customerStyles.wrap, dir === 'rtl' && journeyStyles.rowReverse]}>
                 {(['morning', 'afternoon', 'evening'] as const).map((preset) => {
                   const window = buildRiyadhScheduleWindow(preset);
                   return (
@@ -1849,7 +1767,7 @@ export function RequestComposer() {
           ) : null}
           <Surface>
             <Text style={customerStyles.section}>{t('priority')}</Text>
-            <View style={customerStyles.wrap}>
+            <View style={[customerStyles.wrap, dir === 'rtl' && journeyStyles.rowReverse]}>
               {(['flexible', 'normal', 'urgent'] as const).map((value) => (
                 <Pill
                   key={value}
@@ -1881,10 +1799,10 @@ export function RequestComposer() {
       {journeyStep === 'review' ? (
         <>
           <Surface>
-            <View style={customerStyles.between}>
+            <View style={[customerStyles.between, dir === 'rtl' && journeyStyles.rowReverse]}>
               <Text style={customerStyles.section}>{t('requestDetails')}</Text>
               <ActionButton
-                label={t('requestStepChat')}
+                label={t('editSection')}
                 onPress={() => moveToStep('chat')}
                 variant="ghost"
               />
@@ -1910,10 +1828,29 @@ export function RequestComposer() {
             />
           </Surface>
           <Surface>
-            <View style={customerStyles.between}>
+            <View style={[customerStyles.between, dir === 'rtl' && journeyStyles.rowReverse]}>
+              <Text style={customerStyles.section}>{t('structuredAnswers')}</Text>
+              <ActionButton
+                label={t('editSection')}
+                onPress={() => moveToStep('chat')}
+                variant="ghost"
+              />
+            </View>
+            {structuredAnswers.length ? (
+              structuredAnswers.map((answer, index) => (
+                <Text key={answer.clientMessageId ?? index} style={customerStyles.body}>
+                  {index + 1}. {answer.text}
+                </Text>
+              ))
+            ) : (
+              <Text style={customerStyles.caption}>{t('noStructuredAnswers')}</Text>
+            )}
+          </Surface>
+          <Surface>
+            <View style={[customerStyles.between, dir === 'rtl' && journeyStyles.rowReverse]}>
               <Text style={customerStyles.section}>{t('serviceCategories')}</Text>
               <ActionButton
-                label={t('requestStepCategory')}
+                label={t('editSection')}
                 onPress={() => moveToStep('category')}
                 variant="ghost"
               />
@@ -1926,43 +1863,108 @@ export function RequestComposer() {
             </Text>
             {suggestedCategorySlug ? (
               <Text style={customerStyles.caption}>
-                {t('editableAiCategory')}: {suggestedCategorySlug}
+                {t('editableAiCategory')}:{' '}
+                {suggestedCategory?.service_category_translations[0]?.name ?? t('categoryUnknown')}
               </Text>
             ) : null}
           </Surface>
           <Surface>
-            <View style={customerStyles.between}>
+            <View style={[customerStyles.between, dir === 'rtl' && journeyStyles.rowReverse]}>
+              <Text style={customerStyles.section}>{t('requestAttachments')}</Text>
+              <ActionButton
+                label={t('editSection')}
+                onPress={() => moveToStep('chat')}
+                variant="ghost"
+              />
+            </View>
+            <Text style={customerStyles.body}>
+              {t('attachedImagesCount', { count: attachedImageCount })}
+            </Text>
+            {reviewImages.map((media) => (
+              <MediaPreview
+                imageSource={{ uri: media.localUri }}
+                key={media.id}
+                kind="image"
+                label={t('attachedImageA11y')}
+              />
+            ))}
+            <Text style={customerStyles.body}>{voiceReview}</Text>
+          </Surface>
+          <Surface>
+            <View style={[customerStyles.between, dir === 'rtl' && journeyStyles.rowReverse]}>
               <Text style={customerStyles.section}>{t('serviceLocation')}</Text>
               <ActionButton
-                label={t('requestStepLocation')}
+                label={t('editSection')}
                 onPress={() => moveToStep('location')}
                 variant="ghost"
               />
             </View>
+            <Text style={customerStyles.section}>{addressLabel}</Text>
             <Text style={customerStyles.body}>{formattedAddress}</Text>
-            {building || unit ? (
+            {building ? (
               <Text style={customerStyles.caption}>
-                {[building, unit].filter(Boolean).join(' · ')}
+                {t('building')}: {building}
+              </Text>
+            ) : null}
+            {unit ? (
+              <Text style={customerStyles.caption}>
+                {t('unit')}: {unit}
+              </Text>
+            ) : null}
+            {accessNotes ? (
+              <Text style={customerStyles.caption}>
+                {t('accessNotes')}: {accessNotes}
               </Text>
             ) : null}
             <Notice>{t('customerPrivacyNotice')}</Notice>
           </Surface>
           <Surface>
-            <View style={customerStyles.between}>
+            <View style={[customerStyles.between, dir === 'rtl' && journeyStyles.rowReverse]}>
               <Text style={customerStyles.section}>{t('requestedTiming')}</Text>
               <ActionButton
-                label={t('requestStepTiming')}
+                label={t('editSection')}
                 onPress={() => moveToStep('timing')}
                 variant="ghost"
               />
             </View>
             <Text style={customerStyles.body}>{timingSummary}</Text>
+            <Text style={customerStyles.body}>
+              {t('urgencyReview')}: {urgencySummary}
+            </Text>
+          </Surface>
+          <Surface>
+            <View style={[customerStyles.between, dir === 'rtl' && journeyStyles.rowReverse]}>
+              <Text style={customerStyles.section}>{t('safetyReview')}</Text>
+              <ActionButton
+                label={t('editSection')}
+                onPress={() => moveToStep('chat')}
+                variant="ghost"
+              />
+            </View>
+            <Text style={customerStyles.body}>
+              {diagnostic?.safetyFlags.length ? t('safetyGuidance') : t('noSafetyFlags')}
+            </Text>
+          </Surface>
+          <Surface>
+            <View style={[customerStyles.between, dir === 'rtl' && journeyStyles.rowReverse]}>
+              <Text style={customerStyles.section}>{t('aiReviewState')}</Text>
+              <ActionButton
+                label={t('editSection')}
+                onPress={() => moveToStep('chat')}
+                variant="ghost"
+              />
+            </View>
+            <Text style={customerStyles.body}>{aiReview}</Text>
           </Surface>
           <Pressable
             accessibilityRole="checkbox"
             accessibilityState={{ checked: approved }}
             onPress={() => setApproved((value) => !value)}
-            style={[journeyStyles.approval, approved && journeyStyles.approvalSelected]}
+            style={[
+              journeyStyles.approval,
+              dir === 'rtl' && journeyStyles.rowReverse,
+              approved && journeyStyles.approvalSelected,
+            ]}
           >
             <View style={journeyStyles.checkbox}>
               {approved ? <AppIcon color={tokens.colors.white} name="check" size={18} /> : null}
@@ -1988,6 +1990,14 @@ export function RequestComposer() {
 }
 
 const journeyStyles = StyleSheet.create({
+  chatLayout: { flex: 1, minHeight: 0, gap: tokens.spacing.sm },
+  chatScroll: { flex: 1 },
+  chatTimeline: { gap: tokens.spacing.sm, paddingBottom: tokens.spacing.sm },
+  composerDock: {
+    gap: tokens.spacing.sm,
+    paddingTop: tokens.spacing.xs,
+    backgroundColor: tokens.colors.canvas,
+  },
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
   categoryCard: {
     width: '48%',
@@ -2011,7 +2021,7 @@ const journeyStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  categoryName: { ...tokens.type.label, color: tokens.colors.ink, textAlign: 'left' },
+  categoryName: { ...tokens.type.label, color: tokens.colors.ink, textAlign: 'auto' },
   categoryNameSelected: { color: tokens.colors.white },
   categoryDescriptionSelected: { color: tokens.colors.primarySoft },
   pressed: { opacity: 0.72, transform: [{ scale: 0.99 }] },
@@ -2027,6 +2037,8 @@ const journeyStyles = StyleSheet.create({
     backgroundColor: tokens.colors.surfaceMuted,
   },
   locationSection: { gap: tokens.spacing.sm },
+  locationLead: { flexDirection: 'row', alignItems: 'flex-start', gap: tokens.spacing.sm },
+  rowReverse: { flexDirection: 'row-reverse' },
   savedAddress: {
     minHeight: 70,
     flexDirection: 'row',
@@ -2092,7 +2104,7 @@ const journeyStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  approvalText: { flex: 1, ...tokens.type.body, color: tokens.colors.ink, textAlign: 'left' },
+  approvalText: { flex: 1, ...tokens.type.body, color: tokens.colors.ink, textAlign: 'auto' },
   success: {
     minHeight: 360,
     alignItems: 'center',

@@ -3,19 +3,43 @@ import {
   addressDisplayName,
   coordinatesSchema,
   RIYADH_NAME_AR,
+  serviceLocationResolutionSchema,
   sameCoordinates,
   sanitizeReverseGeocode,
   savedAddressSchema,
 } from '../src/features/location/location-model';
 
 describe('customer location model', () => {
-  it('accepts Saudi coordinates and rejects coordinates outside the service boundary', () => {
+  it('accepts global device coordinates and leaves service-area policy to the server', () => {
     expect(coordinatesSchema.safeParse({ latitude: 24.7136, longitude: 46.6753 }).success).toBe(
       true,
     );
-    expect(coordinatesSchema.safeParse({ latitude: 51.5072, longitude: -0.1276 }).success).toBe(
-      false,
+    expect(coordinatesSchema.safeParse({ latitude: 38.5767, longitude: -92.1735 }).success).toBe(
+      true,
     );
+    expect(coordinatesSchema.safeParse({ latitude: 91, longitude: 0 }).success).toBe(false);
+  });
+
+  it('parses each server-authoritative service-area outcome without inventing a city', () => {
+    expect(
+      serviceLocationResolutionSchema.parse({
+        status: 'supported',
+        countryCode: 'SA',
+        city: {
+          id: '11111111-1111-4111-8111-111111111111',
+          code: 'jeddah',
+          nameAr: '\u062c\u062f\u0629',
+          nameEn: 'Jeddah',
+        },
+      }).city.code,
+    ).toBe('jeddah');
+    expect(
+      serviceLocationResolutionSchema.parse({
+        status: 'outside_saudi_arabia',
+        countryCode: null,
+        city: null,
+      }).city,
+    ).toBeNull();
   });
 
   it('normalizes reverse-geocoding without duplicating address parts', () => {

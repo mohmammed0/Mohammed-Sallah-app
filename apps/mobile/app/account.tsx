@@ -6,6 +6,7 @@ import { Button, Card, Screen, styles } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/providers/locale-provider';
 import { useSessionContext } from '@/providers/session-provider';
+import { useCustomerLocation } from '@/features/location/location-provider';
 
 interface NotificationPreferences {
   in_app: boolean;
@@ -28,6 +29,7 @@ export default function Account() {
   const [reauthPassword, setReauthPassword] = useState('');
   const [deletionSummary, setDeletionSummary] = useState<Record<string, unknown> | null>(null);
   const { context, signOutAll } = useSessionContext();
+  const { activeLocation } = useCustomerLocation();
   async function loadDeletionSummary() {
     const result = await (
       supabase.rpc as unknown as (
@@ -125,6 +127,20 @@ export default function Account() {
           </Text>
         </Card>
       )}
+      {context?.roles.includes('customer') ? (
+        <Card>
+          <Text style={styles.badge}>{t('currentLocation')}</Text>
+          <Text style={styles.lead}>{activeLocation?.label ?? t('locationNotSelected')}</Text>
+          {activeLocation?.formattedAddress ? (
+            <Text style={styles.lead}>{activeLocation.formattedAddress}</Text>
+          ) : null}
+          <Button
+            kind="secondary"
+            label={t('changeLocation')}
+            onPress={() => router.push('/locations')}
+          />
+        </Card>
+      ) : null}
       <Card>
         <Text style={styles.badge}>{t('language')}</Text>
         <View style={styles.row}>

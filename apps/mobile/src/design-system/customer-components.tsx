@@ -27,6 +27,13 @@ import {
 } from './primitives';
 import { AppIcon, type AppIconName } from './icon';
 import { customerTokens as tokens } from './tokens';
+import {
+  logicalChevron,
+  logicalFlexDirection,
+  logicalTextAlignment,
+  logicalWritingDirection,
+} from './rtl';
+import { useLocale } from '../providers/locale-provider';
 
 type ActionButtonProps = Omit<ComponentProps<typeof ActionButton>, 'variant'>;
 
@@ -47,19 +54,28 @@ export function AppHeader({
   onBack?: () => void;
   action?: ReactNode;
 }) {
+  const { locale } = useLocale();
+  const textDirection = {
+    textAlign: logicalTextAlignment(locale),
+    writingDirection: logicalWritingDirection(locale),
+  } as const;
   return (
-    <View style={styles.header}>
+    <View style={[styles.header, { flexDirection: logicalFlexDirection(locale) }]}>
       {onBack && backLabel ? (
-        <IconButton icon="chevron-back" label={backLabel} onPress={onBack} />
+        <IconButton icon={logicalChevron(locale, 'back')} label={backLabel} onPress={onBack} />
       ) : (
         <View style={styles.headerPlaceholder} />
       )}
       <View style={styles.headerCopy}>
-        <Text accessibilityRole="header" numberOfLines={2} style={customerStyles.title}>
+        <Text
+          accessibilityRole="header"
+          numberOfLines={2}
+          style={[customerStyles.title, textDirection]}
+        >
           {title}
         </Text>
         {subtitle ? (
-          <Text numberOfLines={2} style={customerStyles.caption}>
+          <Text numberOfLines={2} style={[customerStyles.caption, textDirection]}>
             {subtitle}
           </Text>
         ) : null}
@@ -86,26 +102,35 @@ export function LocationHeader({
   unreadCount?: number;
   onNotifications?: () => void;
 }) {
+  const { locale } = useLocale();
+  const textDirection = {
+    textAlign: logicalTextAlignment(locale),
+    writingDirection: logicalWritingDirection(locale),
+  } as const;
   return (
-    <View style={styles.locationHeader}>
+    <View style={[styles.locationHeader, { flexDirection: logicalFlexDirection(locale) }]}>
       <InteractivePressable
         accessibilityHint={changeLabel}
         accessibilityRole="button"
         onPress={onPress}
-        style={styles.locationAction}
+        style={[styles.locationAction, { flexDirection: logicalFlexDirection(locale) }]}
       >
         <View style={styles.roundIcon}>
           <AppIcon color={tokens.colors.primaryStrong} name="location" size={20} />
         </View>
         <View style={styles.flex}>
-          <Text numberOfLines={1} style={customerStyles.caption}>
+          <Text numberOfLines={1} style={[customerStyles.caption, textDirection]}>
             {label}
           </Text>
-          <Text numberOfLines={2} style={styles.locationAddress}>
+          <Text numberOfLines={2} style={[styles.locationAddress, textDirection]}>
             {address}
           </Text>
         </View>
-        <AppIcon color={tokens.colors.textMuted} name="chevron-forward" size={18} />
+        <AppIcon
+          color={tokens.colors.textMuted}
+          name={logicalChevron(locale, 'forward')}
+          size={18}
+        />
       </InteractivePressable>
       {notificationLabel && onNotifications ? (
         <IconButton
@@ -134,8 +159,12 @@ export function BottomTabs({
   activeKey: string;
   onSelect: (key: string) => void;
 }) {
+  const { locale } = useLocale();
   return (
-    <View accessibilityRole="tablist" style={styles.tabs}>
+    <View
+      accessibilityRole="tablist"
+      style={[styles.tabs, { flexDirection: logicalFlexDirection(locale) }]}
+    >
       {tabs.map((tab) => {
         const selected = tab.key === activeKey;
         return (
@@ -150,7 +179,18 @@ export function BottomTabs({
               color={selected ? tokens.colors.primaryStrong : tokens.colors.textMuted}
               name={tab.icon}
             />
-            <Text style={[styles.tabLabel, selected && styles.tabLabelSelected]}>{tab.label}</Text>
+            <Text
+              style={[
+                styles.tabLabel,
+                {
+                  textAlign: logicalTextAlignment(locale),
+                  writingDirection: logicalWritingDirection(locale),
+                },
+                selected && styles.tabLabelSelected,
+              ]}
+            >
+              {tab.label}
+            </Text>
           </InteractivePressable>
         );
       })}
@@ -184,6 +224,11 @@ function SelectableServiceCard({
   selected?: boolean;
   compact?: boolean;
 }) {
+  const { locale } = useLocale();
+  const textDirection = {
+    textAlign: logicalTextAlignment(locale),
+    writingDirection: logicalWritingDirection(locale),
+  } as const;
   const { style: suppliedStyleValue, ...pressableProps } = props;
   const suppliedStyle = typeof suppliedStyleValue === 'function' ? undefined : suppliedStyleValue;
   return (
@@ -201,11 +246,11 @@ function SelectableServiceCard({
       <View style={styles.serviceIcon}>
         <AppIcon color={tokens.colors.primaryStrong} name={icon} size={compact ? 21 : 28} />
       </View>
-      <Text numberOfLines={2} style={customerStyles.section}>
+      <Text numberOfLines={2} style={[customerStyles.section, textDirection]}>
         {title}
       </Text>
       {description ? (
-        <Text numberOfLines={2} style={customerStyles.caption}>
+        <Text numberOfLines={2} style={[customerStyles.caption, textDirection]}>
           {description}
         </Text>
       ) : null}
@@ -230,6 +275,7 @@ export function StatusPill({
   label: string;
   tone?: 'neutral' | 'active' | 'success' | 'warning' | 'danger';
 }) {
+  const { locale } = useLocale();
   return (
     <View
       style={[
@@ -240,7 +286,17 @@ export function StatusPill({
         tone === 'danger' && styles.statusDanger,
       ]}
     >
-      <Text style={styles.statusLabel}>{label}</Text>
+      <Text
+        style={[
+          styles.statusLabel,
+          {
+            textAlign: logicalTextAlignment(locale),
+            writingDirection: logicalWritingDirection(locale),
+          },
+        ]}
+      >
+        {label}
+      </Text>
     </View>
   );
 }
@@ -298,10 +354,15 @@ function DialogFrame({
   onDismiss: () => void;
   children: ReactNode;
 }) {
+  const { locale } = useLocale();
+  const textDirection = {
+    textAlign: logicalTextAlignment(locale),
+    writingDirection: logicalWritingDirection(locale),
+  } as const;
   return (
     <View accessibilityViewIsModal style={styles.dialog}>
-      <View style={styles.dialogHeader}>
-        <Text accessibilityRole="header" style={customerStyles.title}>
+      <View style={[styles.dialogHeader, { flexDirection: logicalFlexDirection(locale) }]}>
+        <Text accessibilityRole="header" style={[customerStyles.title, textDirection]}>
           {title}
         </Text>
         <IconButton icon="close" label={dismissLabel} onPress={onDismiss} />
@@ -361,18 +422,35 @@ export function ChatBubble({
   label,
   message,
   pending = false,
+  delivery,
+  statusLabel,
+  retryLabel,
+  onRetry,
 }: {
   role: 'assistant' | 'customer';
   label: string;
   message: string;
   pending?: boolean;
+  delivery?: 'pending' | 'retryable' | 'offline' | 'sent';
+  statusLabel?: string;
+  retryLabel?: string;
+  onRetry?: () => void;
 }) {
+  const { locale } = useLocale();
   const assistant = role === 'assistant';
+  const textDirection = {
+    textAlign: logicalTextAlignment(locale),
+    writingDirection: logicalWritingDirection(locale),
+  } as const;
   return (
     <View
       accessibilityLabel={label + ': ' + message}
       accessibilityRole="text"
-      style={[styles.chatRow, assistant ? styles.chatAssistantRow : styles.chatCustomerRow]}
+      style={[
+        styles.chatRow,
+        { flexDirection: logicalFlexDirection(locale) },
+        assistant ? styles.chatAssistantRow : styles.chatCustomerRow,
+      ]}
     >
       {assistant ? (
         <View style={styles.chatAvatar}>
@@ -380,9 +458,26 @@ export function ChatBubble({
         </View>
       ) : null}
       <View style={[styles.chatBubble, assistant ? styles.chatAssistant : styles.chatCustomer]}>
-        <Text style={[customerStyles.caption, !assistant && styles.chatCustomerText]}>{label}</Text>
-        <Text style={[customerStyles.body, !assistant && styles.chatCustomerText]}>{message}</Text>
+        <Text
+          style={[customerStyles.caption, textDirection, !assistant && styles.chatCustomerText]}
+        >
+          {label}
+        </Text>
+        <Text style={[customerStyles.body, textDirection, !assistant && styles.chatCustomerText]}>
+          {message}
+        </Text>
         {pending ? <Text style={customerStyles.caption}>•••</Text> : null}
+        {delivery && delivery !== 'sent' && statusLabel ? (
+          <Text
+            accessibilityLiveRegion="polite"
+            style={[customerStyles.caption, textDirection, !assistant && styles.chatCustomerText]}
+          >
+            {statusLabel}
+          </Text>
+        ) : null}
+        {delivery === 'retryable' && retryLabel && onRetry ? (
+          <GhostButton label={retryLabel} onPress={onRetry} />
+        ) : null}
       </View>
     </View>
   );
@@ -415,6 +510,7 @@ export function ChatComposer({
   onVoice: () => void;
   onSend: () => void;
 }) {
+  const { locale } = useLocale();
   return (
     <Surface style={styles.composer}>
       <TextInput
@@ -424,10 +520,16 @@ export function ChatComposer({
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor={tokens.colors.textMuted}
-        style={styles.composerInput}
+        style={[
+          styles.composerInput,
+          {
+            textAlign: logicalTextAlignment(locale),
+            writingDirection: logicalWritingDirection(locale),
+          },
+        ]}
         value={value}
       />
-      <View style={styles.composerActions}>
+      <View style={[styles.composerActions, { flexDirection: logicalFlexDirection(locale) }]}>
         <IconButton icon="camera" label={cameraLabel} onPress={onCamera} />
         <IconButton icon="image" label={galleryLabel} onPress={onGallery} />
         <IconButton icon="microphone" label={voiceLabel} onPress={onVoice} />
@@ -462,14 +564,22 @@ export function MediaPreview({
   onRemove?: () => void;
   removeLabel?: string;
 }) {
+  const { locale } = useLocale();
+  const textDirection = {
+    textAlign: logicalTextAlignment(locale),
+    writingDirection: logicalWritingDirection(locale),
+  } as const;
   return (
-    <Surface style={styles.mediaPreview} tone="muted">
+    <Surface
+      style={[styles.mediaPreview, { flexDirection: logicalFlexDirection(locale) }]}
+      tone="muted"
+    >
       {kind === 'image' && imageSource ? (
         <Image accessibilityLabel={label} source={imageSource} style={styles.previewImage} />
       ) : (
         <AppIcon color={tokens.colors.primaryStrong} name="microphone" size={24} />
       )}
-      <Text numberOfLines={2} style={[customerStyles.caption, styles.flex]}>
+      <Text numberOfLines={2} style={[customerStyles.caption, styles.flex, textDirection]}>
         {label}
       </Text>
       {onRemove && removeLabel ? (
@@ -492,27 +602,33 @@ export function AddressCard({
   onPress?: () => void;
   action?: ReactNode;
 }) {
+  const { locale } = useLocale();
+  const textDirection = {
+    textAlign: logicalTextAlignment(locale),
+    writingDirection: logicalWritingDirection(locale),
+  } as const;
   const body = (
     <>
       <View style={styles.roundIcon}>
         <AppIcon color={tokens.colors.primaryStrong} name="location" size={20} />
       </View>
       <View style={styles.flex}>
-        <Text style={customerStyles.section}>{label}</Text>
-        <Text numberOfLines={3} style={customerStyles.caption}>
+        <Text style={[customerStyles.section, textDirection]}>{label}</Text>
+        <Text numberOfLines={3} style={[customerStyles.caption, textDirection]}>
           {address}
         </Text>
       </View>
       {selected ? <AppIcon color={tokens.colors.success} name="check" size={20} /> : action}
     </>
   );
-  if (!onPress) return <Surface style={styles.addressCard}>{body}</Surface>;
+  const logicalCardStyle = [styles.addressCard, { flexDirection: logicalFlexDirection(locale) }];
+  if (!onPress) return <Surface style={logicalCardStyle}>{body}</Surface>;
   return (
     <InteractivePressable
       accessibilityRole="button"
       accessibilityState={{ selected }}
       onPress={onPress}
-      style={[styles.addressCard, selected && styles.serviceCardSelected]}
+      style={[logicalCardStyle, selected && styles.serviceCardSelected]}
     >
       {body}
     </InteractivePressable>
@@ -530,13 +646,18 @@ export function LocationPermissionCard({
   actionLabel: string;
   onAction: () => void;
 }) {
+  const { locale } = useLocale();
+  const textDirection = {
+    textAlign: logicalTextAlignment(locale),
+    writingDirection: logicalWritingDirection(locale),
+  } as const;
   return (
     <Surface tone="accent">
-      <View style={styles.permissionLead}>
+      <View style={[styles.permissionLead, { flexDirection: logicalFlexDirection(locale) }]}>
         <AppIcon color={tokens.colors.primaryStrong} name="navigation" size={28} />
         <View style={styles.flex}>
-          <Text style={customerStyles.section}>{title}</Text>
-          <Text style={customerStyles.bodyMuted}>{body}</Text>
+          <Text style={[customerStyles.section, textDirection]}>{title}</Text>
+          <Text style={[customerStyles.bodyMuted, textDirection]}>{body}</Text>
         </View>
       </View>
       <SecondaryButton label={actionLabel} onPress={onAction} />
@@ -570,16 +691,21 @@ export function ReviewSummaryCard({
   onEdit: () => void;
   icon: AppIconName;
 }) {
+  const { locale } = useLocale();
+  const textDirection = {
+    textAlign: logicalTextAlignment(locale),
+    writingDirection: logicalWritingDirection(locale),
+  } as const;
   return (
     <Surface>
-      <View style={styles.reviewHeader}>
-        <View style={styles.reviewTitle}>
+      <View style={[styles.reviewHeader, { flexDirection: logicalFlexDirection(locale) }]}>
+        <View style={[styles.reviewTitle, { flexDirection: logicalFlexDirection(locale) }]}>
           <AppIcon color={tokens.colors.primaryStrong} name={icon} size={20} />
-          <Text style={customerStyles.section}>{title}</Text>
+          <Text style={[customerStyles.section, textDirection]}>{title}</Text>
         </View>
         <GhostButton label={editLabel} onPress={onEdit} />
       </View>
-      <Text style={customerStyles.body}>{value}</Text>
+      <Text style={[customerStyles.body, textDirection]}>{value}</Text>
     </Surface>
   );
 }
@@ -597,16 +723,21 @@ export function ActiveRequestCard({
   meta?: string;
   onPress: () => void;
 }) {
+  const { locale } = useLocale();
+  const textDirection = {
+    textAlign: logicalTextAlignment(locale),
+    writingDirection: logicalWritingDirection(locale),
+  } as const;
   return (
     <InteractivePressable accessibilityRole="button" onPress={onPress}>
       <Surface>
-        <View style={styles.reviewHeader}>
-          <Text numberOfLines={2} style={[customerStyles.section, styles.flex]}>
+        <View style={[styles.reviewHeader, { flexDirection: logicalFlexDirection(locale) }]}>
+          <Text numberOfLines={2} style={[customerStyles.section, styles.flex, textDirection]}>
             {title}
           </Text>
           <StatusPill {...(statusTone === undefined ? {} : { tone: statusTone })} label={status} />
         </View>
-        {meta ? <Text style={customerStyles.caption}>{meta}</Text> : null}
+        {meta ? <Text style={[customerStyles.caption, textDirection]}>{meta}</Text> : null}
       </Surface>
     </InteractivePressable>
   );
@@ -625,7 +756,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: tokens.spacing.sm,
   },
-  headerCopy: { flex: 1, alignItems: 'flex-start' },
+  headerCopy: { flex: 1, alignItems: 'stretch' },
   headerPlaceholder: { width: tokens.touchTarget, height: tokens.touchTarget },
   locationHeader: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm },
   locationAction: {
@@ -636,7 +767,7 @@ const styles = StyleSheet.create({
     gap: tokens.spacing.sm,
     borderRadius: tokens.radius.md,
   },
-  locationAddress: { ...tokens.type.label, color: tokens.colors.ink, textAlign: 'left' },
+  locationAddress: { ...tokens.type.label, color: tokens.colors.ink, textAlign: 'auto' },
   roundIcon: {
     width: 42,
     height: 42,
@@ -746,7 +877,7 @@ const styles = StyleSheet.create({
     maxHeight: 132,
     color: tokens.colors.ink,
     ...tokens.type.body,
-    textAlign: 'left',
+    textAlign: 'auto',
   },
   composerActions: {
     flexDirection: 'row',

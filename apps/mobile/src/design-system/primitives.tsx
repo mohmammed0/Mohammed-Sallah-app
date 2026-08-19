@@ -18,6 +18,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppIcon, type AppIconName } from './icon';
 import { customerTokens as tokens } from './tokens';
+import {
+  isRtlLocale,
+  logicalFlexDirection,
+  logicalTextAlignment,
+  logicalWritingDirection,
+} from './rtl';
+import { useLocale } from '../providers/locale-provider';
 
 export function InteractivePressable({
   children,
@@ -70,7 +77,12 @@ export function CustomerScreen({
   keyboardAware?: boolean;
   testID?: string;
 }) {
-  const content = <View style={styles.content}>{children}</View>;
+  const { locale } = useLocale();
+  const content = (
+    <View style={[styles.content, { direction: isRtlLocale(locale) ? 'rtl' : 'ltr' }]}>
+      {children}
+    </View>
+  );
   const body = scroll ? (
     <ScrollView
       contentContainerStyle={styles.scrollContent}
@@ -132,6 +144,7 @@ export function ActionButton({
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
   loading?: boolean;
 }) {
+  const { locale } = useLocale();
   const disabled = Boolean(props.disabled || loading);
   const { style: suppliedStyleValue, ...pressableProps } = props;
   const suppliedStyle = typeof suppliedStyleValue === 'function' ? undefined : suppliedStyleValue;
@@ -146,6 +159,7 @@ export function ActionButton({
       disabled={disabled}
       style={[
         styles.action,
+        { flexDirection: logicalFlexDirection(locale) },
         variant === 'secondary' && styles.actionSecondary,
         variant === 'ghost' && styles.actionGhost,
         variant === 'danger' && styles.actionDanger,
@@ -210,12 +224,17 @@ export function SectionHeader({
   actionLabel?: string;
   onAction?: () => void;
 }) {
+  const { locale } = useLocale();
+  const textDirection = {
+    textAlign: logicalTextAlignment(locale),
+    writingDirection: logicalWritingDirection(locale),
+  } as const;
   return (
-    <View style={styles.sectionHeader}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+    <View style={[styles.sectionHeader, { flexDirection: logicalFlexDirection(locale) }]}>
+      <Text style={[styles.sectionTitle, textDirection]}>{title}</Text>
       {actionLabel && onAction ? (
         <Pressable accessibilityRole="button" onPress={onAction}>
-          <Text style={styles.sectionAction}>{actionLabel}</Text>
+          <Text style={[styles.sectionAction, textDirection]}>{actionLabel}</Text>
         </Pressable>
       ) : null}
     </View>
@@ -227,16 +246,21 @@ export function Field({
   icon,
   ...props
 }: TextInputProps & { label: string; icon?: AppIconName }) {
+  const { locale } = useLocale();
+  const textDirection = {
+    textAlign: logicalTextAlignment(locale),
+    writingDirection: logicalWritingDirection(locale),
+  } as const;
   return (
     <View style={styles.fieldGroup}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <View style={styles.fieldShell}>
+      <Text style={[styles.fieldLabel, textDirection]}>{label}</Text>
+      <View style={[styles.fieldShell, { flexDirection: logicalFlexDirection(locale) }]}>
         {icon ? <AppIcon color={tokens.colors.textMuted} name={icon} size={20} /> : null}
         <TextInput
           {...props}
           accessibilityLabel={label}
           placeholderTextColor={tokens.colors.textMuted}
-          style={[styles.field, props.multiline && styles.multiline, props.style]}
+          style={[styles.field, textDirection, props.multiline && styles.multiline, props.style]}
         />
       </View>
     </View>
@@ -252,6 +276,7 @@ export function Notice({
   tone?: 'info' | 'warning' | 'danger' | 'success';
   live?: boolean;
 }) {
+  const { locale } = useLocale();
   const icon =
     tone === 'warning' || tone === 'danger' ? 'alert' : tone === 'success' ? 'check' : 'shield';
   const color =
@@ -267,13 +292,25 @@ export function Notice({
       accessibilityLiveRegion={live ? 'polite' : 'none'}
       style={[
         styles.notice,
+        { flexDirection: logicalFlexDirection(locale) },
         tone === 'warning' && styles.noticeWarning,
         tone === 'danger' && styles.noticeDanger,
         tone === 'success' && styles.noticeSuccess,
       ]}
     >
       <AppIcon color={color} name={icon} size={20} />
-      <Text style={[styles.noticeText, { color }]}>{children}</Text>
+      <Text
+        style={[
+          styles.noticeText,
+          {
+            color,
+            textAlign: logicalTextAlignment(locale),
+            writingDirection: logicalWritingDirection(locale),
+          },
+        ]}
+      >
+        {children}
+      </Text>
     </View>
   );
 }
@@ -287,6 +324,7 @@ export function Pill({
   selected?: boolean;
   onPress?: () => void;
 }) {
+  const { locale } = useLocale();
   return (
     <Pressable
       accessibilityRole={onPress ? 'button' : 'text'}
@@ -295,7 +333,18 @@ export function Pill({
       onPress={onPress}
       style={[styles.pill, selected && styles.pillSelected]}
     >
-      <Text style={[styles.pillText, selected && styles.pillTextSelected]}>{label}</Text>
+      <Text
+        style={[
+          styles.pillText,
+          {
+            textAlign: logicalTextAlignment(locale),
+            writingDirection: logicalWritingDirection(locale),
+          },
+          selected && styles.pillTextSelected,
+        ]}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -313,13 +362,18 @@ export function EmptyState({
   actionLabel?: string;
   onAction?: () => void;
 }) {
+  const { locale } = useLocale();
+  const textDirection = {
+    textAlign: logicalTextAlignment(locale),
+    writingDirection: logicalWritingDirection(locale),
+  } as const;
   return (
     <Surface style={styles.empty}>
       <View style={styles.emptyIcon}>
         <AppIcon color={tokens.colors.primaryStrong} name={icon} size={28} />
       </View>
-      <Text style={styles.emptyTitle}>{title}</Text>
-      <Text style={styles.bodyMuted}>{body}</Text>
+      <Text style={[styles.emptyTitle, textDirection]}>{title}</Text>
+      <Text style={[styles.bodyMuted, textDirection]}>{body}</Text>
       {actionLabel && onAction ? <ActionButton label={actionLabel} onPress={onAction} /> : null}
     </Surface>
   );
@@ -348,13 +402,18 @@ export function StepHeader({
   current: number;
   total: number;
 }) {
+  const { locale } = useLocale();
+  const textDirection = {
+    textAlign: logicalTextAlignment(locale),
+    writingDirection: logicalWritingDirection(locale),
+  } as const;
   return (
     <View style={styles.stepHeader}>
-      <Text style={styles.eyebrow}>{eyebrow}</Text>
-      <Text accessibilityRole="header" style={styles.display}>
+      <Text style={[styles.eyebrow, textDirection]}>{eyebrow}</Text>
+      <Text accessibilityRole="header" style={[styles.display, textDirection]}>
         {title}
       </Text>
-      {body ? <Text style={styles.bodyMuted}>{body}</Text> : null}
+      {body ? <Text style={[styles.bodyMuted, textDirection]}>{body}</Text> : null}
       <View
         accessibilityLabel={`${current}/${total}`}
         accessibilityRole="progressbar"
@@ -368,12 +427,12 @@ export function StepHeader({
 }
 
 export const customerStyles = StyleSheet.create({
-  display: { ...tokens.type.display, color: tokens.colors.ink, textAlign: 'left' },
-  title: { ...tokens.type.title, color: tokens.colors.ink, textAlign: 'left' },
-  section: { ...tokens.type.section, color: tokens.colors.ink, textAlign: 'left' },
-  body: { ...tokens.type.body, color: tokens.colors.ink, textAlign: 'left' },
-  bodyMuted: { ...tokens.type.body, color: tokens.colors.textMuted, textAlign: 'left' },
-  caption: { ...tokens.type.caption, color: tokens.colors.textMuted, textAlign: 'left' },
+  display: { ...tokens.type.display, color: tokens.colors.ink, textAlign: 'auto' },
+  title: { ...tokens.type.title, color: tokens.colors.ink, textAlign: 'auto' },
+  section: { ...tokens.type.section, color: tokens.colors.ink, textAlign: 'auto' },
+  body: { ...tokens.type.body, color: tokens.colors.ink, textAlign: 'auto' },
+  bodyMuted: { ...tokens.type.body, color: tokens.colors.textMuted, textAlign: 'auto' },
+  caption: { ...tokens.type.caption, color: tokens.colors.textMuted, textAlign: 'auto' },
   row: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
   between: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
@@ -455,10 +514,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: tokens.spacing.md,
   },
-  sectionTitle: { ...tokens.type.section, color: tokens.colors.ink, textAlign: 'left' },
+  sectionTitle: { ...tokens.type.section, color: tokens.colors.ink, textAlign: 'auto' },
   sectionAction: { ...tokens.type.label, color: tokens.colors.primaryStrong },
   fieldGroup: { gap: tokens.spacing.xs },
-  fieldLabel: { ...tokens.type.label, color: tokens.colors.ink, textAlign: 'left' },
+  fieldLabel: { ...tokens.type.label, color: tokens.colors.ink, textAlign: 'auto' },
   fieldShell: {
     minHeight: 54,
     borderWidth: 1,
@@ -475,7 +534,7 @@ const styles = StyleSheet.create({
     minHeight: 52,
     color: tokens.colors.ink,
     ...tokens.type.body,
-    textAlign: 'left',
+    textAlign: 'auto',
   },
   multiline: { minHeight: 112, paddingVertical: 12, textAlignVertical: 'top' },
   notice: {
@@ -489,7 +548,7 @@ const styles = StyleSheet.create({
   noticeWarning: { backgroundColor: tokens.colors.warningSoft },
   noticeDanger: { backgroundColor: tokens.colors.dangerSoft },
   noticeSuccess: { backgroundColor: tokens.colors.successSoft },
-  noticeText: { flex: 1, ...tokens.type.caption, textAlign: 'left' },
+  noticeText: { flex: 1, ...tokens.type.caption, textAlign: 'auto' },
   pill: {
     minHeight: 40,
     borderRadius: tokens.radius.pill,
@@ -527,9 +586,9 @@ const styles = StyleSheet.create({
     color: tokens.colors.primaryStrong,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
-    textAlign: 'left',
+    textAlign: 'auto',
   },
-  display: { ...tokens.type.display, color: tokens.colors.ink, textAlign: 'left' },
+  display: { ...tokens.type.display, color: tokens.colors.ink, textAlign: 'auto' },
   progressTrack: {
     height: 6,
     borderRadius: 3,

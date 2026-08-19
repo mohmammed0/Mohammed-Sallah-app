@@ -1,6 +1,8 @@
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 
+const localeState = vi.hoisted(() => ({ locale: 'ar' as 'ar' | 'en' }));
+
 vi.mock('react-native', () => ({
   Image: 'Image',
   Modal: 'Modal',
@@ -38,11 +40,69 @@ vi.mock('../src/design-system/primitives', () => ({
 vi.mock('../src/design-system/icon', () => ({
   AppIcon: 'AppIcon',
 }));
+vi.mock('../src/providers/locale-provider', () => ({
+  useLocale: () => ({
+    locale: localeState.locale,
+    dir: localeState.locale === 'ar' ? 'rtl' : 'ltr',
+    t: (key: string) => key,
+  }),
+}));
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
 
 describe('customer marketplace components', () => {
+  it('renders location, service grid, chat, review, and tabs with locale direction', async () => {
+    localeState.locale = 'ar';
+    const { BottomTabs, ChatBubble, LocationHeader, ReviewSummaryCard, ServiceCategoryCard } =
+      await import('../src/design-system/customer-components');
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(() => {
+      renderer = create(
+        <>
+          <LocationHeader
+            address="Synthetic Riyadh address"
+            changeLabel="Change"
+            label="Home"
+            onPress={() => undefined}
+          />
+          <ServiceCategoryCard icon="plumbing" title="Plumbing" />
+          <ChatBubble label="Customer" message="Water is leaking" role="customer" />
+          <ReviewSummaryCard
+            editLabel="Edit"
+            icon="requests"
+            onEdit={() => undefined}
+            title="Review"
+            value="Details"
+          />
+          <BottomTabs
+            activeKey="home"
+            onSelect={() => undefined}
+            tabs={[{ key: 'home', label: 'Home', icon: 'home' }]}
+          />
+        </>,
+      );
+    });
+    const locationAction = renderer?.root.findAllByType('Pressable')[0];
+    expect(JSON.stringify(locationAction?.props.style)).toContain('row-reverse');
+    const tablist = renderer?.root.findByProps({ accessibilityRole: 'tablist' });
+    expect(JSON.stringify(tablist?.props.style)).toContain('row-reverse');
+
+    localeState.locale = 'en';
+    await act(() => {
+      renderer?.update(
+        <BottomTabs
+          activeKey="home"
+          onSelect={() => undefined}
+          tabs={[{ key: 'home', label: 'Home', icon: 'home' }]}
+        />,
+      );
+    });
+    expect(
+      JSON.stringify(renderer?.root.findByProps({ accessibilityRole: 'tablist' }).props.style),
+    ).toContain('row');
+  });
+
   it('makes the location header and notification affordance accessible', async () => {
     const onPress = vi.fn();
     const onNotifications = vi.fn();

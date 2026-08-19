@@ -57,6 +57,25 @@ describe('sealed marketplace foundations', () => {
     expect(result.suggestedCategorySlug).toBe('plumbing');
     expect(result.suggestedSubcategorySlug).toBe('tap-repair');
   });
+  it('offers contextual fallback replies for the current question', async () => {
+    const fallback = new DeterministicAiProvider();
+    const category = await fallback.diagnose({
+      locale: 'en',
+      categoryHints: [],
+      messages: [{ role: 'user', text: 'The fixture has stopped working since this morning.' }],
+    });
+    const schedule = await fallback.diagnose({
+      locale: 'en',
+      categoryHints: ['electrical'],
+      confirmedCategorySlug: 'electrical',
+      messages: [{ role: 'user', text: 'The fixture has stopped working since this morning.' }],
+    });
+    expect(category.followUpQuestions[0]).toContain('service type');
+    expect(category.quickReplies).toContain('Electrical');
+    expect(schedule.followUpQuestions[0]).toContain('When');
+    expect(schedule.quickReplies).toContain('Tomorrow');
+    expect(category.quickReplies).not.toEqual(schedule.quickReplies);
+  });
   it('detects safety wording in fallback diagnostics', async () => {
     const result = await new DeterministicAiProvider().diagnose({
       locale: 'ar',

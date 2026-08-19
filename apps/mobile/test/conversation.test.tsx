@@ -5,6 +5,8 @@ import {
   canPublishRequest,
   categorySelectionSource,
   conversationOriginalText,
+  markConversationMessageRetryable,
+  upsertPendingCustomerMessage,
   type ConversationMessage,
 } from '../src/features/request/conversation-state';
 
@@ -14,6 +16,9 @@ vi.mock('react-native', () => ({
   View: 'View',
 }));
 vi.mock('../src/design-system/icon', () => ({ AppIcon: 'AppIcon' }));
+vi.mock('../src/design-system/customer-components', () => ({
+  ChatBubble: 'ChatBubble',
+}));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
 
@@ -28,17 +33,22 @@ describe('multi-turn request conversation', () => {
     let renderer: ReturnType<typeof create> | undefined;
     await act(() => {
       renderer = create(
-        <ConversationTimeline messages={messages} userLabel="You" assistantLabel="Assistant" />,
+        <ConversationTimeline
+          assistantLabel="Assistant"
+          messages={messages}
+          offlineLabel="Offline"
+          onRetry={() => undefined}
+          pendingLabel="Sending"
+          retryLabel="Retry"
+          userLabel="You"
+        />,
       );
     });
-    const text = renderer?.root.findAllByType('Text').map((node) => node.children.join(' '));
-    expect(text).toEqual([
-      'You',
-      'The kitchen sink is leaking.',
-      'Assistant',
-      'When did it start?',
-      'You',
-      'Last night.',
+    const bubbles = renderer?.root.findAllByType('ChatBubble') ?? [];
+    expect(bubbles.map((node) => [node.props.label, node.props.message])).toEqual([
+      ['You', 'The kitchen sink is leaking.'],
+      ['Assistant', 'When did it start?'],
+      ['You', 'Last night.'],
     ]);
   });
 
@@ -50,6 +60,26 @@ describe('multi-turn request conversation', () => {
     expect(history).toHaveLength(150);
     expect(conversationOriginalText(history)).toContain('answer-1');
     expect(conversationOriginalText(history)).toContain('answer-75');
+  });
+
+  it('binds pending, offline, and retry state to the exact client message', () => {
+    const first = upsertPendingCustomerMessage([], {
+      clientMessageId: 'client-message-0001',
+      text: 'First answer',
+      offline: true,
+      mediaUploadIds: [],
+      inputKind: 'text',
+    });
+    const second = upsertPendingCustomerMessage(first, {
+      clientMessageId: 'client-message-0002',
+      text: 'Second answer',
+      offline: false,
+      mediaUploadIds: [],
+      inputKind: 'text',
+    });
+    const retryable = markConversationMessageRetryable(second, 'client-message-0002');
+    expect(retryable[0]?.delivery).toBe('offline');
+    expect(retryable[1]?.delivery).toBe('retryable');
   });
 
   it('requires explicit approval even for an editable fallback summary', () => {

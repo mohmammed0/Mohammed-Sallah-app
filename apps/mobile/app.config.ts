@@ -8,6 +8,9 @@ const defaultEasProjectId = 'f098f941-ae73-4007-b582-ba6fb1b8aa7a';
 export default ({ config }: ConfigContext): ExpoConfig => {
   const environment = process.env.EXPO_PUBLIC_APP_ENV ?? 'local';
   const production = environment === 'production';
+  // Build-time only. This key is restricted in Google Cloud to the Android
+  // package name and signing certificate; it is never exposed through EXPO_PUBLIC_*.
+  const androidMapsApiKey = process.env.SALLAH_ANDROID_GOOGLE_MAPS_API_KEY;
   const configuredProjectId = process.env.EAS_PROJECT_ID;
   const projectId = configuredProjectId ?? defaultEasProjectId;
   if (
@@ -40,9 +43,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       package: process.env.SALLAH_ANDROID_PACKAGE ?? branding.androidPackage,
       adaptiveIcon: { backgroundColor: branding.colors.sand },
       blockedPermissions: ['android.permission.ACCESS_BACKGROUND_LOCATION'],
-      ...(process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
-        ? { config: { googleMaps: { apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY } } }
-        : {}),
+      ...(androidMapsApiKey ? { config: { googleMaps: { apiKey: androidMapsApiKey } } } : {}),
     },
     plugins: [
       'expo-router',
@@ -88,6 +89,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         backgroundLocation: false,
         onlinePayments: false,
       },
+      maps: { androidConfigured: Boolean(androidMapsApiKey) },
     },
   };
 };

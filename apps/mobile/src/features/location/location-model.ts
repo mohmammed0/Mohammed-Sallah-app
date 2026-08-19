@@ -6,11 +6,56 @@ const ADDRESS_PART_SEPARATOR = '\u060c ';
 
 export const coordinatesSchema = z
   .object({
-    latitude: z.number().finite().min(16).max(33),
-    longitude: z.number().finite().min(34).max(56),
+    latitude: z.number().finite().min(-90).max(90),
+    longitude: z.number().finite().min(-180).max(180),
   })
   .strict();
 export type Coordinates = z.infer<typeof coordinatesSchema>;
+
+export const supportedServiceLocationSchema = z
+  .object({
+    status: z.literal('supported'),
+    countryCode: z.literal('SA'),
+    city: z
+      .object({
+        id: z.uuid(),
+        code: z.string().min(2).max(80),
+        nameAr: z.string().min(1),
+        nameEn: z.string().min(1),
+      })
+      .strict(),
+  })
+  .strict();
+
+export const serviceLocationResolutionSchema = z.discriminatedUnion('status', [
+  supportedServiceLocationSchema,
+  z
+    .object({
+      status: z.enum(['location_unavailable', 'outside_saudi_arabia']),
+      countryCode: z.null(),
+      city: z.null(),
+    })
+    .strict(),
+  z
+    .object({
+      status: z.literal('city_not_supported'),
+      countryCode: z.literal('SA'),
+      city: z.null(),
+    })
+    .strict(),
+]);
+export type ServiceLocationResolution = z.infer<typeof serviceLocationResolutionSchema>;
+
+export const reverseGeocodeResultSchema = z
+  .object({
+    formattedAddress: z.string().max(500),
+    city: z.string().max(120).nullable(),
+    district: z.string().max(120).nullable(),
+    region: z.string().max(120).nullable(),
+    countryCode: z.string().max(3).nullable(),
+  })
+  .strict();
+export type ReverseGeocodeResult = z.infer<typeof reverseGeocodeResultSchema>;
 
 export const savedAddressSchema = z
   .object({
@@ -73,6 +118,41 @@ export function sanitizeReverseGeocode(
     .filter((part, index, all) => all.indexOf(part) === index)
     .join(ADDRESS_PART_SEPARATOR)
     .slice(0, 500);
+}
+
+export function normalizeReverseGeocode(
+  result:
+    | {
+        formattedAddress?: string | null;
+        name?: string | null;
+        street?: string | null;
+        district?: string | null;
+        city?: string | null;
+        region?: string | null;
+        isoCountryCode?: string | null;
+      }
+    | undefined,
+): ReverseGeocodeResult | null {
+  const formattedAddress = sanitizeReverseGeocode(result);
+  if (!formattedAddress) return null;
+  const normalize = (value: string | null | undefined, maximum: number) =>
+    value?.trim().slice(0, maximum) || null;
+  return reverseGeocodeResultSchema.parse({
+    formattedAddress,
+    city: normalize(result?.city, 120),
+    district: normalize(result?.district, 120),
+    region: normalize(result?.region, 120),
+    countryCode: normalize(result?.isoCountryCode, 3)?.toUpperCase() ?? null,
+  });
+}
+
+export function serviceLocationStatusKey(
+  resolution: ServiceLocationResolution | null,
+): 'locationUnavailable' | 'outsideSaudiArabia' | 'cityNotSupported' | 'serviceLocationResolved' {
+  if (!resolution || resolution.status === 'location_unavailable') return 'locationUnavailable';
+  if (resolution.status === 'outside_saudi_arabia') return 'outsideSaudiArabia';
+  if (resolution.status === 'city_not_supported') return 'cityNotSupported';
+  return 'serviceLocationResolved';
 }
 
 export function sameCoordinates(left: Coordinates, right: Coordinates): boolean {

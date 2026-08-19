@@ -80,7 +80,8 @@ Deno.test('prompt carries category confirmation and explicit summary request', (
   assert(prompt.includes('Confirmed category slug: plumbing'), 'category control must be explicit');
   assert(prompt.includes('Explicit summary requested: true'), 'summary control must be explicit');
   const request = JSON.stringify(buildOpenAiRequest('vision-model', input, []));
-  assert(request.includes('diagnostic-v3'), 'request must declare the persisted prompt version');
+  assert(request.includes('diagnostic-v4'), 'request must declare the persisted prompt version');
+  assert(request.includes('quickReplies'), 'request must require contextual quick replies');
 });
 
 Deno.test('provider image limits are strict', () => {

@@ -656,7 +656,6 @@ async function runConcurrentIdempotencyFlow(config, owner, provider) {
   }
 }
 
-
 async function runSavedLocationDefaultFlow(config, owner) {
   const firstId = crypto.randomUUID();
   const secondId = crypto.randomUUID();
@@ -686,18 +685,16 @@ async function runSavedLocationDefaultFlow(config, owner) {
     }),
     'saved_location_second',
   );
+  const firstDefault = rpc(config, owner, 'make_my_saved_address_default', {
+    p_address_id: firstId,
+  });
+  const secondDefault = rpc(config, owner, 'make_my_saved_address_default', {
+    p_address_id: secondId,
+  });
   await Promise.all([
-    expectOk(
-      await rpc(config, owner, 'make_my_saved_address_default', {
-        p_address_id: firstId,
-      }),
-      'saved_location_concurrent_default_first',
-    ),
-    expectOk(
-      await rpc(config, owner, 'make_my_saved_address_default', {
-        p_address_id: secondId,
-      }),
-      'saved_location_concurrent_default_second',
+    firstDefault.then((response) => expectOk(response, 'saved_location_concurrent_default_first')),
+    secondDefault.then((response) =>
+      expectOk(response, 'saved_location_concurrent_default_second'),
     ),
   ]);
   const addresses = await expectOk(
@@ -736,7 +733,9 @@ try {
   await runStorageFlow(config, owner, outsider);
   await runAiPublicationFlow(config, owner);
   await runConcurrentIdempotencyFlow(config, owner, provider);
-  console.log('Local Supabase integration: PASS (location authority + storage + AI + true concurrent idempotency)');
+  console.log(
+    'Local Supabase integration: PASS (location authority + storage + AI + true concurrent idempotency)',
+  );
 } finally {
   await stopFunctions(functionServer);
 }

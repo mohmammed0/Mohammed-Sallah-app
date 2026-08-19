@@ -7126,6 +7126,10 @@ export type Database = {
         Returns: Json;
       };
       list_my_saved_addresses: { Args: never; Returns: Json };
+      make_my_saved_address_default: {
+        Args: { p_address_id: string };
+        Returns: undefined;
+      };
       open_dispute:
         | {
             Args: {
@@ -7221,6 +7225,10 @@ export type Database = {
           p_job_outcome: string;
           p_reason: string;
         };
+        Returns: Json;
+      };
+      resolve_service_location: {
+        Args: { p_latitude: number; p_longitude: number };
         Returns: Json;
       };
       restore_active_ai_intake: { Args: never; Returns: Json };

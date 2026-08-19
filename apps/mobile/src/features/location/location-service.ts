@@ -1,10 +1,14 @@
 import { z } from 'zod';
 import { supabase } from '@/lib/supabase';
 import {
+  coordinatesSchema,
   savedAddressInputSchema,
   savedAddressSchema,
+  serviceLocationResolutionSchema,
+  type Coordinates,
   type SavedAddress,
   type SavedAddressInput,
+  type ServiceLocationResolution,
 } from './location-model';
 
 const rpcResultSchema = z.array(savedAddressSchema);
@@ -36,4 +40,23 @@ export async function archiveMyAddress(addressId: string): Promise<void> {
     p_address_id: z.uuid().parse(addressId),
   });
   if (error) throw new Error('SAVED_ADDRESS_ARCHIVE_FAILED');
+}
+
+export async function makeMyAddressDefault(addressId: string): Promise<void> {
+  const { error } = await rpc()('make_my_saved_address_default', {
+    p_address_id: z.uuid().parse(addressId),
+  });
+  if (error) throw new Error('SAVED_ADDRESS_DEFAULT_FAILED');
+}
+
+export async function resolveServiceLocation(
+  coordinates: Coordinates,
+): Promise<ServiceLocationResolution> {
+  const point = coordinatesSchema.parse(coordinates);
+  const { data, error } = await rpc()('resolve_service_location', {
+    p_latitude: point.latitude,
+    p_longitude: point.longitude,
+  });
+  if (error) throw new Error('SERVICE_LOCATION_RESOLUTION_FAILED');
+  return serviceLocationResolutionSchema.parse(data);
 }
