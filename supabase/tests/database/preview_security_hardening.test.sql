@@ -378,9 +378,11 @@ select is(
   0::bigint,
   'external deletion audit stores no raw submitted email'
 );
-select unlike(
-  pg_get_functiondef('public.request_external_account_deletion(text,text)'::regprocedure),
-  '%auth.users%',
+select ok(
+  pg_catalog.strpos(
+    pg_catalog.pg_get_functiondef('public.request_external_account_deletion(text,text)'::regprocedure),
+    'auth.users'
+  ) = 0,
   'external deletion never queries account existence'
 );
 

@@ -34,7 +34,7 @@ as $$
 declare
   captured bigint;
 begin
-  select pg_catalog.coalesce(
+  select coalesce(
     pg_catalog.sum(
       case
         when event_type = 'captured' then amount_minor
@@ -137,7 +137,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  normalized_email text := pg_catalog.lower(pg_catalog.btrim(pg_catalog.coalesce(p_email, '')));
+  normalized_email text := pg_catalog.lower(pg_catalog.btrim(coalesce(p_email, '')));
   email_hash text;
   bounded_reason text;
   allowed boolean;
