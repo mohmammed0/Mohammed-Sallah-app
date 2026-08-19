@@ -99,7 +99,18 @@ alter view public.provider_request_briefs
 create or replace view public.provider_public_profiles
 with (security_invoker = true, security_barrier = true)
 as
-select *
+select
+  user_id,
+  kind,
+  business_name,
+  bio,
+  preferred_brief_locale,
+  verification_status,
+  rating_average::numeric(3,2) as rating_average,
+  rating_count,
+  completed_jobs,
+  response_rate::numeric(5,4) as response_rate,
+  created_at
 from private.provider_public_profile_rows();
 
 revoke all on public.provider_request_briefs from public, anon, authenticated;
