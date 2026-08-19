@@ -151,8 +151,15 @@ infrastructure, and app stores were not used.
 - **Repository format and generated artifacts — PASS:** Cloud finalizer formatted sources,
   regenerated types, removed itself, and produced commit
   `4b96368c60c3d0b7b300086501abeb21028e03d4`.
-- **Final full CI on report HEAD — PENDING:** The final report commit triggers the authoritative push
-  and pull-request runs; links are recorded in Draft PR #14.
+- **Final full CI on report HEAD — BLOCKED / NOT RUN:** The push and pull-request jobs received
+  zero steps and no runner because GitHub blocked Actions for account billing/spending-limit reasons.
+
+Final-head [push run 32261239382](https://github.com/mohmammed0/Mohammed-Sallah-app/actions/runs/32261239382)
+and [pull-request run 32261246335](https://github.com/mohmammed0/Mohammed-Sallah-app/actions/runs/32261246335)
+were attempted. GitHub attached the same failure annotation to every zero-step job: recent account
+payments failed or the Actions spending limit must be increased. The pull-request run was retried
+twice after cooldown with the same result. This is an external runner/billing gate; no repository
+command or test ran in those jobs.
 
 The first pre-final CI run failed only at formatting and generated-type drift after its preceding
 database/RLS/integration gates passed. Those generated artifacts were then corrected by the bounded
