@@ -7,6 +7,7 @@ All exposed public tables have RLS enabled. No service-role key is available to 
 | Raw profile/preferences                | own                       | own                       | own                      | deny; linked safe identity RPC only             | deny; purpose-scoped projection RPCs only                                                | deny       |
 | Safe identity / customer PII RPC       | own                       | deny unrelated            | deny unrelated           | assigned-case display identity only             | PII requires `customer.pii.read`; marketplace/verification projections are field-limited | deny       |
 | Exact address / job location RPC       | own job only              | deny                      | selected active job only | linked case + `exact_location` + reason + audit | `operations.exact_location.read` + reason + audit                                        | deny       |
+| Service-area coordinate resolution     | authenticated RPC only    | deny                      | authenticated RPC only   | authenticated RPC only                          | authenticated RPC only                                                                   | deny       |
 | Foreground location-sharing sessions   | own job read              | deny                      | own active session       | deny unless separately linked and permissioned  | narrowly permissioned                                                                    | deny       |
 | Request core/answers/clean media brief | own                       | matched, approximate only | participant              | authorized linked case only                     | `operations.marketplace.read`                                                            | deny       |
 | AI sessions/messages/diagnostics       | own                       | deny                      | deny                     | deny                                            | server/service workflow only                                                             | deny       |
@@ -36,9 +37,10 @@ The authoritative runtime role list is exported by `@sallah/domain` and includes
 the same contract. Staff-only roles never imply customer/provider navigation. An unknown future role
 produces a controlled restricted mobile state instead of an endless initialization state.
 
-Automated evidence: 21 pgTAP files execute 492 assertions, including
+Automated evidence: 24 pgTAP files execute 532 assertions, including
 `scoped_support_authorization.test.sql`, `cross_role.test.sql`, `rls.test.sql`,
-`pii_admin_scope.test.sql`, `schema.test.sql`, and `launch_readiness_p0.test.sql`. They cover direct
+`pii_admin_scope.test.sql`, `customer_location_authority.test.sql`, `schema.test.sql`, and
+`launch_readiness_p0.test.sql`. They cover direct
 raw-table PII denial, purpose-scoped projections, assigned/unassigned/expired support,
 explicitly ended assignments, revoked roles, unrelated request/job denial, independent exact-location and internal-note access,
 analyst denial, operations access, competing offers, unmatched location denial, clean-media

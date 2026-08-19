@@ -231,6 +231,6 @@ The database function and this document are two views of one explicit 76-categor
 | Transient unsaved map selection                                                             | Customer map choice                                       | In-memory provider and encrypted request draft when used in intake                                               | Let a customer use a location without saving it to the address book | Cleared with process/draft lifecycle; published only as an authorized request snapshot                                             |
 
 Foreground location is requested only after a user action. Background customer location is not
-requested. Reverse geocoding runs on explicit location/current-position confirmation rather than
+requested. Reverse geocoding runs after current-position selection or a debounced map-movement end rather than
 continuously during map movement. Application logs must not include coordinates, address text,
 media, complaint text, session values or secrets.

@@ -63,7 +63,10 @@ sequenceDiagram
 ```
 
 `confirmedCategorySlug` and `summaryRequested` are explicit prompt inputs, not metadata-only hints.
-The active database prompt declaration and diagnostic metadata use `diagnostic-v3`. AI never
+The active database prompt declaration and diagnostic metadata use `diagnostic-v4`. Its strict
+schema includes up to four localized `quickReplies` bound to the current first follow-up question;
+the deterministic fallback uses the same contextual contract and the mobile client always keeps
+free text available. AI never
 publishes, quotes a guaranteed price, diagnoses with certainty, or replaces emergency guidance.
 The UI keeps suggested, selected, and customer-confirmed category state separate. The initial AI
 suggestion is null; only an authoritative diagnostic can populate it. Selection records `manual`,
@@ -93,4 +96,6 @@ Camera, gallery and voice remain turn-scoped. Offline replay preserves `clientMe
 bindings and category/subcategory context. AI completion only makes a best-available structured
 summary available for review; it never publishes a request. Location, timing, customer edits and
 explicit approval are separate focused states, and publication continues through the durable
-idempotent mutation journal.
+idempotent mutation journal. The authoritative message timeline scrolls independently while the
+shared composer remains fixed above the keyboard and safe area. Delivery, offline and retry status
+is rendered on the exact customer message rather than as an unrelated global banner.

@@ -109,71 +109,91 @@ the Issue #9/PR handoff after the exact commit completes.
 
 ## Customer mobile experience redesign (Draft PR #14)
 
-Date: 2026-08-19. Execution boundary: GitHub API and GitHub Actions only. The Windows
-checkout, Android Studio, emulator, Metro, Gradle, local Supabase, EAS Build, production
-infrastructure, and app stores were not used.
+Date: 2026-08-19. Execution boundary: an isolated cloud checkout and disposable local Supabase
+containers. The user's Windows checkout, Android Studio, emulator, Metro, Gradle, EAS Build,
+production infrastructure, secrets, and app stores were not used. Resource-intensive checks ran
+sequentially with bounded concurrency.
 
 ### Implemented contract
 
-- Customer navigation is Home, Requests, Messages, and Account. The legacy provider branch remains
-  unchanged and customer jobs are no longer a visible tab.
-- The request route is an explicit recoverable journey:
-  category → diagnostic chat → location → timing → review → success. Publication still requires
-  customer confirmation and the existing idempotent Supabase command.
-- Customer categories and subcategories are database-backed. Authoritative AI context now retains
-  the confirmed subcategory through offline replay without fabricating an AI suggestion.
-- Saved locations use owner-scoped RPCs and RLS. A transient selection stays in memory; publication
-  creates an immutable request-location snapshot in the same transaction. Only foreground location
-  permission is requested.
-- The shared customer design system provides semantic light/dark tokens, accessible interaction
-  states, RTL/LTR helpers, Lucide icons, localized loading/empty/error/success states, and
-  reduced-motion behavior.
-- The reference at `docs/screenshots/customer-experience-v1.svg` is an original design reference,
-  not a device screenshot.
+- `CustomerLocationProvider` is the single active-location authority for Home, intake, saved
+  locations, and Account. A Home selection carries into intake; transient draft locations remain
+  encrypted draft state until an explicit Save.
+- `LocationPicker` owns foreground location, map movement, debounced reverse geocoding, localized
+  fallback states, and server-authoritative service-city resolution. Address save and publication
+  reject coordinate/city mismatches. Riyadh, Jeddah, and Dammam boundaries are supported; an
+  unsupported Saudi point and a non-Saudi point are never rewritten as Riyadh.
+- Saved-address Add/Edit/Archive/Make default commands preserve actual IDs, wait for asynchronous
+  loading, preserve the current default, and serialize default changes transactionally.
+- The diagnostic timeline scrolls independently while the shared composer remains fixed above the
+  keyboard and safe area. Text, camera, gallery, voice, offline replay, `clientMessageId`, and exact
+  per-message pending/retry/offline states are retained. Diagnostic v4 supplies contextual quick
+  replies while free text remains available.
+- Runtime locale direction reaches customer primitives, service grids, location header, chat,
+  forms, review, and tabs. Arabic/Urdu render RTL and English/Hindi render LTR without depending on
+  an application restart.
+- Review exposes the editable category, subcategory, title, summary, structured answers, safe media
+  previews, voice/transcript state, location details, timing, urgency, safety guidance, and AI
+  uncertainty/fallback state. It never renders raw paths, signed URLs, enums, or internal errors.
+- Android Maps configuration remains a build-time, Git-excluded concern. Missing provider/key and
+  map-render timeout states show localized recovery UI; only the boolean readiness flag reaches JS.
 
-### Cloud validation evidence
+### Migrations and fresh-install behavior
 
-- **Migration chain from zero — PASS:** Disposable Supabase reset completed before generated
-  types were committed in `4b96368c60c3d0b7b300086501abeb21028e03d4`.
-- **Generated database types — PASS:** Regenerated from the reset database; final CI verifies zero
-  drift.
-- **pgTAP and RLS — PASS:** 22 files / 510 assertions, including 18 saved-location/publication
-  assertions.
-- **Legacy timing upgrade — PASS:** 5/5 legacy combinations.
-- **Local Supabase integration — PASS:** Storage, AI, and true concurrent core idempotency.
-- **Mobile lint and strict typecheck — PASS:** GitHub Actions mobile job.
-- **Mobile unit/component tests — PASS:** 21 files / 81 tests.
-- **Expo Doctor and Android export/config check — PASS:** GitHub Actions mobile job; production
-  placeholders remain fail-closed.
-- **Web lint/typecheck/build — PASS:** GitHub Actions web job.
-- **Web unit tests — PASS:** 3 files / 15 tests.
-- **Playwright — PASS:** 8 passed / 2 explicitly skipped in the established suite.
-- **Repository format and generated artifacts — PASS:** Cloud finalizer formatted sources,
-  regenerated types, removed itself, and produced commit
-  `4b96368c60c3d0b7b300086501abeb21028e03d4`.
-- **Final full CI on report HEAD — BLOCKED / NOT RUN:** The push and pull-request jobs received
-  zero steps and no runner because GitHub blocked Actions for account billing/spending-limit reasons.
+- `20260819151047_customer_location_authority.sql`: geographic boundaries, safe resolver RPC,
+  coordinate/city enforcement, and transactionally unique default selection.
+- `20260819151151_ai_contextual_quick_replies.sql`: active strict `diagnostic-v4` prompt contract.
+- `20260819151200_ensure_service_city_boundaries.sql`: fresh-reset ordering for launch-city rows and
+  missing boundaries, without replacing operator-managed values.
 
-Final-head [push run 32261239382](https://github.com/mohmammed0/Mohammed-Sallah-app/actions/runs/32261239382)
-and [pull-request run 32261246335](https://github.com/mohmammed0/Mohammed-Sallah-app/actions/runs/32261246335)
-were attempted. GitHub attached the same failure annotation to every zero-step job: recent account
-payments failed or the Actions spending limit must be increased. The pull-request run was retried
-twice after cooldown with the same result. This is an external runner/billing gate; no repository
-command or test ran in those jobs.
+Fresh reset initially exposed two fixture-ordering defects: city boundaries did not yet exist when
+the first authority migration ran, and old demo/pgTAP fixtures used `(0,0)` as a Riyadh placeholder.
+The forward migration above fixes catalog ordering, and only synthetic Riyadh fixtures now use a
+valid Riyadh point. Rejection fixtures remain invalid. No RLS or authorization policy was weakened.
 
-The earlier full cloud finalizer also exposed seven direct-Arabic-source violations in the location
-screen/model fixtures. This follow-up centralizes the Arabic Riyadh data value and Arabic comma as
-deterministic Unicode domain constants; production and tests no longer contain direct Arabic source
-literals. The repository i18n rerun remains blocked by the same GitHub billing gate.
+### Exact-head repository validation
 
-The first pre-final CI run failed only at formatting and generated-type drift after its preceding
-database/RLS/integration gates passed. Those generated artifacts were then corrected by the bounded
-cloud finalizer. No test failure was suppressed.
+The final full SHA and CI run links are recorded in PR #14 after the final commit because a tracked
+file cannot contain the hash of its own commit.
+
+| Command or suite                          | Result | Evidence                                                                                              |
+| ----------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------- |
+| Clean `pnpm install --frozen-lockfile`    | PASS   | Official checksummed Node 22 runtime; lockfile supply-chain policy **786 entries**                    |
+| `supabase db reset --local`               | PASS   | Zero-to-head migrations and seed                                                                      |
+| Generated database types                  | PASS   | Regenerated from local PostgreSQL, formatted, zero drift                                              |
+| `supabase test db`                        | PASS   | **24 files / 532 assertions**, including RLS and location authority                                   |
+| `supabase db lint`                        | PASS   | No `public`/`private` application-schema errors                                                       |
+| `pnpm test:legacy-upgrade`                | PASS   | **5/5** legacy timing combinations                                                                    |
+| Deno format, lint, check, and tests       | PASS   | **34 tests**                                                                                          |
+| Workspace Vitest                          | PASS   | **131 tests**: mobile 90, web 15, domain 10, config 5, i18n 5, image parser 6                         |
+| `pnpm test:integration`                   | PASS   | **2 tests**                                                                                           |
+| `pnpm test:security`                      | PASS   | **4 tests**                                                                                           |
+| `pnpm test:local-supabase`                | PASS   | Location, storage, AI, and concurrent idempotency/default-address scenarios                           |
+| `pnpm test:e2e:web`                       | PASS   | **8 passed / 2 intentionally skipped** established mobile-project duplicate cases                     |
+| `pnpm validate`                           | PASS   | Format, i18n, captures, inventory, lint, strict types, tests, web build, Android export               |
+| Data inventory                            | PASS   | 76 categories and one classification for each of 130 tables                                           |
+| Expo dependency check / Doctor            | PASS   | Dependencies aligned; **21/21** checks                                                                |
+| Android export                            | PASS   | Hermes export, **3,410 modules**, 6.9 MB bundle                                                       |
+| k6 smoke                                  | PASS   | **200/200**, zero failures, p95 4.4 ms                                                                |
+| License, vulnerability, and secret checks | PASS   | Approved policy; no high-severity vulnerability or committed production secret                        |
+| SBOM                                      | PASS   | CycloneDX, 786 components; SHA-256 `dd1a7ed0c3dca12a7f327daf40711c2fea6bf7cdef408ebeaa4617f160856565` |
+
+The countable repository suites contain **711 passing tests/assertions**: 532 pgTAP, 34 Deno, 131
+workspace Vitest, 2 integration, 4 security, and 8 Playwright. The 5 legacy conversions,
+local-Supabase scenarios, and 200 k6 checks are reported separately. Deterministic rendered captures
+are checked for byte-for-byte drift by `pnpm customer-captures:check`:
+
+- Arabic RTL: `docs/screenshots/customer-redesign-ar-rtl.svg`
+- English LTR: `docs/screenshots/customer-redesign-en-ltr.svg`
+
+These are automated rendered/test captures, not emulator or physical-device screenshots.
 
 ### External and human gates
 
-- Android emulator and physical-device visual validation: **NOT RUN** under the cloud-only boundary.
-  Follow-up and required Maps preview key/package/SHA-1 restrictions are tracked in Issue #15.
+- GitHub Actions on the exact final SHA must be reported from GitHub after push. A billing/budget
+  refusal is an external **NOT RUN**, not a passing CI result.
+- Android emulator and physical-device visual validation: **NOT RUN**. The restricted Preview Maps
+  key/package/SHA-1 and real-device evidence remain tracked in Issue #15.
 - Camera/gallery, voice, foreground location, map gestures, large text, screen reader, RTL/LTR, and
   restart behavior on a real device: **NOT RUN** pending Issue #15 evidence.
 - Provider visual redesign is deliberately outside this change and tracked in Issue #16.
