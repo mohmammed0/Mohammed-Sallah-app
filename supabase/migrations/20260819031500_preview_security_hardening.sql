@@ -262,6 +262,7 @@ grant execute on function public.transition_job(uuid,text,text,text) to authenti
 grant execute on function public.upsert_provider_onboarding(jsonb) to authenticated;
 
 grant execute on function public.request_external_account_deletion(text,text) to anon, authenticated;
+grant execute on function public.run_matching(uuid,integer) to service_role;
 grant execute on function private.provider_public_profile_rows() to anon, authenticated, service_role;
 grant execute on function private.can_access_conversation(uuid) to authenticated;
 grant execute on function private.can_access_job(uuid) to authenticated;
