@@ -132,7 +132,7 @@ export function CustomerHome() {
           <AppIcon color={tokens.colors.textMuted} name="chevron-forward" size={18} />
         </Pressable>
         <IconButton
-          badge={notifications.data}
+          {...(notifications.data === undefined ? {} : { badge: notifications.data })}
           icon="bell"
           label={t('notificationAccessibility')}
           onPress={() => router.push('/notifications')}

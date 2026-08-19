@@ -25,7 +25,7 @@ export default function CustomerTabs() {
         options={{
           title: t('home'),
           tabBarLabel: t('home'),
-          tabBarIcon: ({ color, size }) => <AppIcon color={color} name="home" size={size} />,
+          tabBarIcon: ({ color, size }) => <AppIcon color={color as string} name="home" size={size} />,
         }}
       />
       <Tabs.Screen
@@ -33,7 +33,7 @@ export default function CustomerTabs() {
         options={{
           title: t('requests'),
           tabBarLabel: t('requests'),
-          tabBarIcon: ({ color, size }) => <AppIcon color={color} name="requests" size={size} />,
+          tabBarIcon: ({ color, size }) => <AppIcon color={color as string} name="requests" size={size} />,
         }}
       />
       <Tabs.Screen
@@ -41,7 +41,7 @@ export default function CustomerTabs() {
         options={{
           title: t('messages'),
           tabBarLabel: t('messages'),
-          tabBarIcon: ({ color, size }) => <AppIcon color={color} name="messages" size={size} />,
+          tabBarIcon: ({ color, size }) => <AppIcon color={color as string} name="messages" size={size} />,
         }}
       />
       <Tabs.Screen
@@ -49,7 +49,7 @@ export default function CustomerTabs() {
         options={{
           title: t('account'),
           tabBarLabel: t('account'),
-          tabBarIcon: ({ color, size }) => <AppIcon color={color} name="customer" size={size} />,
+          tabBarIcon: ({ color, size }) => <AppIcon color={color as string} name="customer" size={size} />,
         }}
       />
       <Tabs.Screen name="customer-jobs" options={{ href: null }} />

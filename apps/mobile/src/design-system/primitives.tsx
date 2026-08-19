@@ -88,14 +88,14 @@ export function ActionButton({
       {...props}
       accessibilityRole="button"
       disabled={disabled}
-      style={({ pressed }) => [
+      style={(state) => [
         styles.action,
         variant === 'secondary' && styles.actionSecondary,
         variant === 'ghost' && styles.actionGhost,
         variant === 'danger' && styles.actionDanger,
         disabled && styles.disabled,
-        pressed && !disabled && styles.pressed,
-        typeof props.style === 'function' ? props.style({ pressed }) : props.style,
+        state.pressed && !disabled && styles.pressed,
+        typeof props.style === 'function' ? props.style(state) : props.style,
       ]}
     >
       {loading ? (
