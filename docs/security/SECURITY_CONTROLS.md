@@ -14,7 +14,6 @@ Production actions still required: operator MFA/SSO, WAF/rate-limit tuning, cent
 
 - Edge Functions receive narrowly enumerated service-role grants for request-translation reads/writes, AI/transcription usage inserts, and notification outbox processing. They receive no blanket public-schema DML and no profile deletion privilege. Handlers authenticate first, authorize the target resource explicitly, validate inputs, and write status/usage records.
 
-
 ## Supabase Preview privileged-surface controls
 
 - Exposed views run as the caller. Provider request briefs keep participant RLS; the public provider

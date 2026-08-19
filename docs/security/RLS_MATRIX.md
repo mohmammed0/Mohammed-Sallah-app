@@ -46,7 +46,6 @@ authorization, message attachment ownership, and completion-proof access. Quaran
 the first object-path segment to equal `auth.uid()`; promoted clean buckets have no client read policy
 and are accessed only through short broker-issued URLs.
 
-
 ## Preview security-hardening gate
 
 The exposed provider projections use invoker semantics. `provider_request_briefs` reads

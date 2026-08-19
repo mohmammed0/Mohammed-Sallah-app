@@ -85,7 +85,6 @@ Application rollback is an additive Git revert. Applied database changes require
 compensation migration or backup restore; migration and Git history must not be rewritten. PR #5
 must remain draft, open, and unmerged until all external gates are approved.
 
-
 ## Supabase Preview security hardening (Issue #9)
 
 Date: 2026-08-19. Execution boundary: GitHub Actions and the isolated Supabase Preview project

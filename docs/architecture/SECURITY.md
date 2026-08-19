@@ -32,7 +32,6 @@ High-risk privacy commands require a recent server-recorded reauthentication bou
 
 Admin authorization is permission-based and evaluated on every server loader/action against an active profile plus non-revoked role assignments. Aggregate analysts receive no PII, exact-location access is a separate permission, and role revocation takes effect without relying on a stale client claim.
 
-
 ## Database execution boundary
 
 Supabase clients can invoke only exact reviewed RPC signatures. Inherited function execution is
