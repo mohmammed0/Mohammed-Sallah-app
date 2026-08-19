@@ -133,21 +133,26 @@ infrastructure, and app stores were not used.
 
 ### Cloud validation evidence
 
-| Gate | Result | Evidence |
-| --- | --- | --- |
-| Migration chain from zero | PASS | Disposable Supabase reset completed before generated types were committed in `4b96368c60c3d0b7b300086501abeb21028e03d4`. |
-| Generated database types | PASS | Regenerated from the reset database; final CI verifies zero drift. |
-| pgTAP and RLS | PASS | 22 files / 510 assertions, including 18 saved-location/publication assertions. |
-| Legacy timing upgrade | PASS | 5/5 legacy combinations. |
-| Local Supabase integration | PASS | Storage, AI, and true concurrent core idempotency. |
-| Mobile lint and strict typecheck | PASS | GitHub Actions mobile job. |
-| Mobile unit/component tests | PASS | 21 files / 81 tests. |
-| Expo Doctor and Android export/config check | PASS | GitHub Actions mobile job; production placeholders remain fail-closed. |
-| Web lint/typecheck/build | PASS | GitHub Actions web job. |
-| Web unit tests | PASS | 3 files / 15 tests. |
-| Playwright | PASS | 8 passed / 2 explicitly skipped in the established suite. |
-| Repository format and generated artifacts | PASS | Cloud finalizer formatted sources, regenerated types, removed itself, and produced commit `4b96368c60c3d0b7b300086501abeb21028e03d4`. |
-| Final full CI on report HEAD | PENDING | The final report commit triggers the authoritative push and pull-request runs; links are recorded in Draft PR #14. |
+- **Migration chain from zero — PASS:** Disposable Supabase reset completed before generated
+  types were committed in `4b96368c60c3d0b7b300086501abeb21028e03d4`.
+- **Generated database types — PASS:** Regenerated from the reset database; final CI verifies zero
+  drift.
+- **pgTAP and RLS — PASS:** 22 files / 510 assertions, including 18 saved-location/publication
+  assertions.
+- **Legacy timing upgrade — PASS:** 5/5 legacy combinations.
+- **Local Supabase integration — PASS:** Storage, AI, and true concurrent core idempotency.
+- **Mobile lint and strict typecheck — PASS:** GitHub Actions mobile job.
+- **Mobile unit/component tests — PASS:** 21 files / 81 tests.
+- **Expo Doctor and Android export/config check — PASS:** GitHub Actions mobile job; production
+  placeholders remain fail-closed.
+- **Web lint/typecheck/build — PASS:** GitHub Actions web job.
+- **Web unit tests — PASS:** 3 files / 15 tests.
+- **Playwright — PASS:** 8 passed / 2 explicitly skipped in the established suite.
+- **Repository format and generated artifacts — PASS:** Cloud finalizer formatted sources,
+  regenerated types, removed itself, and produced commit
+  `4b96368c60c3d0b7b300086501abeb21028e03d4`.
+- **Final full CI on report HEAD — PENDING:** The final report commit triggers the authoritative push
+  and pull-request runs; links are recorded in Draft PR #14.
 
 The first pre-final CI run failed only at formatting and generated-type drift after its preceding
 database/RLS/integration gates passed. Those generated artifacts were then corrected by the bounded
