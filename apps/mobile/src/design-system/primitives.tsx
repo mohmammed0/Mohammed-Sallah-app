@@ -1,3 +1,4 @@
+import { useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -9,7 +10,6 @@ import {
   TextInput,
   View,
   type PressableProps,
-  type PressableStateCallbackType,
   type StyleProp,
   type TextInputProps,
   type ViewProps,
@@ -18,6 +18,46 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppIcon, type AppIconName } from './icon';
 import { customerTokens as tokens } from './tokens';
+
+export function InteractivePressable({
+  children,
+  style,
+  onBlur,
+  onFocus,
+  onPressIn,
+  onPressOut,
+  ...props
+}: Omit<PressableProps, 'children' | 'style'> & {
+  children: ReactNode;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const [pressed, setPressed] = useState(false);
+  const [focused, setFocused] = useState(false);
+  return (
+    <Pressable
+      {...props}
+      onBlur={(event) => {
+        setFocused(false);
+        onBlur?.(event);
+      }}
+      onFocus={(event) => {
+        setFocused(true);
+        onFocus?.(event);
+      }}
+      onPressIn={(event) => {
+        setPressed(true);
+        onPressIn?.(event);
+      }}
+      onPressOut={(event) => {
+        setPressed(false);
+        onPressOut?.(event);
+      }}
+      style={[style, pressed && styles.pressed, focused && styles.focused]}
+    >
+      {children}
+    </Pressable>
+  );
+}
 
 export function CustomerScreen({
   children,
@@ -93,24 +133,24 @@ export function ActionButton({
   loading?: boolean;
 }) {
   const disabled = Boolean(props.disabled || loading);
-  const suppliedStyle = typeof props.style === 'function' ? undefined : props.style;
+  const { style: suppliedStyleValue, ...pressableProps } = props;
+  const suppliedStyle =
+    typeof suppliedStyleValue === 'function' ? undefined : suppliedStyleValue;
   const foreground =
     variant === 'primary' || variant === 'danger'
       ? tokens.colors.white
       : tokens.colors.primaryStrong;
   return (
-    <Pressable
-      {...props}
+    <InteractivePressable
+      {...pressableProps}
       accessibilityRole="button"
       disabled={disabled}
-      style={(state: PressableStateCallbackType): StyleProp<ViewStyle> => [
+      style={[
         styles.action,
         variant === 'secondary' && styles.actionSecondary,
         variant === 'ghost' && styles.actionGhost,
         variant === 'danger' && styles.actionDanger,
         disabled && styles.disabled,
-        state.pressed && !disabled && styles.pressed,
-        state.focused && styles.focused,
         suppliedStyle,
       ]}
     >
@@ -129,7 +169,7 @@ export function ActionButton({
           </Text>
         </>
       )}
-    </Pressable>
+    </InteractivePressable>
   );
 }
 
@@ -143,16 +183,15 @@ export function IconButton({
   icon: AppIconName;
   badge?: number;
 }) {
+  const { style: suppliedStyleValue, ...pressableProps } = props;
+  const suppliedStyle =
+    typeof suppliedStyleValue === 'function' ? undefined : suppliedStyleValue;
   return (
-    <Pressable
-      {...props}
+    <InteractivePressable
+      {...pressableProps}
       accessibilityLabel={label}
       accessibilityRole="button"
-      style={(state: PressableStateCallbackType): StyleProp<ViewStyle> => [
-        styles.iconButton,
-        state.pressed && styles.pressed,
-        state.focused && styles.focused,
-      ]}
+      style={[styles.iconButton, suppliedStyle]}
     >
       <AppIcon color={tokens.colors.ink} name={icon} />
       {badge && badge > 0 ? (
@@ -160,7 +199,7 @@ export function IconButton({
           <Text style={styles.iconBadgeText}>{badge > 9 ? '9+' : badge}</Text>
         </View>
       ) : null}
-    </Pressable>
+    </InteractivePressable>
   );
 }
 

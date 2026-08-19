@@ -20,6 +20,7 @@ vi.mock('../src/design-system/primitives', () => ({
   EmptyState: 'EmptyState',
   Field: 'Field',
   IconButton: 'IconButton',
+  InteractivePressable: 'Pressable',
   LoadingBlock: 'LoadingBlock',
   Notice: 'Notice',
   Pill: 'Pill',

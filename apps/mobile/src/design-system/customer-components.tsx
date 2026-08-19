@@ -9,10 +9,7 @@ import {
   View,
   type ImageSourcePropType,
   type PressableProps,
-  type PressableStateCallbackType,
-  type StyleProp,
   type TextInputProps,
-  type ViewStyle,
 } from 'react-native';
 import {
   ActionButton,
@@ -20,6 +17,7 @@ import {
   EmptyState,
   Field,
   IconButton,
+  InteractivePressable,
   LoadingBlock,
   Notice,
   Pill,
@@ -90,15 +88,11 @@ export function LocationHeader({
 }) {
   return (
     <View style={styles.locationHeader}>
-      <Pressable
+      <InteractivePressable
         accessibilityHint={changeLabel}
         accessibilityRole="button"
         onPress={onPress}
-        style={(state: PressableStateCallbackType): StyleProp<ViewStyle> => [
-          styles.locationAction,
-          state.focused && styles.focused,
-          state.pressed && styles.pressed,
-        ]}
+        style={styles.locationAction}
       >
         <View style={styles.roundIcon}>
           <AppIcon color={tokens.colors.primaryStrong} name="location" size={20} />
@@ -112,7 +106,7 @@ export function LocationHeader({
           </Text>
         </View>
         <AppIcon color={tokens.colors.textMuted} name="chevron-forward" size={18} />
-      </Pressable>
+      </InteractivePressable>
       {notificationLabel && onNotifications ? (
         <IconButton
           {...(unreadCount === undefined ? {} : { badge: unreadCount })}
@@ -145,22 +139,19 @@ export function BottomTabs({
       {tabs.map((tab) => {
         const selected = tab.key === activeKey;
         return (
-          <Pressable
+          <InteractivePressable
             accessibilityRole="tab"
             accessibilityState={{ selected }}
             key={tab.key}
             onPress={() => onSelect(tab.key)}
-            style={(state: PressableStateCallbackType): StyleProp<ViewStyle> => [
-              styles.tab,
-              state.pressed && styles.pressed,
-            ]}
+            style={styles.tab}
           >
             <AppIcon
               color={selected ? tokens.colors.primaryStrong : tokens.colors.textMuted}
               name={tab.icon}
             />
             <Text style={[styles.tabLabel, selected && styles.tabLabelSelected]}>{tab.label}</Text>
-          </Pressable>
+          </InteractivePressable>
         );
       })}
     </View>
@@ -193,17 +184,19 @@ function SelectableServiceCard({
   selected?: boolean;
   compact?: boolean;
 }) {
+  const { style: suppliedStyleValue, ...pressableProps } = props;
+  const suppliedStyle =
+    typeof suppliedStyleValue === 'function' ? undefined : suppliedStyleValue;
   return (
-    <Pressable
-      {...props}
+    <InteractivePressable
+      {...pressableProps}
       accessibilityRole="button"
       accessibilityState={{ selected }}
-      style={(state: PressableStateCallbackType): StyleProp<ViewStyle> => [
+      style={[
         styles.serviceCard,
         compact && styles.subcategoryCard,
         selected && styles.serviceCardSelected,
-        state.focused && styles.focused,
-        state.pressed && styles.pressed,
+        suppliedStyle,
       ]}
     >
       <View style={styles.serviceIcon}>
@@ -217,7 +210,7 @@ function SelectableServiceCard({
           {description}
         </Text>
       ) : null}
-    </Pressable>
+    </InteractivePressable>
   );
 }
 
@@ -523,19 +516,14 @@ export function AddressCard({
   );
   if (!onPress) return <Surface style={styles.addressCard}>{body}</Surface>;
   return (
-    <Pressable
+    <InteractivePressable
       accessibilityRole="button"
       accessibilityState={{ selected }}
       onPress={onPress}
-      style={(state: PressableStateCallbackType): StyleProp<ViewStyle> => [
-        styles.addressCard,
-        selected && styles.serviceCardSelected,
-        state.focused && styles.focused,
-        state.pressed && styles.pressed,
-      ]}
+      style={[styles.addressCard, selected && styles.serviceCardSelected]}
     >
       {body}
-    </Pressable>
+    </InteractivePressable>
   );
 }
 
@@ -618,10 +606,9 @@ export function ActiveRequestCard({
   onPress: () => void;
 }) {
   return (
-    <Pressable
+    <InteractivePressable
       accessibilityRole="button"
       onPress={onPress}
-      style={(state: PressableStateCallbackType): StyleProp<ViewStyle> => [state.focused && styles.focused, pressed && styles.pressed]}
     >
       <Surface>
         <View style={styles.reviewHeader}>
@@ -632,7 +619,7 @@ export function ActiveRequestCard({
         </View>
         {meta ? <Text style={customerStyles.caption}>{meta}</Text> : null}
       </Surface>
-    </Pressable>
+    </InteractivePressable>
   );
 }
 
