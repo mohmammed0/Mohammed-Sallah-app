@@ -46,6 +46,17 @@ describe('sealed marketplace foundations', () => {
     ).toEqual({ eligible: false, providerId: 'p', exclusionReason: 'provider_suspended' }));
   it('rejects sandbox payments in production', () =>
     expect(() => assertProductionPaymentMode('production', 'sandbox')).toThrow());
+  it('preserves confirmed subcategory context in deterministic fallback', async () => {
+    const result = await new DeterministicAiProvider().diagnose({
+      locale: 'en',
+      categoryHints: ['plumbing'],
+      confirmedCategorySlug: 'plumbing',
+      confirmedSubcategorySlug: 'tap-repair',
+      messages: [{ role: 'user', text: 'The tap pressure has been low since today.' }],
+    });
+    expect(result.suggestedCategorySlug).toBe('plumbing');
+    expect(result.suggestedSubcategorySlug).toBe('tap-repair');
+  });
   it('detects safety wording in fallback diagnostics', async () => {
     const result = await new DeterministicAiProvider().diagnose({
       locale: 'ar',

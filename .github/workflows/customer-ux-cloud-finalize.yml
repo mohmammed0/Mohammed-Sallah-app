@@ -1,0 +1,69 @@
+name: Customer UX cloud finalize
+
+on:
+  push:
+    branches:
+      - codex/customer-experience-redesign-v1
+
+permissions:
+  contents: write
+
+concurrency:
+  group: customer-ux-cloud-finalize
+  cancel-in-progress: true
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: codex/customer-experience-redesign-v1
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: supabase/setup-cli@v1
+      - uses: denoland/setup-deno@v2
+      - run: pnpm install --frozen-lockfile
+      - name: Format customer experience sources
+        run: pnpm format
+      - name: Start disposable Supabase
+        run: supabase start
+      - name: Apply every migration from zero
+        run: supabase db reset
+      - name: Regenerate database types
+        run: |
+          supabase gen types typescript --local --schema public > packages/database/src/database.types.ts
+          pnpm exec prettier --config .prettierrc.json --write packages/database/src/database.types.ts
+      - name: Database and RLS tests
+        run: supabase test db
+      - name: Deno format, lint, check and tests
+        run: |
+          deno fmt --check --config supabase/functions/deno.json supabase/functions
+          deno lint --config supabase/functions/deno.json supabase/functions
+          deno check --config supabase/functions/deno.json             supabase/functions/ai-diagnostic/index.ts             supabase/functions/media-access/index.ts             supabase/functions/notification-worker/index.ts             supabase/functions/privacy-worker/index.ts             supabase/functions/reauthenticate/index.ts             supabase/functions/scan-upload/index.ts             supabase/functions/transcribe/index.ts             supabase/functions/translate-provider-brief/index.ts
+          deno test --config supabase/functions/deno.json --allow-env --allow-read supabase/functions
+      - name: Repository validation
+        run: pnpm validate
+      - name: Expo Doctor
+        run: pnpm mobile:expo-doctor
+      - name: Remove temporary workflow and commit generated artifacts
+        run: |
+          git rm .github/workflows/customer-ux-cloud-finalize.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "chore: finalize customer experience artifacts"
+          git push origin HEAD:codex/customer-experience-redesign-v1
+      - name: Stop disposable Supabase
+        if: always()
+        continue-on-error: true
+        run: supabase stop --no-backup

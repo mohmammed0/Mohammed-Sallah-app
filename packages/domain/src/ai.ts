@@ -5,6 +5,7 @@ export interface DiagnosticContext {
   messages: readonly { role: 'user' | 'assistant'; text: string }[];
   categoryHints: readonly string[];
   confirmedCategorySlug?: string | null;
+  confirmedSubcategorySlug?: string | null;
   summaryRequested?: boolean;
 }
 export interface AiProvider {
@@ -45,7 +46,7 @@ export class DeterministicAiProvider implements AiProvider {
       aiDiagnosticSchema.parse({
         schemaVersion: '1.0',
         suggestedCategorySlug: confirmedCategory,
-        suggestedSubcategorySlug: null,
+        suggestedSubcategorySlug: context.confirmedSubcategorySlug ?? null,
         confidence: 0.2,
         customerSummary: allowSummary ? original || 'Manual description required' : null,
         providerBrief: allowSummary ? original || 'Manual brief required' : null,
