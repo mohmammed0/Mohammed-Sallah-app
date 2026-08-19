@@ -37,6 +37,7 @@ export function buildServerPrompt(input: z.infer<typeof inputSchema>): string {
   }\n</untrusted_user_content>\n` +
     `Allowed category slugs: ${input.categoryHints.join(', ')}\n` +
     `Confirmed category slug: ${input.confirmedCategorySlug ?? 'none'}\n` +
+    `Confirmed subcategory slug: ${input.confirmedSubcategorySlug ?? 'none'}\n` +
     `Explicit summary requested: ${input.summaryRequested ? 'true' : 'false'}`;
 }
 

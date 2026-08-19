@@ -28,6 +28,7 @@ export const pendingCustomerTurnSchema = z.object({
   transcript: z.string().min(1).max(8000).nullable().default(null),
   transcriptionStatus: z.enum(['none', 'pending', 'retryable', 'completed']).default('none'),
   confirmedCategorySlug: z.string().nullable(),
+  confirmedSubcategorySlug: z.string().nullable().default(null),
   summaryRequested: z.boolean(),
   createdAt: z.string(),
 });

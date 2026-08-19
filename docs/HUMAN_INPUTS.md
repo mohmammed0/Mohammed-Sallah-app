@@ -30,3 +30,23 @@ These values cannot be safely invented. Development placeholders deliberately ma
 Production enablement requires `pnpm config:validate:production` to pass with non-placeholder values and documented approval.
 
 Repository automation can validate structure, local authorization, and fail-closed behavior, but cannot approve provider contracts, create production accounts, choose legal retention outcomes, supply store signing identities, or claim a physical-device/iOS result. Those items remain external gates rather than software passes.
+
+
+## Customer UX preview map gate
+
+The customer location flow is implemented but Android Preview remains blocked until a human
+provides evidence for both of these inputs:
+
+- a Google Maps Android SDK key restricted to package
+  `com.mohmammed0.sallah.preview`;
+- the SHA-1 fingerprint of the actual EAS Preview signing certificate added to the same
+  application restriction.
+
+The key must be supplied through the existing EAS/Expo secret path and must never be committed.
+Enable only the required Maps SDK. Activating billing or another paid API requires explicit
+approval. iOS Preview uses Apple Maps and does not require this key.
+
+Physical-device customer UX evidence is also outstanding: real GPS and map tiles, permission
+denial and settings re-enable, camera, gallery, microphone/transcription, keyboard behavior,
+foreground/background transitions, large text and screen-reader traversal. Keep each item NOT
+RUN until a device artifact and evidence exist. This redesign does not start an EAS build.

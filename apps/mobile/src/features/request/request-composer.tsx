@@ -558,17 +558,32 @@ export function RequestComposer() {
     const bytes = new Uint8Array(await response.arrayBuffer());
     return await secureUpload({ bytes, filename, mimeType, purpose });
   }
-  async function pickImage() {
+  async function pickImage(source: 'camera' | 'library') {
     if (!userId) {
       setError(t('authRequired'));
       return;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      quality: 0.72,
-      exif: false,
-    });
+    if (source === 'camera') {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        setError(t('cameraPermissionDenied'));
+        return;
+      }
+    }
+    const result =
+      source === 'camera'
+        ? await ImagePicker.launchCameraAsync({
+            mediaTypes: ['images'],
+            allowsEditing: true,
+            quality: 0.72,
+            exif: false,
+          })
+        : await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsEditing: true,
+            quality: 0.72,
+            exif: false,
+          });
     if (result.canceled) return;
     const asset = result.assets[0];
     if (!asset) return;
@@ -821,6 +836,7 @@ export function RequestComposer() {
         locale,
         categoryHints: catalog.data?.categories.map((item) => item.slug) ?? [],
         confirmedCategorySlug: turn.confirmedCategorySlug,
+        confirmedSubcategorySlug: turn.confirmedSubcategorySlug,
         summaryRequested: turn.summaryRequested,
         inputKind: turn.inputKind,
         mediaUploadIds: turn.mediaUploadIds,
@@ -937,6 +953,7 @@ export function RequestComposer() {
         transcriptionStatus: hasVoice ? 'pending' : 'none',
         confirmedCategorySlug:
           categoryConfirmedByUser && selectedCategorySlug ? selectedCategorySlug : null,
+        confirmedSubcategorySlug: selectedSubcategorySlug || null,
         summaryRequested,
         createdAt: new Date().toISOString(),
       };
@@ -1013,6 +1030,7 @@ export function RequestComposer() {
         categoryHints: catalog.data?.categories.map((item) => item.slug) ?? [],
         confirmedCategorySlug:
           categoryConfirmedByUser && selectedCategorySlug ? selectedCategorySlug : null,
+        confirmedSubcategorySlug: selectedSubcategorySlug || null,
         summaryRequested,
       });
       const fallbackTurn = turn ?? {
@@ -1032,6 +1050,7 @@ export function RequestComposer() {
         transcriptionStatus: hasVoice ? ('pending' as const) : ('none' as const),
         confirmedCategorySlug:
           categoryConfirmedByUser && selectedCategorySlug ? selectedCategorySlug : null,
+        confirmedSubcategorySlug: selectedSubcategorySlug || null,
         summaryRequested,
         createdAt: new Date().toISOString(),
       };
@@ -1066,6 +1085,7 @@ export function RequestComposer() {
         transcript: null,
         transcriptionStatus: 'none',
         confirmedCategorySlug: selectedCategorySlug,
+        confirmedSubcategorySlug: selectedSubcategorySlug || null,
         summaryRequested: false,
         createdAt: new Date().toISOString(),
       });
@@ -1445,6 +1465,21 @@ export function RequestComposer() {
             messages={conversation}
             userLabel={t('you')}
           />
+          <View style={customerStyles.wrap}>
+            {[t('quickReplyToday'), t('quickReplyEarlier'), t('quickReplyUnsure')].map(
+              (reply) => (
+                <Pill
+                  key={reply}
+                  label={reply}
+                  onPress={() => {
+                    setDescription(reply);
+                    invalidateApproval();
+                  }}
+                  selected={description === reply}
+                />
+              ),
+            )}
+          </View>
           {diagnostic?.safetyFlags.length ? (
             <Notice tone="danger">
               {t('safetyGuidance')}
@@ -1483,13 +1518,19 @@ export function RequestComposer() {
               />
             ) : null}
             {activeImageMediaId || activeVoiceMediaId ? (
-              <Notice tone="success">{t('attachmentReady')}</Notice>
+              <Notice tone="success">{t('turnAttachmentReady')}</Notice>
             ) : null}
             <View style={journeyStyles.mediaActions}>
               <ActionButton
                 icon="camera"
-                label={activeImageMediaId ? t('changePhoto') : t('addPhoto')}
-                onPress={() => void pickImage()}
+                label={t('cameraPhoto')}
+                onPress={() => void pickImage('camera')}
+                variant="secondary"
+              />
+              <ActionButton
+                icon="image"
+                label={activeImageMediaId ? t('changePhoto') : t('galleryPhoto')}
+                onPress={() => void pickImage('library')}
                 variant="secondary"
               />
               <ActionButton

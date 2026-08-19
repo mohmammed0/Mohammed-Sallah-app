@@ -18,7 +18,7 @@ import {
 } from '@/design-system/primitives';
 import { AppIcon, categoryIconName } from '@/design-system/icon';
 import { customerTokens as tokens } from '@/design-system/tokens';
-import { listMySavedAddresses } from '@/features/location/location-service';
+import { useCustomerLocation } from '@/features/location/location-provider';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/providers/locale-provider';
 
@@ -54,6 +54,7 @@ const activeStatuses = new Set([
 
 export function CustomerHome() {
   const { locale, t } = useLocale();
+  const { activeLocation: defaultAddress } = useCustomerLocation();
   const [search, setSearch] = useState('');
   const catalog = useQuery({
     queryKey: ['customer-home-catalog', locale],
@@ -80,10 +81,6 @@ export function CustomerHome() {
       return z.array(requestSchema).parse(data ?? []);
     },
   });
-  const addresses = useQuery({
-    queryKey: ['customer-saved-addresses'],
-    queryFn: listMySavedAddresses,
-  });
   const notifications = useQuery({
     queryKey: ['customer-notification-count'],
     queryFn: async () => {
@@ -108,16 +105,13 @@ export function CustomerHome() {
   const receivingOffers = requests.data?.filter((request) => request.status === 'receiving_offers') ?? [];
   const recentRequests =
     requests.data?.filter((request) => !activeStatuses.has(request.status)).slice(0, 3) ?? [];
-  const defaultAddress =
-    addresses.data?.find((address) => address.isDefault) ?? addresses.data?.[0] ?? null;
-
   return (
     <CustomerScreen testID="customer-home">
       <View style={styles.topbar}>
         <Pressable
           accessibilityLabel={t('changeLocation')}
           accessibilityRole="button"
-          onPress={() => router.push('/request/new')}
+          onPress={() => router.push('/locations')}
           style={styles.locationButton}
         >
           <View style={styles.locationIcon}>
@@ -128,6 +122,11 @@ export function CustomerHome() {
             <Text numberOfLines={1} style={styles.locationValue}>
               {defaultAddress?.label ?? t('locationNotSelected')}
             </Text>
+            {defaultAddress?.formattedAddress ? (
+              <Text numberOfLines={1} style={customerStyles.caption}>
+                {defaultAddress.formattedAddress}
+              </Text>
+            ) : null}
           </View>
           <AppIcon color={tokens.colors.textMuted} name="chevron-forward" size={18} />
         </Pressable>
@@ -331,6 +330,21 @@ export function CustomerHome() {
           ))}
         </View>
       </View>
+
+      <Surface tone="muted">
+        <View style={customerStyles.row}>
+          <AppIcon color={tokens.colors.primaryStrong} name="shield" size={24} />
+          <View style={styles.flex}>
+            <Text style={customerStyles.section}>{t('safetyAndSupport')}</Text>
+            <Text style={customerStyles.bodyMuted}>{t('safetyAndSupportBody')}</Text>
+          </View>
+        </View>
+        <ActionButton
+          label={t('openHelp')}
+          onPress={() => router.push('/support')}
+          variant="ghost"
+        />
+      </Surface>
     </CustomerScreen>
   );
 }

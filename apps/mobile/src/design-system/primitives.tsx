@@ -1,5 +1,7 @@
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -17,26 +19,35 @@ import { customerTokens as tokens } from './tokens';
 export function CustomerScreen({
   children,
   scroll = true,
+  keyboardAware = true,
   testID,
 }: {
   children: React.ReactNode;
   scroll?: boolean;
+  keyboardAware?: boolean;
   testID?: string;
 }) {
   const content = <View style={styles.content}>{children}</View>;
+  const body = scroll ? (
+    <ScrollView
+      contentContainerStyle={styles.scrollContent}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
+      {content}
+    </ScrollView>
+  ) : (
+    content
+  );
   return (
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safe} testID={testID}>
-      {scroll ? (
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          {content}
-        </ScrollView>
-      ) : (
-        content
-      )}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        enabled={keyboardAware}
+        style={styles.flex}
+      >
+        {body}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -95,6 +106,7 @@ export function ActionButton({
         variant === 'danger' && styles.actionDanger,
         disabled && styles.disabled,
         state.pressed && !disabled && styles.pressed,
+        state.focused && styles.focused,
         typeof props.style === 'function' ? props.style(state) : props.style,
       ]}
     >
@@ -132,7 +144,11 @@ export function IconButton({
       {...props}
       accessibilityLabel={label}
       accessibilityRole="button"
-      style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
+      style={({ focused, pressed }) => [
+        styles.iconButton,
+        pressed && styles.pressed,
+        focused && styles.focused,
+      ]}
     >
       <AppIcon color={tokens.colors.ink} name={icon} />
       {badge && badge > 0 ? (
@@ -325,6 +341,7 @@ export const customerStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: tokens.colors.canvas },
+  flex: { flex: 1 },
   scrollContent: { flexGrow: 1 },
   content: {
     flex: 1,
@@ -366,8 +383,9 @@ const styles = StyleSheet.create({
   actionDanger: { backgroundColor: tokens.colors.danger },
   actionText: { ...tokens.type.label, color: tokens.colors.white, textAlign: 'center' },
   actionTextSecondary: { color: tokens.colors.primaryStrong },
-  disabled: { opacity: 0.48 },
-  pressed: { opacity: 0.72, transform: [{ scale: 0.99 }] },
+  disabled: { opacity: tokens.stateOpacity.disabled },
+  pressed: { opacity: tokens.stateOpacity.pressed, transform: [{ scale: 0.99 }] },
+  focused: { borderColor: tokens.focusRing.color, borderWidth: tokens.focusRing.width },
   iconButton: {
     width: tokens.touchTarget,
     height: tokens.touchTarget,

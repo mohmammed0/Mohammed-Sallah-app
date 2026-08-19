@@ -12,6 +12,7 @@ export const inputSchema = z.object({
     message: 'duplicate media upload ids',
   }).default([]),
   confirmedCategorySlug: z.string().min(1).max(120).nullable().optional(),
+  confirmedSubcategorySlug: z.string().min(1).max(120).nullable().optional(),
   summaryRequested: z.boolean().default(false),
 });
 export const diagnosticSchema = z.object({

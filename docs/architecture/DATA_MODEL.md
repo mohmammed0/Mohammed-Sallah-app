@@ -58,3 +58,18 @@ Completion is versioned by `completion_attempts`. Proofs and customer decisions 
 attempt, one active attempt is allowed per job, and rejected history remains immutable when dispute
 resolution resumes work for a corrected attempt. Terminal bookkeeping uses a per-job exactly-once
 marker so workload and completion metrics cannot be applied twice.
+
+
+## Saved customer locations and request snapshots
+
+`addresses.address_kind` separates reusable `saved` addresses from immutable
+`request_snapshot` addresses. A user may have at most one active default saved address.
+Authenticated owner-only RPCs list, upsert and archive saved addresses. Anonymous callers are
+denied.
+
+During `publish_service_request`, the server resolves an optional saved-address identifier under
+owner authorization and copies coordinates, normalized address and customer-entered details into
+a new request snapshot. Category, optional subcategory, timing mode/window, media and explicit
+approval are inserted in the same transaction. A later saved-address edit or archive therefore
+cannot move an active or historical job. Existing exact-location policies continue to hide the
+snapshot from unmatched providers.
