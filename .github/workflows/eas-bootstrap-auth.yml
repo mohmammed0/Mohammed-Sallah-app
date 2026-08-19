@@ -53,7 +53,7 @@ jobs:
         uses: expo/expo-github-action@eab7a230208c952974db8c3245cfd78402c7b385 # 9.0.0
         with:
           eas-version: latest
-          packager: pnpm
+          packager: pnpm --allow-build=dtrace-provider
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Authenticate, initialize safely, and inspect usage
