@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  RIYADH_NAME_AR,
-  type SavedAddress,
-} from '../src/features/location/location-model';
+import { RIYADH_NAME_AR, type SavedAddress } from '../src/features/location/location-model';
 import {
   customerLocationStorageKey,
   resolveActiveSavedAddress,
