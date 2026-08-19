@@ -1025,13 +1025,6 @@ export type Database = {
             referencedRelation: 'provider_profiles';
             referencedColumns: ['user_id'];
           },
-          {
-            foreignKeyName: 'change_orders_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
-            referencedColumns: ['user_id'];
-          },
         ];
       };
       cities: {
@@ -1129,13 +1122,6 @@ export type Database = {
             referencedRelation: 'provider_profiles';
             referencedColumns: ['user_id'];
           },
-          {
-            foreignKeyName: 'completion_attempts_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
-            referencedColumns: ['user_id'];
-          },
         ];
       };
       completion_proofs: {
@@ -1205,13 +1191,6 @@ export type Database = {
             columns: ['provider_id'];
             isOneToOne: false;
             referencedRelation: 'provider_profiles';
-            referencedColumns: ['user_id'];
-          },
-          {
-            foreignKeyName: 'completion_proofs_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
             referencedColumns: ['user_id'];
           },
         ];
@@ -2243,13 +2222,6 @@ export type Database = {
             referencedRelation: 'provider_profiles';
             referencedColumns: ['user_id'];
           },
-          {
-            foreignKeyName: 'job_assignments_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
-            referencedColumns: ['user_id'];
-          },
         ];
       };
       job_checklists: {
@@ -2391,13 +2363,6 @@ export type Database = {
             referencedRelation: 'provider_profiles';
             referencedColumns: ['user_id'];
           },
-          {
-            foreignKeyName: 'job_location_sharing_sessions_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
-            referencedColumns: ['user_id'];
-          },
         ];
       };
       job_location_updates: {
@@ -2447,13 +2412,6 @@ export type Database = {
             columns: ['provider_id'];
             isOneToOne: false;
             referencedRelation: 'provider_profiles';
-            referencedColumns: ['user_id'];
-          },
-          {
-            foreignKeyName: 'job_location_updates_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
             referencedColumns: ['user_id'];
           },
         ];
@@ -2674,13 +2632,6 @@ export type Database = {
             referencedColumns: ['user_id'];
           },
           {
-            foreignKeyName: 'jobs_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
-            referencedColumns: ['user_id'];
-          },
-          {
             foreignKeyName: 'jobs_request_id_fkey';
             columns: ['request_id'];
             isOneToOne: true;
@@ -2822,13 +2773,6 @@ export type Database = {
             columns: ['provider_id'];
             isOneToOne: false;
             referencedRelation: 'provider_profiles';
-            referencedColumns: ['user_id'];
-          },
-          {
-            foreignKeyName: 'matching_candidates_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
             referencedColumns: ['user_id'];
           },
         ];
@@ -3471,13 +3415,6 @@ export type Database = {
             referencedRelation: 'provider_profiles';
             referencedColumns: ['user_id'];
           },
-          {
-            foreignKeyName: 'offer_withdrawals_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
-            referencedColumns: ['user_id'];
-          },
         ];
       };
       offers: {
@@ -3550,13 +3487,6 @@ export type Database = {
             columns: ['provider_id'];
             isOneToOne: false;
             referencedRelation: 'provider_profiles';
-            referencedColumns: ['user_id'];
-          },
-          {
-            foreignKeyName: 'offers_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
             referencedColumns: ['user_id'];
           },
           {
@@ -3739,13 +3669,6 @@ export type Database = {
             referencedRelation: 'provider_profiles';
             referencedColumns: ['user_id'];
           },
-          {
-            foreignKeyName: 'payments_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
-            referencedColumns: ['user_id'];
-          },
         ];
       };
       platform_fees: {
@@ -3920,13 +3843,6 @@ export type Database = {
             referencedRelation: 'provider_profiles';
             referencedColumns: ['user_id'];
           },
-          {
-            foreignKeyName: 'provider_availability_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
-            referencedColumns: ['user_id'];
-          },
         ];
       };
       provider_blackout_periods: {
@@ -3957,13 +3873,6 @@ export type Database = {
             columns: ['provider_id'];
             isOneToOne: false;
             referencedRelation: 'provider_profiles';
-            referencedColumns: ['user_id'];
-          },
-          {
-            foreignKeyName: 'provider_blackout_periods_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
             referencedColumns: ['user_id'];
           },
         ];
@@ -4058,13 +3967,6 @@ export type Database = {
             referencedRelation: 'provider_profiles';
             referencedColumns: ['user_id'];
           },
-          {
-            foreignKeyName: 'provider_documents_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
-            referencedColumns: ['user_id'];
-          },
         ];
       };
       provider_job_eligibility_reviews: {
@@ -4110,13 +4012,6 @@ export type Database = {
             referencedRelation: 'provider_profiles';
             referencedColumns: ['user_id'];
           },
-          {
-            foreignKeyName: 'provider_job_eligibility_reviews_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
-            referencedColumns: ['user_id'];
-          },
         ];
       };
       provider_payout_accounts: {
@@ -4153,13 +4048,6 @@ export type Database = {
             columns: ['provider_id'];
             isOneToOne: false;
             referencedRelation: 'provider_profiles';
-            referencedColumns: ['user_id'];
-          },
-          {
-            foreignKeyName: 'provider_payout_accounts_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
             referencedColumns: ['user_id'];
           },
         ];
@@ -4204,13 +4092,6 @@ export type Database = {
             columns: ['provider_id'];
             isOneToOne: false;
             referencedRelation: 'provider_profiles';
-            referencedColumns: ['user_id'];
-          },
-          {
-            foreignKeyName: 'provider_performance_snapshots_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
             referencedColumns: ['user_id'];
           },
         ];
@@ -4259,13 +4140,6 @@ export type Database = {
             columns: ['provider_id'];
             isOneToOne: false;
             referencedRelation: 'provider_profiles';
-            referencedColumns: ['user_id'];
-          },
-          {
-            foreignKeyName: 'provider_portfolio_items_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
             referencedColumns: ['user_id'];
           },
         ];
@@ -4395,13 +4269,6 @@ export type Database = {
             referencedColumns: ['user_id'];
           },
           {
-            foreignKeyName: 'provider_qualification_events_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
-            referencedColumns: ['user_id'];
-          },
-          {
             foreignKeyName: 'provider_qualification_events_qualification_id_fkey';
             columns: ['qualification_id'];
             isOneToOne: false;
@@ -4464,13 +4331,6 @@ export type Database = {
             columns: ['provider_id'];
             isOneToOne: false;
             referencedRelation: 'provider_profiles';
-            referencedColumns: ['user_id'];
-          },
-          {
-            foreignKeyName: 'provider_restricted_qualifications_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
             referencedColumns: ['user_id'];
           },
           {
@@ -4539,13 +4399,6 @@ export type Database = {
             referencedRelation: 'provider_profiles';
             referencedColumns: ['user_id'];
           },
-          {
-            foreignKeyName: 'provider_service_areas_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
-            referencedColumns: ['user_id'];
-          },
         ];
       };
       provider_services: {
@@ -4601,13 +4454,6 @@ export type Database = {
             columns: ['provider_id'];
             isOneToOne: false;
             referencedRelation: 'provider_profiles';
-            referencedColumns: ['user_id'];
-          },
-          {
-            foreignKeyName: 'provider_services_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
             referencedColumns: ['user_id'];
           },
           {
@@ -4685,13 +4531,6 @@ export type Database = {
             referencedRelation: 'provider_profiles';
             referencedColumns: ['user_id'];
           },
-          {
-            foreignKeyName: 'provider_settlements_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
-            referencedColumns: ['user_id'];
-          },
         ];
       };
       provider_status_history: {
@@ -4735,13 +4574,6 @@ export type Database = {
             columns: ['provider_id'];
             isOneToOne: false;
             referencedRelation: 'provider_profiles';
-            referencedColumns: ['user_id'];
-          },
-          {
-            foreignKeyName: 'provider_status_history_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
             referencedColumns: ['user_id'];
           },
         ];
@@ -4797,13 +4629,6 @@ export type Database = {
             columns: ['provider_id'];
             isOneToOne: false;
             referencedRelation: 'provider_profiles';
-            referencedColumns: ['user_id'];
-          },
-          {
-            foreignKeyName: 'provider_suspensions_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
             referencedColumns: ['user_id'];
           },
         ];
@@ -4917,13 +4742,6 @@ export type Database = {
             referencedColumns: ['user_id'];
           },
           {
-            foreignKeyName: 'rating_replies_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
-            referencedColumns: ['user_id'];
-          },
-          {
             foreignKeyName: 'rating_replies_rating_id_fkey';
             columns: ['rating_id'];
             isOneToOne: true;
@@ -4986,13 +4804,6 @@ export type Database = {
             columns: ['provider_id'];
             isOneToOne: false;
             referencedRelation: 'provider_profiles';
-            referencedColumns: ['user_id'];
-          },
-          {
-            foreignKeyName: 'ratings_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
             referencedColumns: ['user_id'];
           },
         ];
@@ -5240,13 +5051,6 @@ export type Database = {
             columns: ['provider_id'];
             isOneToOne: false;
             referencedRelation: 'provider_profiles';
-            referencedColumns: ['user_id'];
-          },
-          {
-            foreignKeyName: 'request_provider_matches_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
             referencedColumns: ['user_id'];
           },
           {
@@ -6937,13 +6741,6 @@ export type Database = {
             referencedRelation: 'provider_profiles';
             referencedColumns: ['user_id'];
           },
-          {
-            foreignKeyName: 'payments_provider_id_fkey';
-            columns: ['provider_id'];
-            isOneToOne: false;
-            referencedRelation: 'provider_public_profiles';
-            referencedColumns: ['user_id'];
-          },
         ];
       };
       provider_public_profiles: {
@@ -6960,15 +6757,7 @@ export type Database = {
           user_id: string | null;
           verification_status: Database['public']['Enums']['verification_status'] | null;
         };
-        Relationships: [
-          {
-            foreignKeyName: 'provider_profiles_user_id_fkey';
-            columns: ['user_id'];
-            isOneToOne: true;
-            referencedRelation: 'profiles';
-            referencedColumns: ['id'];
-          },
-        ];
+        Relationships: [];
       };
       provider_request_briefs: {
         Row: {
@@ -7062,30 +6851,18 @@ export type Database = {
         Args: { p_session_id: string };
         Returns: undefined;
       };
-      accept_completion:
-        | {
-            Args: {
-              p_accept: boolean;
-              p_idempotency_key: string;
-              p_job_id: string;
-              p_reason: string;
-              p_review: string;
-              p_score: number;
-            };
-            Returns: Json;
-          }
-        | {
-            Args: {
-              p_accept: boolean;
-              p_evidence_upload_ids: string[];
-              p_idempotency_key: string;
-              p_job_id: string;
-              p_reason: string;
-              p_review: string;
-              p_score: number;
-            };
-            Returns: Json;
-          };
+      accept_completion: {
+        Args: {
+          p_accept: boolean;
+          p_evidence_upload_ids: string[];
+          p_idempotency_key: string;
+          p_job_id: string;
+          p_reason: string;
+          p_review: string;
+          p_score: number;
+        };
+        Returns: Json;
+      };
       admin_marketplace_health: { Args: never; Returns: Json };
       admin_set_category: {
         Args: {

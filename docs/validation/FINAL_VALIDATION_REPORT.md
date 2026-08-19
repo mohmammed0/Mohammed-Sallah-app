@@ -84,3 +84,25 @@ mobile media/recovery **12/12**, and mobile mutation journal **8/8**.
 Application rollback is an additive Git revert. Applied database changes require a reviewed forward
 compensation migration or backup restore; migration and Git history must not be rewritten. PR #5
 must remain draft, open, and unmerged until all external gates are approved.
+
+## Supabase Preview security hardening (Issue #9)
+
+Date: 2026-08-19. Execution boundary: GitHub Actions and the isolated Supabase Preview project
+`wxzwdodhhevuunqpzewo` only. Local Windows, Docker, local Supabase, Android, EAS, production
+secrets, and the legacy/production Supabase project are outside this gate.
+
+The forward-only migration
+`20260819031500_preview_security_hardening.sql` converts both exposed provider views to invoker
+semantics, replaces the provider directory's raw-table dependency with an eleven-field private
+projection, removes the legacy six-argument completion overload, rebuilds function grants by exact
+signature, fixes three mutable search paths, denies direct access to 24 internal RLS-without-policy
+tables, hardens external deletion intake, and applies init-plan-safe `auth.uid()` predicates without
+changing policy roles or row semantics.
+
+A new 47-assertion pgTAP suite covers direct anonymous/authenticated/service-role execution,
+participant view access, internal-table denial, public-field projection, search paths, default
+privileges, legacy overload removal, non-enumerating deletion behavior, input bounds, redaction,
+rate limiting, and audit rows. The repository total is 21 pgTAP files / 492 database assertions and
+616 countable automated assertions when combined with the previously validated Deno, workspace,
+integration, security, and Playwright suites. Hosted advisor counts and CI run links are recorded in
+the Issue #9/PR handoff after the exact commit completes.

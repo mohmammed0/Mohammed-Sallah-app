@@ -13,3 +13,18 @@ Privacy requests use service-role-only queue claims, bounded exponential retry/d
 Production actions still required: operator MFA/SSO, WAF/rate-limit tuning, centralized alerting, external malware-scanner deployment, penetration test, backup restore drill, AI red-team/evals, and Saudi legal/privacy review.
 
 - Edge Functions receive narrowly enumerated service-role grants for request-translation reads/writes, AI/transcription usage inserts, and notification outbox processing. They receive no blanket public-schema DML and no profile deletion privilege. Handlers authenticate first, authorize the target resource explicitly, validate inputs, and write status/usage records.
+
+## Supabase Preview privileged-surface controls
+
+- Exposed views run as the caller. Provider request briefs keep participant RLS; the public provider
+  directory uses a narrow security-definer projection without raw profile grants.
+- Application-migration function defaults grant no execution to `PUBLIC`, `anon`, `authenticated`,
+  or `service_role`; Supabase-owned platform defaults remain provider-managed. Every supported RPC is granted by exact signature in a reviewed migration.
+- Legacy and internal compatibility overloads are removed from or denied to the client API.
+- External account-deletion intake returns `void`, never checks account existence, validates a
+  bounded email input, hashes the email, redacts email-shaped text from the optional reason, and
+  applies atomic global and per-email limits. Accepted requests and limiter counters provide the
+  audit trail without storing the submitted address.
+- Trigger functions use an empty immutable `search_path`; referenced application relations are
+  schema-qualified.
+- Internal RLS-without-policy tables have all direct client privileges revoked.
