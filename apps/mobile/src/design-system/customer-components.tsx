@@ -9,7 +9,10 @@ import {
   View,
   type ImageSourcePropType,
   type PressableProps,
+  type PressableStateCallbackType,
+  type StyleProp,
   type TextInputProps,
+  type ViewStyle,
 } from 'react-native';
 import {
   ActionButton,
@@ -91,10 +94,10 @@ export function LocationHeader({
         accessibilityHint={changeLabel}
         accessibilityRole="button"
         onPress={onPress}
-        style={({ focused, pressed }) => [
+        style={(state: PressableStateCallbackType): StyleProp<ViewStyle> => [
           styles.locationAction,
-          focused && styles.focused,
-          pressed && styles.pressed,
+          state.focused && styles.focused,
+          state.pressed && styles.pressed,
         ]}
       >
         <View style={styles.roundIcon}>
@@ -147,7 +150,10 @@ export function BottomTabs({
             accessibilityState={{ selected }}
             key={tab.key}
             onPress={() => onSelect(tab.key)}
-            style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
+            style={(state: PressableStateCallbackType): StyleProp<ViewStyle> => [
+              styles.tab,
+              state.pressed && styles.pressed,
+            ]}
           >
             <AppIcon
               color={selected ? tokens.colors.primaryStrong : tokens.colors.textMuted}
@@ -192,12 +198,12 @@ function SelectableServiceCard({
       {...props}
       accessibilityRole="button"
       accessibilityState={{ selected }}
-      style={({ focused, pressed }) => [
+      style={(state: PressableStateCallbackType): StyleProp<ViewStyle> => [
         styles.serviceCard,
         compact && styles.subcategoryCard,
         selected && styles.serviceCardSelected,
-        focused && styles.focused,
-        pressed && styles.pressed,
+        state.focused && styles.focused,
+        state.pressed && styles.pressed,
       ]}
     >
       <View style={styles.serviceIcon}>
@@ -521,11 +527,11 @@ export function AddressCard({
       accessibilityRole="button"
       accessibilityState={{ selected }}
       onPress={onPress}
-      style={({ focused, pressed }) => [
+      style={(state: PressableStateCallbackType): StyleProp<ViewStyle> => [
         styles.addressCard,
         selected && styles.serviceCardSelected,
-        focused && styles.focused,
-        pressed && styles.pressed,
+        state.focused && styles.focused,
+        state.pressed && styles.pressed,
       ]}
     >
       {body}
@@ -615,7 +621,7 @@ export function ActiveRequestCard({
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      style={({ focused, pressed }) => [focused && styles.focused, pressed && styles.pressed]}
+      style={(state: PressableStateCallbackType): StyleProp<ViewStyle> => [state.focused && styles.focused, pressed && styles.pressed]}
     >
       <Surface>
         <View style={styles.reviewHeader}>

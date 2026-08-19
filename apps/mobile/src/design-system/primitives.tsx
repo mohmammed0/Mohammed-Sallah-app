@@ -9,8 +9,11 @@ import {
   TextInput,
   View,
   type PressableProps,
+  type PressableStateCallbackType,
+  type StyleProp,
   type TextInputProps,
   type ViewProps,
+  type ViewStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppIcon, type AppIconName } from './icon';
@@ -90,6 +93,7 @@ export function ActionButton({
   loading?: boolean;
 }) {
   const disabled = Boolean(props.disabled || loading);
+  const suppliedStyle = typeof props.style === 'function' ? undefined : props.style;
   const foreground =
     variant === 'primary' || variant === 'danger'
       ? tokens.colors.white
@@ -99,7 +103,7 @@ export function ActionButton({
       {...props}
       accessibilityRole="button"
       disabled={disabled}
-      style={(state) => [
+      style={(state: PressableStateCallbackType): StyleProp<ViewStyle> => [
         styles.action,
         variant === 'secondary' && styles.actionSecondary,
         variant === 'ghost' && styles.actionGhost,
@@ -107,7 +111,7 @@ export function ActionButton({
         disabled && styles.disabled,
         state.pressed && !disabled && styles.pressed,
         state.focused && styles.focused,
-        typeof props.style === 'function' ? props.style(state) : props.style,
+        suppliedStyle,
       ]}
     >
       {loading ? (
@@ -144,10 +148,10 @@ export function IconButton({
       {...props}
       accessibilityLabel={label}
       accessibilityRole="button"
-      style={({ focused, pressed }) => [
+      style={(state: PressableStateCallbackType): StyleProp<ViewStyle> => [
         styles.iconButton,
-        pressed && styles.pressed,
-        focused && styles.focused,
+        state.pressed && styles.pressed,
+        state.focused && styles.focused,
       ]}
     >
       <AppIcon color={tokens.colors.ink} name={icon} />

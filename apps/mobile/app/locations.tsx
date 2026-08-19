@@ -42,7 +42,7 @@ function asRegion(coordinates: Coordinates): Region {
 }
 
 export default function CustomerLocationsScreen() {
-  const { locale, t } = useLocale();
+  const { t } = useLocale();
   const {
     addresses,
     activeLocation,
@@ -128,7 +128,7 @@ export default function CustomerLocationsScreen() {
     }
   }
 
-  async function useLocation() {
+  function useLocation() {
     setMessage('');
     try {
       const validCoordinates = coordinatesSchema.parse(coordinates);
