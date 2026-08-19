@@ -80,7 +80,6 @@ jobs:
           set -euo pipefail
 
           usage_json="$RUNNER_TEMP/eas-account-usage.json"
-          env_json="$RUNNER_TEMP/eas-preview-environment.json"
           config_json="$RUNNER_TEMP/eas-preview-config.json"
           cost_json="$RUNNER_TEMP/eas-cost-gate.json"
 
@@ -109,17 +108,17 @@ jobs:
           eas env:create preview --name EXPO_PUBLIC_SUPABASE_URL --value "$SUPABASE_PREVIEW_URL" --visibility plaintext --scope project --force --non-interactive >/dev/null
           eas env:create preview --name EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY --value "$SUPABASE_PREVIEW_PUBLISHABLE_KEY" --visibility sensitive --scope project --force --non-interactive >/dev/null
 
-          eas env:list preview --json --non-interactive > "$env_json"
+          eas env:get preview --variable-name EXPO_PUBLIC_APP_ENV --format short --scope project --non-interactive >/dev/null
+          eas env:get preview --variable-name EXPO_PUBLIC_SUPABASE_URL --format short --scope project --non-interactive >/dev/null
+          eas env:get preview --variable-name EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY --format short --scope project --non-interactive >/dev/null
+
           eas config --platform android --profile preview --json --non-interactive > "$config_json"
 
-          EAS_ENV_JSON="$env_json" EAS_CONFIG_JSON="$config_json" node <<'NODE'
+          EAS_CONFIG_JSON="$config_json" node <<'NODE'
           const fs = require('node:fs');
-          const environment = JSON.parse(fs.readFileSync(process.env.EAS_ENV_JSON, 'utf8'));
           const config = JSON.parse(fs.readFileSync(process.env.EAS_CONFIG_JSON, 'utf8'));
-          const serializedEnvironment = JSON.stringify(environment);
           const app = config?.appConfig;
           const profile = config?.buildProfile;
-
           const checks = {
             owner: app?.owner === process.env.EXPECTED_EXPO_OWNER,
             projectId: app?.extra?.eas?.projectId === process.env.EXPECTED_EAS_PROJECT_ID,
@@ -129,10 +128,6 @@ jobs:
             channel: profile?.channel === 'preview',
             buildType: profile?.buildType === 'apk',
             appEnvironment: profile?.env?.EXPO_PUBLIC_APP_ENV === 'preview',
-            supabaseUrlVariableRegistered:
-              serializedEnvironment.includes('EXPO_PUBLIC_SUPABASE_URL'),
-            publishableKeyVariableRegistered:
-              serializedEnvironment.includes('EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY'),
           };
           const failed = Object.entries(checks)
             .filter(([, passed]) => !passed)
@@ -143,7 +138,7 @@ jobs:
           NODE
 
           echo "cost_json=$cost_json" >> "$GITHUB_OUTPUT"
-          echo 'Preview environment names, public app configuration, and free quota passed.'
+          echo 'Preview environment registration, public app configuration, and free quota passed.'
 
       - name: Start and wait for the single approved EAS build
         id: eas_build
