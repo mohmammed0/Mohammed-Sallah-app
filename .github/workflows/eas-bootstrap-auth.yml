@@ -125,9 +125,14 @@ jobs:
           NODE
           )"
 
+          expo_binary="$mobile_dir/node_modules/.bin/expo"
+          if [[ ! -x "$expo_binary" ]]; then
+            echo "::error::Local Expo CLI binary is unavailable after frozen install"
+            exit 1
+          fi
           (
             cd "$mobile_dir"
-            pnpm exec expo config --type public --json
+            "$expo_binary" config --type public --json
           ) > "$before_config"
 
           current_project_id="$(
