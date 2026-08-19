@@ -93,11 +93,37 @@ jobs:
             cd "$mobile_dir"
             run_eas whoami
           )"
-          owner="$(printf '%s\n' "$owner_output" | tr -d '\r' | tail -n 1)"
-          if [[ ! "$owner" =~ ^[A-Za-z0-9._-]+$ ]]; then
-            echo "::error::Authenticated Expo owner could not be resolved safely"
-            exit 1
-          fi
+          owner="$(
+            WHOAMI_OUTPUT="$owner_output" node <<'NODE'
+          const output = (process.env.WHOAMI_OUTPUT ?? '')
+            .replace(/\u001b\[[0-9;]*m/g, '')
+            .replace(/\r/g, '');
+          const accountMatches = [
+            ...output.matchAll(/^•\s+([A-Za-z0-9._-]+)\s+\(Role:\s*[^)]+\)$/gm),
+          ].map((match) => match[1]);
+
+          let owner;
+          if (accountMatches.length === 1) {
+            owner = accountMatches[0];
+          } else if (accountMatches.length > 1) {
+            throw new Error('Authenticated robot has access to multiple Expo accounts');
+          } else {
+            const firstLine = output
+              .split('\n')
+              .map((line) => line.trim())
+              .find(Boolean);
+            if (!firstLine || firstLine.includes('(robot)')) {
+              throw new Error('Expo account owner is ambiguous');
+            }
+            owner = firstLine.replace(/\s+\(authenticated using EXPO_TOKEN\)$/, '');
+          }
+
+          if (!/^[A-Za-z0-9._-]+$/.test(owner)) {
+            throw new Error('Expo account owner has an unsupported format');
+          }
+          process.stdout.write(owner);
+          NODE
+          )"
 
           (
             cd "$mobile_dir"
