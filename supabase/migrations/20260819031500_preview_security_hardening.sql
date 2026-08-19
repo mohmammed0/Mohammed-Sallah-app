@@ -281,30 +281,30 @@ revoke execute on function public.get_data_export_query_coverage_v3() from publi
 revoke execute on function public.upsert_provider_onboarding_without_final_diff(jsonb) from public, anon, authenticated;
 
 -- RLS-without-policy tables are server internals: remove direct client DML/DDL grants.
-revoke all privileges on table public."public.account_reauthentications" from public, anon, authenticated;
-revoke all privileges on table public."public.admin_permissions" from public, anon, authenticated;
-revoke all privileges on table public."public.admin_role_assignments" from public, anon, authenticated;
-revoke all privileges on table public."public.admin_role_permissions" from public, anon, authenticated;
-revoke all privileges on table public."public.admin_roles" from public, anon, authenticated;
-revoke all privileges on table public."public.ai_prompt_versions" from public, anon, authenticated;
-revoke all privileges on table public."public.ai_rate_limit_events" from public, anon, authenticated;
-revoke all privileges on table public."public.data_export_table_classifications" from public, anon, authenticated;
-revoke all privileges on table public."public.dead_letter_events" from public, anon, authenticated;
-revoke all privileges on table public."public.external_privacy_requests" from public, anon, authenticated;
-revoke all privileges on table public."public.feature_flags" from public, anon, authenticated;
-revoke all privileges on table public."public.idempotency_keys" from public, anon, authenticated;
-revoke all privileges on table public."public.moderation_actions" from public, anon, authenticated;
-revoke all privileges on table public."public.notification_templates" from public, anon, authenticated;
-revoke all privileges on table public."public.payment_attempts" from public, anon, authenticated;
-revoke all privileges on table public."public.payment_events" from public, anon, authenticated;
-revoke all privileges on table public."public.platform_fees" from public, anon, authenticated;
-revoke all privileges on table public."public.rate_limit_buckets" from public, anon, authenticated;
-revoke all privileges on table public."public.scheduled_jobs" from public, anon, authenticated;
-revoke all privileges on table public."public.settlement_events" from public, anon, authenticated;
-revoke all privileges on table public."public.system_incidents" from public, anon, authenticated;
-revoke all privileges on table public."public.system_settings" from public, anon, authenticated;
-revoke all privileges on table public."public.translation_jobs" from public, anon, authenticated;
-revoke all privileges on table public."public.webhook_events" from public, anon, authenticated;
+revoke all privileges on table public."account_reauthentications" from public, anon, authenticated;
+revoke all privileges on table public."admin_permissions" from public, anon, authenticated;
+revoke all privileges on table public."admin_role_assignments" from public, anon, authenticated;
+revoke all privileges on table public."admin_role_permissions" from public, anon, authenticated;
+revoke all privileges on table public."admin_roles" from public, anon, authenticated;
+revoke all privileges on table public."ai_prompt_versions" from public, anon, authenticated;
+revoke all privileges on table public."ai_rate_limit_events" from public, anon, authenticated;
+revoke all privileges on table public."data_export_table_classifications" from public, anon, authenticated;
+revoke all privileges on table public."dead_letter_events" from public, anon, authenticated;
+revoke all privileges on table public."external_privacy_requests" from public, anon, authenticated;
+revoke all privileges on table public."feature_flags" from public, anon, authenticated;
+revoke all privileges on table public."idempotency_keys" from public, anon, authenticated;
+revoke all privileges on table public."moderation_actions" from public, anon, authenticated;
+revoke all privileges on table public."notification_templates" from public, anon, authenticated;
+revoke all privileges on table public."payment_attempts" from public, anon, authenticated;
+revoke all privileges on table public."payment_events" from public, anon, authenticated;
+revoke all privileges on table public."platform_fees" from public, anon, authenticated;
+revoke all privileges on table public."rate_limit_buckets" from public, anon, authenticated;
+revoke all privileges on table public."scheduled_jobs" from public, anon, authenticated;
+revoke all privileges on table public."settlement_events" from public, anon, authenticated;
+revoke all privileges on table public."system_incidents" from public, anon, authenticated;
+revoke all privileges on table public."system_settings" from public, anon, authenticated;
+revoke all privileges on table public."translation_jobs" from public, anon, authenticated;
+revoke all privileges on table public."webhook_events" from public, anon, authenticated;
 
 -- Cache auth.uid() once per statement in every affected public RLS policy.
 alter policy "deletion_owner_read" on "public"."account_deletion_requests" to public
