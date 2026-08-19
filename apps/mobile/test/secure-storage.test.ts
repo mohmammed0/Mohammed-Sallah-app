@@ -53,7 +53,7 @@ describe('chunked secure storage', () => {
   });
 
   it('normalizes every key to the SecureStore alphabet and bounded length', () => {
-    const normalized = normalizeSecureStoreKey('sb:project/auth token/عميل');
+    const normalized = normalizeSecureStoreKey('sb:project/auth token/customer@example.test');
     expect(normalized).toMatch(SECURE_STORE_KEY_PATTERN);
     expect(`${normalized}.count`).toMatch(SECURE_STORE_KEY_PATTERN);
     expect(`${normalized}.chunk.49`).toMatch(SECURE_STORE_KEY_PATTERN);
