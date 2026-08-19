@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+export const RIYADH_NAME_AR = '\u0627\u0644\u0631\u064a\u0627\u0636';
+const ADDRESS_PART_SEPARATOR = '\u060c ';
+
 export const coordinatesSchema = z
   .object({
     latitude: z.number().finite().min(16).max(33),
@@ -67,7 +70,7 @@ export function sanitizeReverseGeocode(
     .map((part) => part?.trim())
     .filter((part): part is string => Boolean(part))
     .filter((part, index, all) => all.indexOf(part) === index)
-    .join('، ')
+    .join(ADDRESS_PART_SEPARATOR)
     .slice(0, 500);
 }
 

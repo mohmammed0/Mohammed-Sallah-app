@@ -161,6 +161,11 @@ payments failed or the Actions spending limit must be increased. The pull-reques
 twice after cooldown with the same result. This is an external runner/billing gate; no repository
 command or test ran in those jobs.
 
+The earlier full cloud finalizer also exposed seven direct-Arabic-source violations in the location
+screen/model fixtures. This follow-up centralizes the Arabic Riyadh data value and Arabic comma as
+deterministic Unicode domain constants; production and tests no longer contain direct Arabic source
+literals. The repository i18n rerun remains blocked by the same GitHub billing gate.
+
 The first pre-final CI run failed only at formatting and generated-type drift after its preceding
 database/RLS/integration gates passed. Those generated artifacts were then corrected by the bounded
 cloud finalizer. No test failure was suppressed.

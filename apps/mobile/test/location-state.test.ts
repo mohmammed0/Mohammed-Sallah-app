@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { SavedAddress } from '../src/features/location/location-model';
+import {
+  RIYADH_NAME_AR,
+  type SavedAddress,
+} from '../src/features/location/location-model';
 import {
   customerLocationStorageKey,
   resolveActiveSavedAddress,
@@ -14,7 +17,7 @@ const home: SavedAddress = {
   unit: null,
   accessNotes: null,
   cityCode: 'riyadh',
-  cityNameAr: 'الرياض',
+  cityNameAr: RIYADH_NAME_AR,
   cityNameEn: 'Riyadh',
   isDefault: true,
   coordinates: { latitude: 24.7136, longitude: 46.6753 },
@@ -49,7 +52,7 @@ describe('customer active location state', () => {
       unit: null,
       accessNotes: null,
       cityCode: 'riyadh',
-      cityNameAr: 'الرياض',
+      cityNameAr: RIYADH_NAME_AR,
       cityNameEn: 'Riyadh',
       coordinates: { latitude: 24.7136, longitude: 46.6753 },
     });

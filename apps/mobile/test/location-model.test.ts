@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addressDisplayName,
   coordinatesSchema,
+  RIYADH_NAME_AR,
   sameCoordinates,
   sanitizeReverseGeocode,
   savedAddressSchema,
@@ -26,7 +27,7 @@ describe('customer location model', () => {
         city: 'Riyadh',
         region: 'Riyadh',
       }),
-    ).toBe('12، King Road، Al Olaya، Riyadh');
+    ).toBe('12\u060c King Road\u060c Al Olaya\u060c Riyadh');
   });
 
   it('parses the server address boundary and localizes the city fallback', () => {
@@ -38,12 +39,12 @@ describe('customer location model', () => {
       unit: null,
       accessNotes: null,
       cityCode: 'riyadh',
-      cityNameAr: 'الرياض',
+      cityNameAr: RIYADH_NAME_AR,
       cityNameEn: 'Riyadh',
       isDefault: true,
       coordinates: { latitude: 24.7136, longitude: 46.6753 },
     });
-    expect(addressDisplayName(address, 'ar')).toBe('Home · الرياض');
+    expect(addressDisplayName(address, 'ar')).toBe(`Home · ${RIYADH_NAME_AR}`);
     expect(addressDisplayName(address, 'en')).toBe('Home · Riyadh');
   });
 

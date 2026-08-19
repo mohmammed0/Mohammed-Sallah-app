@@ -19,6 +19,7 @@ import { SectionHeader, customerStyles } from '@/design-system/primitives';
 import { customerTokens as tokens } from '@/design-system/tokens';
 import {
   coordinatesSchema,
+  RIYADH_NAME_AR,
   sanitizeReverseGeocode,
   savedAddressInputSchema,
   type Coordinates,
@@ -140,7 +141,7 @@ export default function CustomerLocationsScreen() {
         unit: unit.trim() || null,
         accessNotes: accessNotes.trim() || null,
         cityCode: activeLocation?.cityCode ?? 'riyadh',
-        cityNameAr: activeLocation?.cityNameAr ?? 'الرياض',
+        cityNameAr: activeLocation?.cityNameAr ?? RIYADH_NAME_AR,
         cityNameEn: activeLocation?.cityNameEn ?? 'Riyadh',
         coordinates: validCoordinates,
       });
