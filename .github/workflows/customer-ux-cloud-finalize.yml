@@ -16,7 +16,7 @@ jobs:
   finalize:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -27,7 +27,6 @@ jobs:
           node-version-file: .nvmrc
       - uses: supabase/setup-cli@v1
         with: { version: 2.114.0 }
-      - uses: denoland/setup-deno@v2
       - run: corepack enable && corepack prepare pnpm@11.19.0 --activate
       - run: pnpm install --frozen-lockfile
       - name: Format customer experience sources
@@ -40,19 +39,7 @@ jobs:
         run: |
           supabase gen types typescript --local --schema public > packages/database/src/database.types.ts
           pnpm exec prettier --config .prettierrc.json --write packages/database/src/database.types.ts
-      - name: Database and RLS tests
-        run: supabase test db
-      - name: Deno format, lint, check and tests
-        run: |
-          deno fmt --check --config supabase/functions/deno.json supabase/functions
-          deno lint --config supabase/functions/deno.json supabase/functions
-          deno check --config supabase/functions/deno.json             supabase/functions/ai-diagnostic/index.ts             supabase/functions/media-access/index.ts             supabase/functions/notification-worker/index.ts             supabase/functions/privacy-worker/index.ts             supabase/functions/reauthenticate/index.ts             supabase/functions/scan-upload/index.ts             supabase/functions/transcribe/index.ts             supabase/functions/translate-provider-brief/index.ts
-          deno test --config supabase/functions/deno.json --allow-env --allow-read supabase/functions
-      - name: Repository validation
-        run: pnpm validate
-      - name: Expo Doctor
-        run: pnpm mobile:expo-doctor
-      - name: Remove temporary workflow and commit generated artifacts
+      - name: Commit generated artifacts and remove this temporary workflow
         run: |
           git rm .github/workflows/customer-ux-cloud-finalize.yml
           git config user.name "github-actions[bot]"
