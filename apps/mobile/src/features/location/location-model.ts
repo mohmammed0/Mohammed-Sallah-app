@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+// Locale-bound catalog data and punctuation; customer-facing copy remains in @sallah/i18n.
 export const RIYADH_NAME_AR = '\u0627\u0644\u0631\u064a\u0627\u0636';
 const ADDRESS_PART_SEPARATOR = '\u060c ';
 
