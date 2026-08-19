@@ -255,23 +255,33 @@ jobs:
 
           const appConfig = easConfig?.appConfig;
           const buildProfile = easConfig?.buildProfile;
-          if (
-            appConfig?.extra?.eas?.projectId !== init.projectId ||
-            appConfig?.android?.package !== 'com.mohmammed0.sallah.preview' ||
-            buildProfile?.environment !== 'preview' ||
-            buildProfile?.distribution !== 'internal' ||
-            buildProfile?.channel !== 'preview' ||
-            buildProfile?.autoIncrement !== true ||
-            buildProfile?.android?.buildType !== 'apk' ||
-            buildProfile?.env?.EXPO_PUBLIC_APP_ENV !== 'preview' ||
-            appConfig?.ios?.bundleIdentifier !== 'com.mohmammed0.sallah.preview' ||
-            !(
+          const previewChecks = {
+            projectId: appConfig?.extra?.eas?.projectId === init.projectId,
+            androidPackage:
+              appConfig?.android?.package === 'com.mohmammed0.sallah.preview',
+            environment: buildProfile?.environment === 'preview',
+            distribution: buildProfile?.distribution === 'internal',
+            channel: buildProfile?.channel === 'preview',
+            autoIncrement: buildProfile?.autoIncrement === true,
+            androidBuildType: buildProfile?.android?.buildType === 'apk',
+            appEnvironment:
+              buildProfile?.env?.EXPO_PUBLIC_APP_ENV === 'preview',
+            iosBundleIdentifier:
+              appConfig?.ios?.bundleIdentifier === 'com.mohmammed0.sallah.preview',
+            runtimeVersion:
               appConfig?.runtimeVersion?.policy === 'fingerprint' ||
               (typeof appConfig?.runtimeVersion === 'string' &&
-                appConfig.runtimeVersion.length > 0)
-            )
-          ) {
-            throw new Error('Resolved preview EAS configuration did not match the safe bootstrap inputs');
+                appConfig.runtimeVersion.length > 0),
+          };
+          const failedPreviewChecks = Object.entries(previewChecks)
+            .filter(([, passed]) => !passed)
+            .map(([name]) => name);
+          if (failedPreviewChecks.length > 0) {
+            throw new Error(
+              `Resolved preview EAS configuration failed public checks: ${failedPreviewChecks.join(
+                ', ',
+              )}`,
+            );
           }
 
           const sanitized = {
