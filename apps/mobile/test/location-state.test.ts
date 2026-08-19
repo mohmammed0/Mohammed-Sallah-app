@@ -35,9 +35,9 @@ describe('customer active location state', () => {
 
   it('prefers an explicit saved location and falls back to the default', () => {
     expect(resolveActiveSavedAddress([home, work], work.id)?.id).toBe(work.id);
-    expect(resolveActiveSavedAddress([home, work], '33333333-3333-4333-8333-333333333333')?.id).toBe(
-      home.id,
-    );
+    expect(
+      resolveActiveSavedAddress([home, work], '33333333-3333-4333-8333-333333333333')?.id,
+    ).toBe(home.id);
   });
 
   it('maps a saved address to the privacy-bounded active-location contract', () => {

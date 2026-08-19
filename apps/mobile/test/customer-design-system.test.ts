@@ -22,9 +22,7 @@ describe('customer design-system foundations', () => {
 
   it('removes nonessential motion when reduced motion is enabled', () => {
     expect(customerMotionDuration(true, 'slow')).toBe(0);
-    expect(customerMotionDuration(false, 'standard')).toBe(
-      customerTokens.motion.standard,
-    );
+    expect(customerMotionDuration(false, 'standard')).toBe(customerTokens.motion.standard);
   });
 
   it('uses logical RTL and LTR directions without changing source order', () => {

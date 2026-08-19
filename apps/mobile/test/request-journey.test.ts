@@ -53,6 +53,8 @@ describe('customer request journey', () => {
       requestedStart: '2026-08-20T06:00:00.000Z',
       requestedEnd: '2026-08-20T08:00:00.000Z',
     });
-    expect(publicationWindow('scheduled', window.requestedStart, window.requestedEnd)).toEqual(window);
+    expect(publicationWindow('scheduled', window.requestedStart, window.requestedEnd)).toEqual(
+      window,
+    );
   });
 });

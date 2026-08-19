@@ -9,8 +9,12 @@ import {
 
 describe('customer location model', () => {
   it('accepts Saudi coordinates and rejects coordinates outside the service boundary', () => {
-    expect(coordinatesSchema.safeParse({ latitude: 24.7136, longitude: 46.6753 }).success).toBe(true);
-    expect(coordinatesSchema.safeParse({ latitude: 51.5072, longitude: -0.1276 }).success).toBe(false);
+    expect(coordinatesSchema.safeParse({ latitude: 24.7136, longitude: 46.6753 }).success).toBe(
+      true,
+    );
+    expect(coordinatesSchema.safeParse({ latitude: 51.5072, longitude: -0.1276 }).success).toBe(
+      false,
+    );
   });
 
   it('normalizes reverse-geocoding without duplicating address parts', () => {

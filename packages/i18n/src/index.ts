@@ -44,7 +44,8 @@ const ar = {
   turnAttachmentReady: 'المرفق جاهز لهذه الرسالة فقط.',
   locationPickerTitle: 'حدد موقع الخدمة',
   locationPickerBody: 'اختر موقعًا محفوظًا أو حرّك الخريطة ثم أكّد العنوان.',
-  foregroundLocationReason: 'نستخدم موقعك في المقدمة فقط لتسهيل تحديد مكان الخدمة. لا نطلب موقعًا في الخلفية.',
+  foregroundLocationReason:
+    'نستخدم موقعك في المقدمة فقط لتسهيل تحديد مكان الخدمة. لا نطلب موقعًا في الخلفية.',
   locationPermissionTitle: 'استخدام موقعك الحالي',
   addressRequired: 'أكمل وصف العنوان قبل المتابعة.',
   saveLocationFailed: 'تعذر حفظ الموقع الآن. حاول مرة أخرى.',
@@ -621,7 +622,8 @@ const ar = {
 type TranslationShape = { [K in keyof typeof ar]: string };
 const en: TranslationShape = {
   appName: 'SALLAH',
-  customerHomeLead: 'Choose a service or describe what you need. We will structure the request step by step.',
+  customerHomeLead:
+    'Choose a service or describe what you need. We will structure the request step by step.',
   currentLocation: 'Service location',
   changeLocation: 'Change service location',
   locationNotSelected: 'Choose a location',
@@ -655,12 +657,14 @@ const en: TranslationShape = {
   continueToDiagnosis: 'Continue to describe the issue',
   categoryRequired: 'Choose a service to continue.',
   chatStepTitle: 'Describe the issue your way',
-  chatStepBody: 'Type or record voice. The Sallah assistant can ask useful follow-ups without a fixed limit.',
+  chatStepBody:
+    'Type or record voice. The Sallah assistant can ask useful follow-ups without a fixed limit.',
   aiAssistantName: 'Sallah assistant',
   turnAttachmentReady: 'This attachment is ready for this message only.',
   locationPickerTitle: 'Set the service location',
   locationPickerBody: 'Choose a saved place or move the map, then confirm the address.',
-  foregroundLocationReason: 'We use foreground location only to help place the service pin. Background location is not requested.',
+  foregroundLocationReason:
+    'We use foreground location only to help place the service pin. Background location is not requested.',
   locationPermissionTitle: 'Use your current location',
   addressRequired: 'Complete the address description before continuing.',
   saveLocationFailed: 'The location could not be saved. Try again.',
@@ -673,7 +677,8 @@ const en: TranslationShape = {
   savedLabelOther: 'Other',
   defaultAddressSelected: 'Default location selected',
   useThisLocation: 'Use this location',
-  mapAdjustmentHint: 'Move the map until the pin is over the service location, then refresh the address.',
+  mapAdjustmentHint:
+    'Move the map until the pin is over the service location, then refresh the address.',
   resolveMapAddress: 'Refresh address from map',
   cameraPhoto: 'Take a photo',
   cameraPermissionDenied: 'Allow camera access to take a photo, or choose one from the gallery.',
@@ -685,9 +690,11 @@ const en: TranslationShape = {
   safetyAndSupportBody: 'Need help or dealing with an unsafe situation? Support is available.',
   openHelp: 'Open help',
   continueToLocation: 'Continue to location',
-  informationIncomplete: 'Add a description or generate the best available summary before continuing.',
+  informationIncomplete:
+    'Add a description or generate the best available summary before continuing.',
   locationStepTitle: 'Where is service needed?',
-  locationStepBody: 'Your exact location stays private and is revealed only to the provider you select.',
+  locationStepBody:
+    'Your exact location stays private and is revealed only to the provider you select.',
   useCurrentLocation: 'Use my current location',
   mapPinHint: 'Move the map or tap to place the pin, then confirm it.',
   confirmLocation: 'Confirm this location',
@@ -707,7 +714,8 @@ const en: TranslationShape = {
   savedAddressLoadFailed: 'Saved locations could not be loaded.',
   mapAccessibility: 'Service location picker map',
   timingStepTitle: 'When do you need the service?',
-  timingStepBody: 'Choose what works for you. Providers include their arrival estimate in the offer.',
+  timingStepBody:
+    'Choose what works for you. Providers include their arrival estimate in the offer.',
   scheduleMorning: 'Tomorrow morning',
   scheduleAfternoon: 'Tomorrow afternoon',
   scheduleEvening: 'Tomorrow evening',
@@ -723,7 +731,8 @@ const en: TranslationShape = {
   customerApprovalLabel: 'I reviewed the details and approve publishing',
   approvalRequired: 'Confirm the review before publishing.',
   publishSuccessTitle: 'Your request is live',
-  publishSuccessBody: 'Private offers will appear when they arrive, and you can compare before selecting.',
+  publishSuccessBody:
+    'Private offers will appear when they arrive, and you can compare before selecting.',
   viewMyRequests: 'View my requests',
   startAnotherRequest: 'Create another request',
   publishingRequest: 'Publishing request',
@@ -1296,7 +1305,8 @@ const ur: TranslationShape = {
   turnAttachmentReady: 'یہ منسلکہ صرف اس پیغام کے لیے تیار ہے۔',
   locationPickerTitle: 'سروس کا مقام متعین کریں',
   locationPickerBody: 'محفوظ جگہ منتخب کریں یا نقشہ حرکت دے کر پتہ تصدیق کریں۔',
-  foregroundLocationReason: 'ہم صرف اس اسکرین کے دوران سروس پن رکھنے کے لیے مقام استعمال کرتے ہیں۔ پس منظر کا مقام درکار نہیں۔',
+  foregroundLocationReason:
+    'ہم صرف اس اسکرین کے دوران سروس پن رکھنے کے لیے مقام استعمال کرتے ہیں۔ پس منظر کا مقام درکار نہیں۔',
   locationPermissionTitle: 'موجودہ مقام استعمال کریں',
   addressRequired: 'جاری رکھنے سے پہلے پتے کی تفصیل مکمل کریں۔',
   saveLocationFailed: 'مقام محفوظ نہیں ہو سکا۔ دوبارہ کوشش کریں۔',
@@ -1514,12 +1524,14 @@ const hi: TranslationShape = {
   continueToDiagnosis: 'समस्या बताने के लिए आगे बढ़ें',
   categoryRequired: 'आगे बढ़ने के लिए सेवा चुनें।',
   chatStepTitle: 'समस्या अपने तरीके से बताएँ',
-  chatStepBody: 'लिखें या आवाज़ रिकॉर्ड करें। सल्लाह सहायक बिना तय सीमा के उपयोगी प्रश्न पूछ सकता है।',
+  chatStepBody:
+    'लिखें या आवाज़ रिकॉर्ड करें। सल्लाह सहायक बिना तय सीमा के उपयोगी प्रश्न पूछ सकता है।',
   aiAssistantName: 'सल्लाह सहायक',
   turnAttachmentReady: 'यह अटैचमेंट केवल इस संदेश के लिए तैयार है।',
   locationPickerTitle: 'सेवा का स्थान तय करें',
   locationPickerBody: 'सहेजा हुआ स्थान चुनें या नक्शा खिसकाकर पता पक्का करें।',
-  foregroundLocationReason: 'हम केवल इस स्क्रीन पर सेवा पिन रखने के लिए फ़ोरग्राउंड स्थान उपयोग करते हैं। बैकग्राउंड स्थान नहीं माँगा जाता।',
+  foregroundLocationReason:
+    'हम केवल इस स्क्रीन पर सेवा पिन रखने के लिए फ़ोरग्राउंड स्थान उपयोग करते हैं। बैकग्राउंड स्थान नहीं माँगा जाता।',
   locationPermissionTitle: 'मौजूदा स्थान इस्तेमाल करें',
   addressRequired: 'आगे बढ़ने से पहले पते का विवरण पूरा करें।',
   saveLocationFailed: 'स्थान सहेजा नहीं जा सका। फिर कोशिश करें।',

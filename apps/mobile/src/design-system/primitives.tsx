@@ -134,8 +134,7 @@ export function ActionButton({
 }) {
   const disabled = Boolean(props.disabled || loading);
   const { style: suppliedStyleValue, ...pressableProps } = props;
-  const suppliedStyle =
-    typeof suppliedStyleValue === 'function' ? undefined : suppliedStyleValue;
+  const suppliedStyle = typeof suppliedStyleValue === 'function' ? undefined : suppliedStyleValue;
   const foreground =
     variant === 'primary' || variant === 'danger'
       ? tokens.colors.white
@@ -184,8 +183,7 @@ export function IconButton({
   badge?: number;
 }) {
   const { style: suppliedStyleValue, ...pressableProps } = props;
-  const suppliedStyle =
-    typeof suppliedStyleValue === 'function' ? undefined : suppliedStyleValue;
+  const suppliedStyle = typeof suppliedStyleValue === 'function' ? undefined : suppliedStyleValue;
   return (
     <InteractivePressable
       {...pressableProps}
@@ -254,7 +252,8 @@ export function Notice({
   tone?: 'info' | 'warning' | 'danger' | 'success';
   live?: boolean;
 }) {
-  const icon = tone === 'warning' || tone === 'danger' ? 'alert' : tone === 'success' ? 'check' : 'shield';
+  const icon =
+    tone === 'warning' || tone === 'danger' ? 'alert' : tone === 'success' ? 'check' : 'shield';
   const color =
     tone === 'danger'
       ? tokens.colors.danger
@@ -321,9 +320,7 @@ export function EmptyState({
       </View>
       <Text style={styles.emptyTitle}>{title}</Text>
       <Text style={styles.bodyMuted}>{body}</Text>
-      {actionLabel && onAction ? (
-        <ActionButton label={actionLabel} onPress={onAction} />
-      ) : null}
+      {actionLabel && onAction ? <ActionButton label={actionLabel} onPress={onAction} /> : null}
     </Surface>
   );
 }
@@ -473,7 +470,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: tokens.spacing.sm,
   },
-  field: { flex: 1, minHeight: 52, color: tokens.colors.ink, ...tokens.type.body, textAlign: 'left' },
+  field: {
+    flex: 1,
+    minHeight: 52,
+    color: tokens.colors.ink,
+    ...tokens.type.body,
+    textAlign: 'left',
+  },
   multiline: { minHeight: 112, paddingVertical: 12, textAlignVertical: 'top' },
   notice: {
     borderRadius: tokens.radius.md,

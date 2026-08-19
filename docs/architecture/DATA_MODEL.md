@@ -59,7 +59,6 @@ attempt, one active attempt is allowed per job, and rejected history remains imm
 resolution resumes work for a corrected attempt. Terminal bookkeeping uses a per-job exactly-once
 marker so workload and completion metrics cannot be applied twice.
 
-
 ## Saved customer locations and request snapshots
 
 `addresses.address_kind` separates reusable `saved` addresses from immutable

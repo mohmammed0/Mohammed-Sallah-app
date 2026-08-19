@@ -14,10 +14,7 @@ export function logicalTextAlignment(locale: CustomerLocale): 'left' | 'right' {
   return isRtlLocale(locale) ? 'right' : 'left';
 }
 
-export function logicalChevron(
-  locale: CustomerLocale,
-  action: 'back' | 'forward',
-): AppIconName {
+export function logicalChevron(locale: CustomerLocale, action: 'back' | 'forward'): AppIconName {
   const forward = action === 'forward';
   if (isRtlLocale(locale)) return forward ? 'chevron-back' : 'chevron-forward';
   return forward ? 'chevron-forward' : 'chevron-back';

@@ -23,10 +23,7 @@ import {
   savedAddressInputSchema,
   type Coordinates,
 } from '@/features/location/location-model';
-import {
-  archiveMyAddress,
-  saveMyAddress,
-} from '@/features/location/location-service';
+import { archiveMyAddress, saveMyAddress } from '@/features/location/location-service';
 import { useCustomerLocation } from '@/features/location/location-provider';
 import { useLocale } from '@/providers/locale-provider';
 
@@ -55,9 +52,7 @@ export default function CustomerLocationsScreen() {
   const initialCoordinates = activeLocation?.coordinates ?? RIYADH;
   const mapRef = useRef<MapView | null>(null);
   const [coordinates, setCoordinates] = useState<Coordinates>(initialCoordinates);
-  const [formattedAddress, setFormattedAddress] = useState(
-    activeLocation?.formattedAddress ?? '',
-  );
+  const [formattedAddress, setFormattedAddress] = useState(activeLocation?.formattedAddress ?? '');
   const [label, setLabel] = useState(activeLocation?.label ?? t('savedLabelHome'));
   const [building, setBuilding] = useState(activeLocation?.building ?? '');
   const [unit, setUnit] = useState(activeLocation?.unit ?? '');
@@ -238,10 +233,7 @@ export default function CustomerLocationsScreen() {
                 onPress={() => void chooseSaved(address.id)}
                 selected={activeLocation?.savedAddressId === address.id}
               />
-              <GhostButton
-                label={t('archiveAddress')}
-                onPress={() => confirmArchive(address.id)}
-              />
+              <GhostButton label={t('archiveAddress')} onPress={() => confirmArchive(address.id)} />
             </View>
           ))}
         </View>
@@ -298,12 +290,7 @@ export default function CustomerLocationsScreen() {
             />
           </View>
           <View style={styles.flex}>
-            <FormField
-              label={t('unit')}
-              maxLength={80}
-              onChangeText={setUnit}
-              value={unit}
-            />
+            <FormField label={t('unit')} maxLength={80} onChangeText={setUnit} value={unit} />
           </View>
         </View>
         <FormField

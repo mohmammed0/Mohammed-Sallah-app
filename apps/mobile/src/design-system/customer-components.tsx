@@ -185,8 +185,7 @@ function SelectableServiceCard({
   compact?: boolean;
 }) {
   const { style: suppliedStyleValue, ...pressableProps } = props;
-  const suppliedStyle =
-    typeof suppliedStyleValue === 'function' ? undefined : suppliedStyleValue;
+  const suppliedStyle = typeof suppliedStyleValue === 'function' ? undefined : suppliedStyleValue;
   return (
     <InteractivePressable
       {...pressableProps}
@@ -214,9 +213,7 @@ function SelectableServiceCard({
   );
 }
 
-export function ServiceCategoryCard(
-  props: ComponentProps<typeof SelectableServiceCard>,
-) {
+export function ServiceCategoryCard(props: ComponentProps<typeof SelectableServiceCard>) {
   return <SelectableServiceCard {...props} />;
 }
 
@@ -328,12 +325,7 @@ export function BottomSheet({
   children: ReactNode;
 }) {
   return (
-    <NativeModal
-      animationType="slide"
-      onRequestClose={onDismiss}
-      transparent
-      visible={visible}
-    >
+    <NativeModal animationType="slide" onRequestClose={onDismiss} transparent visible={visible}>
       <View style={styles.sheetLayer}>
         <Pressable
           accessibilityLabel={dismissLabel}
@@ -606,10 +598,7 @@ export function ActiveRequestCard({
   onPress: () => void;
 }) {
   return (
-    <InteractivePressable
-      accessibilityRole="button"
-      onPress={onPress}
-    >
+    <InteractivePressable accessibilityRole="button" onPress={onPress}>
       <Surface>
         <View style={styles.reviewHeader}>
           <Text numberOfLines={2} style={[customerStyles.section, styles.flex]}>
@@ -744,7 +733,11 @@ const styles = StyleSheet.create({
     paddingVertical: tokens.spacing.sm,
     gap: tokens.spacing.xxs,
   },
-  chatAssistant: { backgroundColor: tokens.colors.surface, borderWidth: 1, borderColor: tokens.colors.border },
+  chatAssistant: {
+    backgroundColor: tokens.colors.surface,
+    borderWidth: 1,
+    borderColor: tokens.colors.border,
+  },
   chatCustomer: { backgroundColor: tokens.colors.primary },
   chatCustomerText: { color: tokens.colors.white },
   composer: { gap: tokens.spacing.sm },

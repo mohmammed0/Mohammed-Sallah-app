@@ -88,9 +88,7 @@ const categorySchema = z.object({
   id: z.uuid(),
   slug: z.string(),
   icon_key: z.string(),
-  service_category_translations: z.array(
-    z.object({ name: z.string(), description: z.string() }),
-  ),
+  service_category_translations: z.array(z.object({ name: z.string(), description: z.string() })),
 });
 const subcategorySchema = z.object({
   id: z.uuid(),
@@ -435,9 +433,7 @@ export function RequestComposer() {
           .order('sort_order'),
         supabase
           .from('service_subcategories')
-          .select(
-            'id,category_id,slug,service_subcategory_translations(name,description)',
-          )
+          .select('id,category_id,slug,service_subcategory_translations(name,description)')
           .eq('service_subcategory_translations.locale', locale)
           .eq('enabled', true)
           .order('sort_order'),
@@ -1260,14 +1256,16 @@ export function RequestComposer() {
         ? t('timingFlexible')
         : requestedStart && requestedEnd
           ? t('scheduleWindow', {
-              start: new Date(requestedStart).toLocaleString(
-                locale === 'ar' ? 'ar-SA' : locale,
-                { timeZone: 'Asia/Riyadh', dateStyle: 'medium', timeStyle: 'short' },
-              ),
-              end: new Date(requestedEnd).toLocaleTimeString(
-                locale === 'ar' ? 'ar-SA' : locale,
-                { timeZone: 'Asia/Riyadh', hour: 'numeric', minute: '2-digit' },
-              ),
+              start: new Date(requestedStart).toLocaleString(locale === 'ar' ? 'ar-SA' : locale, {
+                timeZone: 'Asia/Riyadh',
+                dateStyle: 'medium',
+                timeStyle: 'short',
+              }),
+              end: new Date(requestedEnd).toLocaleTimeString(locale === 'ar' ? 'ar-SA' : locale, {
+                timeZone: 'Asia/Riyadh',
+                hour: 'numeric',
+                minute: '2-digit',
+              }),
             })
           : t('timingRequired');
 
@@ -1278,7 +1276,11 @@ export function RequestComposer() {
           <View style={journeyStyles.successIcon}>
             <AppIcon color={tokens.colors.success} name="check" size={36} strokeWidth={3} />
           </View>
-          <Text accessibilityLiveRegion="polite" accessibilityRole="header" style={customerStyles.display}>
+          <Text
+            accessibilityLiveRegion="polite"
+            accessibilityRole="header"
+            style={customerStyles.display}
+          >
             {t('publishSuccessTitle')}
           </Text>
           <Text style={customerStyles.bodyMuted}>{t('publishSuccessBody')}</Text>
@@ -1374,10 +1376,7 @@ export function RequestComposer() {
                     setSelectedSubcategorySlug('');
                     setCategoryConfirmedByUser(true);
                     setCategorySelectionSource(
-                      resolveCategorySelectionSource(
-                        category.slug,
-                        suggestedCategorySlug || null,
-                      ),
+                      resolveCategorySelectionSource(category.slug, suggestedCategorySlug || null),
                     );
                     invalidateApproval();
                   }}
@@ -1428,8 +1427,7 @@ export function RequestComposer() {
                   <Pill
                     key={subcategory.id}
                     label={
-                      subcategory.service_subcategory_translations[0]?.name ??
-                      subcategory.slug
+                      subcategory.service_subcategory_translations[0]?.name ?? subcategory.slug
                     }
                     onPress={() => setSelectedSubcategorySlug(subcategory.slug)}
                     selected={selectedSubcategorySlug === subcategory.slug}
@@ -1466,24 +1464,20 @@ export function RequestComposer() {
             userLabel={t('you')}
           />
           <View style={customerStyles.wrap}>
-            {[t('quickReplyToday'), t('quickReplyEarlier'), t('quickReplyUnsure')].map(
-              (reply) => (
-                <Pill
-                  key={reply}
-                  label={reply}
-                  onPress={() => {
-                    setDescription(reply);
-                    invalidateApproval();
-                  }}
-                  selected={description === reply}
-                />
-              ),
-            )}
+            {[t('quickReplyToday'), t('quickReplyEarlier'), t('quickReplyUnsure')].map((reply) => (
+              <Pill
+                key={reply}
+                label={reply}
+                onPress={() => {
+                  setDescription(reply);
+                  invalidateApproval();
+                }}
+                selected={description === reply}
+              />
+            ))}
           </View>
           {diagnostic?.safetyFlags.length ? (
-            <Notice tone="danger">
-              {t('safetyGuidance')}
-            </Notice>
+            <Notice tone="danger">{t('safetyGuidance')}</Notice>
           ) : null}
           <Surface style={journeyStyles.composer}>
             <Field
@@ -1597,9 +1591,7 @@ export function RequestComposer() {
           ) : null}
           <ActionButton
             disabled={
-              pendingTurns.length > 0 ||
-              title.trim().length < 3 ||
-              summary.trim().length < 10
+              pendingTurns.length > 0 || title.trim().length < 3 || summary.trim().length < 10
             }
             label={t('continueToLocation')}
             onPress={() => moveToStep('location')}
@@ -1713,7 +1705,12 @@ export function RequestComposer() {
           />
           <View style={journeyStyles.twoColumns}>
             <View style={journeyStyles.flex}>
-              <Field label={t('building')} maxLength={80} onChangeText={setBuilding} value={building} />
+              <Field
+                label={t('building')}
+                maxLength={80}
+                onChangeText={setBuilding}
+                value={building}
+              />
             </View>
             <View style={journeyStyles.flex}>
               <Field label={t('unit')} maxLength={80} onChangeText={setUnit} value={unit} />
@@ -1747,10 +1744,7 @@ export function RequestComposer() {
           </View>
           <ActionButton
             disabled={
-              !coordinates ||
-              formattedAddress.trim().length < 3 ||
-              !cityCode ||
-              locationBusy
+              !coordinates || formattedAddress.trim().length < 3 || !cityCode || locationBusy
             }
             label={t('saveThisLocation')}
             loading={locationBusy}
@@ -1758,10 +1752,7 @@ export function RequestComposer() {
             variant="secondary"
           />
           {error ? (
-            <Notice
-              live
-              tone={error === t('locationSaved') ? 'success' : 'warning'}
-            >
+            <Notice live tone={error === t('locationSaved') ? 'success' : 'warning'}>
               {error}
             </Notice>
           ) : null}
@@ -1805,11 +1796,7 @@ export function RequestComposer() {
                 ]}
               >
                 <AppIcon
-                  color={
-                    schedule === value
-                      ? tokens.colors.primaryStrong
-                      : tokens.colors.textMuted
-                  }
+                  color={schedule === value ? tokens.colors.primaryStrong : tokens.colors.textMuted}
                   name={value === 'scheduled' ? 'calendar' : 'time'}
                   size={24}
                 />
@@ -1882,9 +1869,7 @@ export function RequestComposer() {
               ))}
             </View>
           </Surface>
-          {!readyForReview ? (
-            <Notice tone="warning">{t('timingRequired')}</Notice>
-          ) : null}
+          {!readyForReview ? <Notice tone="warning">{t('timingRequired')}</Notice> : null}
           <ActionButton
             disabled={!readyForReview}
             label={t('continueToReview')}
@@ -1934,8 +1919,7 @@ export function RequestComposer() {
               />
             </View>
             <Text style={customerStyles.body}>
-              {selectedCategory?.service_category_translations[0]?.name ??
-                selectedCategorySlug}
+              {selectedCategory?.service_category_translations[0]?.name ?? selectedCategorySlug}
               {selectedSubcategory
                 ? ` · ${selectedSubcategory.service_subcategory_translations[0]?.name ?? selectedSubcategory.slug}`
                 : ''}
@@ -1978,15 +1962,10 @@ export function RequestComposer() {
             accessibilityRole="checkbox"
             accessibilityState={{ checked: approved }}
             onPress={() => setApproved((value) => !value)}
-            style={[
-              journeyStyles.approval,
-              approved && journeyStyles.approvalSelected,
-            ]}
+            style={[journeyStyles.approval, approved && journeyStyles.approvalSelected]}
           >
             <View style={journeyStyles.checkbox}>
-              {approved ? (
-                <AppIcon color={tokens.colors.white} name="check" size={18} />
-              ) : null}
+              {approved ? <AppIcon color={tokens.colors.white} name="check" size={18} /> : null}
             </View>
             <Text style={journeyStyles.approvalText}>{t('customerApprovalLabel')}</Text>
           </Pressable>

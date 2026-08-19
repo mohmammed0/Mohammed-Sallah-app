@@ -76,7 +76,8 @@ export function CustomerLocationProvider({ children }: PropsWithChildren) {
   }, [userId]);
 
   const savedActive = resolveActiveSavedAddress(query.data ?? [], preferredAddressId);
-  const activeLocation = transientLocation ?? (savedActive ? toActiveServiceLocation(savedActive) : null);
+  const activeLocation =
+    transientLocation ?? (savedActive ? toActiveServiceLocation(savedActive) : null);
 
   const selectSavedAddress = useCallback(
     async (addressId: string) => {
@@ -121,9 +122,7 @@ export function CustomerLocationProvider({ children }: PropsWithChildren) {
   );
 
   return (
-    <CustomerLocationContext.Provider value={value}>
-      {children}
-    </CustomerLocationContext.Provider>
+    <CustomerLocationContext.Provider value={value}>{children}</CustomerLocationContext.Provider>
   );
 }
 

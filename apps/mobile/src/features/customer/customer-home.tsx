@@ -26,9 +26,7 @@ const categorySchema = z.object({
   id: z.uuid(),
   slug: z.string(),
   icon_key: z.string(),
-  service_category_translations: z.array(
-    z.object({ name: z.string(), description: z.string() }),
-  ),
+  service_category_translations: z.array(z.object({ name: z.string(), description: z.string() })),
 });
 const requestSchema = z.object({
   id: z.uuid(),
@@ -102,7 +100,8 @@ export function CustomerHome() {
     });
   }, [catalog.data, locale, search]);
   const activeRequest = requests.data?.find((request) => activeStatuses.has(request.status));
-  const receivingOffers = requests.data?.filter((request) => request.status === 'receiving_offers') ?? [];
+  const receivingOffers =
+    requests.data?.filter((request) => request.status === 'receiving_offers') ?? [];
   const recentRequests =
     requests.data?.filter((request) => !activeStatuses.has(request.status)).slice(0, 3) ?? [];
   return (

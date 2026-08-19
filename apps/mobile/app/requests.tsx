@@ -123,9 +123,7 @@ export default function Requests() {
               <View style={styles.flex}>
                 <Text style={customerStyles.section}>{request.title}</Text>
                 <Text style={customerStyles.caption}>
-                  {new Date(request.created_at).toLocaleString(
-                    locale === 'ar' ? 'ar-SA' : locale,
-                  )}
+                  {new Date(request.created_at).toLocaleString(locale === 'ar' ? 'ar-SA' : locale)}
                 </Text>
               </View>
               <AppIcon color={tokens.colors.textMuted} name="chevron-forward" size={19} />

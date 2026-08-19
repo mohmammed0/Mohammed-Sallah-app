@@ -32,6 +32,8 @@ export async function saveMyAddress(input: SavedAddressInput): Promise<string> {
 }
 
 export async function archiveMyAddress(addressId: string): Promise<void> {
-  const { error } = await rpc()('archive_my_saved_address', { p_address_id: z.uuid().parse(addressId) });
+  const { error } = await rpc()('archive_my_saved_address', {
+    p_address_id: z.uuid().parse(addressId),
+  });
   if (error) throw new Error('SAVED_ADDRESS_ARCHIVE_FAILED');
 }

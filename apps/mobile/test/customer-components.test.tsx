@@ -74,9 +74,8 @@ describe('customer marketplace components', () => {
   it('exposes selected service cards and logical quick replies', async () => {
     const onService = vi.fn();
     const onReply = vi.fn();
-    const { ServiceCategoryCard, QuickReplyChip } = await import(
-      '../src/design-system/customer-components'
-    );
+    const { ServiceCategoryCard, QuickReplyChip } =
+      await import('../src/design-system/customer-components');
     let renderer: ReturnType<typeof create> | undefined;
     await act(() => {
       renderer = create(

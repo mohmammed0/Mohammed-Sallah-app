@@ -31,7 +31,6 @@ Production enablement requires `pnpm config:validate:production` to pass with no
 
 Repository automation can validate structure, local authorization, and fail-closed behavior, but cannot approve provider contracts, create production accounts, choose legal retention outcomes, supply store signing identities, or claim a physical-device/iOS result. Those items remain external gates rather than software passes.
 
-
 ## Customer UX preview map gate
 
 The customer location flow is implemented but Android Preview remains blocked until a human

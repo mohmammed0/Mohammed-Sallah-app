@@ -1,6 +1,13 @@
 import type { Coordinates } from '@/features/location/location-model';
 
-export const requestJourneySteps = ['category', 'chat', 'location', 'timing', 'review', 'success'] as const;
+export const requestJourneySteps = [
+  'category',
+  'chat',
+  'location',
+  'timing',
+  'review',
+  'success',
+] as const;
 export type RequestJourneyStep = (typeof requestJourneySteps)[number];
 
 export function requestJourneyStepNumber(step: RequestJourneyStep): number {

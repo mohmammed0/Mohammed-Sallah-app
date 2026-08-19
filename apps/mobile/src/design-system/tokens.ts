@@ -91,9 +91,6 @@ export type CustomerColor = keyof typeof customerTokens.colors;
 export type CustomerColorScheme = keyof typeof customerColorSchemes;
 export type CustomerMotion = keyof typeof customerTokens.motion;
 
-export function customerMotionDuration(
-  reduceMotion: boolean,
-  duration: CustomerMotion,
-): number {
+export function customerMotionDuration(reduceMotion: boolean, duration: CustomerMotion): number {
   return reduceMotion ? 0 : customerTokens.motion[duration];
 }
