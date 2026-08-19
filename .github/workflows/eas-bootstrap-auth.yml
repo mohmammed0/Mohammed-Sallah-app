@@ -263,7 +263,7 @@ jobs:
             distribution: buildProfile?.distribution === 'internal',
             channel: buildProfile?.channel === 'preview',
             autoIncrement: buildProfile?.autoIncrement === true,
-            androidBuildType: buildProfile?.android?.buildType === 'apk',
+            androidBuildType: buildProfile?.buildType === 'apk',
             appEnvironment:
               buildProfile?.env?.EXPO_PUBLIC_APP_ENV === 'preview',
             iosBundleIdentifier:
@@ -316,7 +316,7 @@ jobs:
               distribution: buildProfile.distribution,
               channel: buildProfile.channel,
               autoIncrement: buildProfile.autoIncrement,
-              androidBuildType: buildProfile.android.buildType,
+              androidBuildType: buildProfile.buildType,
               appEnvironment: buildProfile.env.EXPO_PUBLIC_APP_ENV,
               runtimeVersion:
                 appConfig.runtimeVersion?.policy ?? appConfig.runtimeVersion,
