@@ -9,6 +9,7 @@ import {
 } from '../src/features/request/conversation-state';
 
 vi.mock('react-native', () => ({ Text: 'Text', View: 'View' }));
+vi.mock('../src/design-system/icon', () => ({ AppIcon: 'AppIcon' }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
 

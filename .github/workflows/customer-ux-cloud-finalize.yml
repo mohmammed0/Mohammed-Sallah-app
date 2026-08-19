@@ -26,6 +26,7 @@ jobs:
         with:
           node-version-file: .nvmrc
       - uses: supabase/setup-cli@v1
+        with: { version: 2.114.0 }
       - uses: denoland/setup-deno@v2
       - run: corepack enable && corepack prepare pnpm@11.19.0 --activate
       - run: pnpm install --frozen-lockfile

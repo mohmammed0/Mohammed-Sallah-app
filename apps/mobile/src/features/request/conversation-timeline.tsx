@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { AppIcon } from '@/design-system/icon';
-import { customerTokens as tokens } from '@/design-system/tokens';
+import { AppIcon } from '../../design-system/icon';
+import { customerTokens as tokens } from '../../design-system/tokens';
 import type { ConversationMessage } from './conversation-state';
 
 interface ConversationTimelineProps {

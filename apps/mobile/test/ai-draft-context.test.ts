@@ -1,5 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { pendingCustomerTurnSchema } from '../src/features/request/conversation-recovery';
+
+vi.mock('expo-secure-store', () => ({
+  AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 'device-only',
+  getItemAsync: vi.fn(),
+  setItemAsync: vi.fn(),
+  deleteItemAsync: vi.fn(),
+}));
+vi.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
+vi.mock('expo-file-system/legacy', () => ({
+  documentDirectory: 'file:///app-private/',
+}));
 
 describe('AI draft category context', () => {
   it('preserves customer-confirmed category and subcategory through offline replay', () => {
