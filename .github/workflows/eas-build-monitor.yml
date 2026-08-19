@@ -1,5 +1,6 @@
 name: Monitor EAS Preview Build
 
+# Poll generation: 2
 on:
   push:
     branches:
