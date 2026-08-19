@@ -2,13 +2,17 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
 import { branding } from '@sallah/config/branding';
 import { translate } from '@sallah/i18n';
 
+const defaultEasOwner = 'binmuhayas-team';
+const defaultEasProjectId = 'f098f941-ae73-4007-b582-ba6fb1b8aa7a';
+
 export default ({ config }: ConfigContext): ExpoConfig => {
   const environment = process.env.EXPO_PUBLIC_APP_ENV ?? 'local';
   const production = environment === 'production';
-  const projectId = process.env.EAS_PROJECT_ID;
+  const configuredProjectId = process.env.EAS_PROJECT_ID;
+  const projectId = configuredProjectId ?? defaultEasProjectId;
   if (
     production &&
-    (!projectId ||
+    (!configuredProjectId ||
       !process.env.EXPO_PUBLIC_SUPABASE_URL ||
       !process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY)
   ) {
@@ -20,6 +24,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...config,
     name: branding.displayName.ar,
     slug: branding.slug,
+    owner: defaultEasOwner,
     version: '0.1.0',
     platforms: ['ios', 'android'],
     orientation: 'portrait',
@@ -77,7 +82,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     experiments: { typedRoutes: true },
     extra: {
       appEnvironment: environment,
-      eas: projectId ? { projectId } : undefined,
+      eas: { projectId },
       featureFlags: {
         phoneOtp: false,
         backgroundLocation: false,
