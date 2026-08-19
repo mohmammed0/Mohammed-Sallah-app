@@ -656,6 +656,69 @@ async function runConcurrentIdempotencyFlow(config, owner, provider) {
   }
 }
 
+async function runSavedLocationDefaultFlow(config, owner) {
+  const firstId = crypto.randomUUID();
+  const secondId = crypto.randomUUID();
+  const base = {
+    label: 'Synthetic location',
+    formattedAddress: 'Synthetic Riyadh integration address',
+    building: '',
+    unit: '',
+    accessNotes: '',
+    cityCode: 'riyadh',
+    coordinates: { latitude: 24.7136, longitude: 46.6753 },
+  };
+  await expectOk(
+    await rpc(config, owner, 'upsert_my_saved_address', {
+      payload: { ...base, id: firstId, isDefault: true },
+    }),
+    'saved_location_first',
+  );
+  await expectOk(
+    await rpc(config, owner, 'upsert_my_saved_address', {
+      payload: {
+        ...base,
+        id: secondId,
+        formattedAddress: 'Second synthetic Riyadh integration address',
+        isDefault: false,
+      },
+    }),
+    'saved_location_second',
+  );
+  const firstDefault = rpc(config, owner, 'make_my_saved_address_default', {
+    p_address_id: firstId,
+  });
+  const secondDefault = rpc(config, owner, 'make_my_saved_address_default', {
+    p_address_id: secondId,
+  });
+  await Promise.all([
+    firstDefault.then((response) => expectOk(response, 'saved_location_concurrent_default_first')),
+    secondDefault.then((response) =>
+      expectOk(response, 'saved_location_concurrent_default_second'),
+    ),
+  ]);
+  const addresses = await expectOk(
+    await rpc(config, owner, 'list_my_saved_addresses', {}),
+    'saved_location_list_after_concurrency',
+  );
+  if (
+    !Array.isArray(addresses) ||
+    addresses.filter((address) => address?.isDefault === true).length !== 1
+  ) {
+    fail('saved_location_default_invariant_failed');
+  }
+  const resolution = await expectOk(
+    await rpc(config, owner, 'resolve_service_location', {
+      p_latitude: 21.5433,
+      p_longitude: 39.1728,
+    }),
+    'jeddah_location_resolution',
+  );
+  if (resolution?.status !== 'supported' || resolution?.city?.code !== 'jeddah') {
+    fail('jeddah_location_resolution_invalid');
+  }
+}
+
 const config = localEnvironment();
 const functionServer = await ensureFunctions(config);
 try {
@@ -666,10 +729,13 @@ try {
     'provider.demo@example.invalid',
     'LocalProviderE2E-Only!2026',
   );
+  await runSavedLocationDefaultFlow(config, owner);
   await runStorageFlow(config, owner, outsider);
   await runAiPublicationFlow(config, owner);
   await runConcurrentIdempotencyFlow(config, owner, provider);
-  console.log('Local Supabase integration: PASS (storage + AI + true concurrent core idempotency)');
+  console.log(
+    'Local Supabase integration: PASS (location authority + storage + AI + true concurrent idempotency)',
+  );
 } finally {
   await stopFunctions(functionServer);
 }

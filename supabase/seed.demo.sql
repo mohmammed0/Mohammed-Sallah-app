@@ -108,7 +108,7 @@ begin
 end $$;
 
 insert into public.provider_service_areas(provider_id,city_id,center,radius_m)
-select provider_id,city.id,st_setsrid(st_makepoint(0,0),4326)::geography,40000
+select provider_id,city.id,st_setsrid(st_makepoint(46.6753,24.7136),4326)::geography,40000
 from (values
  ('d2000000-0000-4000-8000-000000000001'::uuid),
  ('d2000000-0000-4000-8000-000000000002'::uuid),
@@ -118,11 +118,11 @@ cross join lateral(select id from public.cities where code='riyadh') city;
 
 insert into public.addresses(id,user_id,city_id,label,formatted_address,location,is_default)
 select 'da000000-0000-4000-8000-000000000001','d1000000-0000-4000-8000-000000000001',id,
-  'بيانات اختبار','بيانات اختبار اصطناعية بلا عنوان فعلي',st_setsrid(st_makepoint(0,0),4326)::geography,true
+  'بيانات اختبار','بيانات اختبار اصطناعية بلا عنوان فعلي',st_setsrid(st_makepoint(46.6753,24.7136),4326)::geography,true
 from public.cities where code='riyadh';
 insert into public.addresses(id,user_id,city_id,label,formatted_address,location,is_default)
 select 'da000000-0000-4000-8000-000000000002','d1000000-0000-4000-8000-000000000002',id,
-  'بيانات اختبار ثانية','بيانات اختبار اصطناعية بلا عنوان فعلي',st_setsrid(st_makepoint(0,0),4326)::geography,true
+  'بيانات اختبار ثانية','بيانات اختبار اصطناعية بلا عنوان فعلي',st_setsrid(st_makepoint(46.6753,24.7136),4326)::geography,true
 from public.cities where code='riyadh';
 
 insert into public.service_requests(
@@ -132,9 +132,9 @@ insert into public.service_requests(
 select request_id,customer_id,category.id,city.id,title,description,original_text,locale,urgency,
   now()+schedule_offset,approximate_location,address_id,now()-interval '2 days',now()-interval '2 days',status
 from (values
- ('db000000-0000-4000-8000-000000000001'::uuid,'d1000000-0000-4000-8000-000000000001'::uuid,'مكيف لا يبرد','ضعف تبريد مستمر مع صوت خفيف، دون مؤشرات خطر فورية.','المكيف لا يبرد من أمس ويصدر صوتًا خفيفًا.','ar','normal'::public.request_urgency,interval '1 day',st_setsrid(st_makepoint(0,0),4326)::geography,'da000000-0000-4000-8000-000000000001'::uuid,'provider_selected'::public.request_status),
- ('db000000-0000-4000-8000-000000000002'::uuid,'d1000000-0000-4000-8000-000000000002'::uuid,'AC maintenance quote','Routine split AC maintenance requested.','The split AC needs routine maintenance.','en','flexible'::public.request_urgency,interval '3 days',st_setsrid(st_makepoint(0,0),4326)::geography,'da000000-0000-4000-8000-000000000002'::uuid,'provider_selected'::public.request_status),
- ('db000000-0000-4000-8000-000000000003'::uuid,'d1000000-0000-4000-8000-000000000001'::uuid,'تنظيف وحدة تكييف','تم تنظيف الوحدة واختبارها.','أحتاج تنظيف المكيف.','ar','normal'::public.request_urgency,-interval '4 days',st_setsrid(st_makepoint(0,0),4326)::geography,'da000000-0000-4000-8000-000000000001'::uuid,'provider_selected'::public.request_status)
+ ('db000000-0000-4000-8000-000000000001'::uuid,'d1000000-0000-4000-8000-000000000001'::uuid,'مكيف لا يبرد','ضعف تبريد مستمر مع صوت خفيف، دون مؤشرات خطر فورية.','المكيف لا يبرد من أمس ويصدر صوتًا خفيفًا.','ar','normal'::public.request_urgency,interval '1 day',st_setsrid(st_makepoint(46.6753,24.7136),4326)::geography,'da000000-0000-4000-8000-000000000001'::uuid,'provider_selected'::public.request_status),
+ ('db000000-0000-4000-8000-000000000002'::uuid,'d1000000-0000-4000-8000-000000000002'::uuid,'AC maintenance quote','Routine split AC maintenance requested.','The split AC needs routine maintenance.','en','flexible'::public.request_urgency,interval '3 days',st_setsrid(st_makepoint(46.6753,24.7136),4326)::geography,'da000000-0000-4000-8000-000000000002'::uuid,'provider_selected'::public.request_status),
+ ('db000000-0000-4000-8000-000000000003'::uuid,'d1000000-0000-4000-8000-000000000001'::uuid,'تنظيف وحدة تكييف','تم تنظيف الوحدة واختبارها.','أحتاج تنظيف المكيف.','ar','normal'::public.request_urgency,-interval '4 days',st_setsrid(st_makepoint(46.6753,24.7136),4326)::geography,'da000000-0000-4000-8000-000000000001'::uuid,'provider_selected'::public.request_status)
 ) requests(request_id,customer_id,title,description,original_text,locale,urgency,schedule_offset,approximate_location,address_id,status)
 cross join lateral(select id from public.service_categories where slug='air-conditioning') category
 cross join lateral(select id from public.cities where code='riyadh') city;

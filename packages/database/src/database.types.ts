@@ -103,6 +103,7 @@ export type Database = {
       addresses: {
         Row: {
           access_notes: string | null;
+          address_kind: string;
           building: string | null;
           city_id: string;
           created_at: string;
@@ -119,6 +120,7 @@ export type Database = {
         };
         Insert: {
           access_notes?: string | null;
+          address_kind?: string;
           building?: string | null;
           city_id: string;
           created_at?: string;
@@ -135,6 +137,7 @@ export type Database = {
         };
         Update: {
           access_notes?: string | null;
+          address_kind?: string;
           building?: string | null;
           city_id?: string;
           created_at?: string;
@@ -6882,6 +6885,10 @@ export type Database = {
         };
         Returns: undefined;
       };
+      archive_my_saved_address: {
+        Args: { p_address_id: string };
+        Returns: undefined;
+      };
       assert_data_export_catalog_complete: { Args: never; Returns: boolean };
       assign_support_case: {
         Args: {
@@ -7118,6 +7125,11 @@ export type Database = {
         Args: { p_query: string; p_reason: string };
         Returns: Json;
       };
+      list_my_saved_addresses: { Args: never; Returns: Json };
+      make_my_saved_address_default: {
+        Args: { p_address_id: string };
+        Returns: undefined;
+      };
       open_dispute:
         | {
             Args: {
@@ -7215,6 +7227,10 @@ export type Database = {
         };
         Returns: Json;
       };
+      resolve_service_location: {
+        Args: { p_latitude: number; p_longitude: number };
+        Returns: Json;
+      };
       restore_active_ai_intake: { Args: never; Returns: Json };
       review_provider: {
         Args: {
@@ -7305,6 +7321,7 @@ export type Database = {
         };
         Returns: Json;
       };
+      upsert_my_saved_address: { Args: { payload: Json }; Returns: string };
       upsert_provider_onboarding: { Args: { payload: Json }; Returns: Json };
       upsert_provider_onboarding_without_final_diff: {
         Args: { payload: Json };

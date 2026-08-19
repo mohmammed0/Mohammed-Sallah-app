@@ -30,6 +30,7 @@ const first: PendingCustomerTurn = {
   transcript: null,
   transcriptionStatus: 'none',
   confirmedCategorySlug: 'plumbing',
+  confirmedSubcategorySlug: null,
   summaryRequested: false,
   createdAt: '2026-08-18T10:00:00.000Z',
 };

@@ -40,7 +40,7 @@ values('91000000-0000-4000-8000-000000000002','individual','verified',true,3);
 insert into public.addresses(id,user_id,city_id,label,formatted_address,location)
 select
   '91100000-0000-4000-8000-000000000001','91000000-0000-4000-8000-000000000001',id,
-  'Fixture','Synthetic workflow fixture',st_setsrid(st_makepoint(0,0),4326)::geography
+  'Fixture','Synthetic workflow fixture',st_setsrid(st_makepoint(46.6753,24.7136),4326)::geography
 from public.cities where code='riyadh';
 
 insert into public.service_requests(
@@ -48,7 +48,7 @@ insert into public.service_requests(
   approximate_location,exact_address_id,status,published_at,customer_approved_at,version
 )
 select fixture.id,'91000000-0000-4000-8000-000000000001',cat.id,city.id,fixture.title,
-  fixture.title,fixture.title,st_setsrid(st_makepoint(0,0),4326)::geography,
+  fixture.title,fixture.title,st_setsrid(st_makepoint(46.6753,24.7136),4326)::geography,
   case when fixture.has_address then '91100000-0000-4000-8000-000000000001'::uuid else null end,
   fixture.status::public.request_status,now(),now(),fixture.version
 from (values

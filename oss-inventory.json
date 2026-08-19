@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-17",
+  "generatedAt": "2026-08-19",
   "policy": "Exact versions from pnpm lock; ship permissive dependencies. Package-scoped build/data exceptions are documented.",
   "adopted": [
     {
@@ -71,8 +71,24 @@
       "package": "react-native-maps",
       "version": "1.27.2",
       "license": "MIT",
-      "use": "authorized foreground job tracking map and markers",
+      "use": "foreground customer location picker and authorized job tracking maps",
       "security": "GitHub advisories"
+    },
+    {
+      "project": "lucide-icons/lucide",
+      "package": "lucide-react-native",
+      "version": "1.18.0",
+      "license": "ISC",
+      "use": "cross-platform customer interface iconography",
+      "security": "GitHub security policy/advisories"
+    },
+    {
+      "project": "software-mansion/react-native-svg",
+      "package": "react-native-svg",
+      "version": "15.15.4",
+      "license": "MIT",
+      "use": "Expo-compatible SVG runtime for Lucide icons",
+      "security": "GitHub security policy/advisories"
     },
     {
       "project": "expo/expo",

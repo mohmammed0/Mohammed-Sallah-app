@@ -220,7 +220,7 @@ select
   '92000000-0000-4000-8000-000000000001',
   '91000000-0000-4000-8000-000000000003',
   category.id,city.id,'Projection test','Synthetic structured complaint',
-  'Synthetic complaint',st_setsrid(st_makepoint(0,0),4326)::geography,
+  'Synthetic complaint',st_setsrid(st_makepoint(46.6753,24.7136),4326)::geography,
   'draft',now(),now()
 from (select id from public.service_categories where slug='general-handyman') category
 cross join (select id from public.cities where code='riyadh') city;

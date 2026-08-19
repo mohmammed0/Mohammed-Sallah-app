@@ -5,6 +5,54 @@ export interface ConversationMessage {
   authoritative?: boolean | undefined;
   temporary?: boolean | undefined;
   mediaUploadIds?: string[] | undefined;
+  delivery?: 'pending' | 'retryable' | 'offline' | 'sent' | undefined;
+  inputKind?: 'text' | 'voice' | 'image' | undefined;
+  transcriptStatus?: 'pending' | 'retryable' | 'completed' | undefined;
+}
+
+export function upsertPendingCustomerMessage(
+  history: readonly ConversationMessage[],
+  input: {
+    clientMessageId: string;
+    text: string;
+    offline: boolean;
+    mediaUploadIds: string[];
+    inputKind: 'text' | 'voice' | 'image';
+  },
+): ConversationMessage[] {
+  if (history.some((message) => message.clientMessageId === input.clientMessageId)) {
+    return [...history];
+  }
+  return [
+    ...history,
+    {
+      role: 'user',
+      text: input.text,
+      clientMessageId: input.clientMessageId,
+      authoritative: false,
+      temporary: true,
+      delivery: input.offline ? 'offline' : 'pending',
+      mediaUploadIds: input.mediaUploadIds,
+      inputKind: input.inputKind,
+      transcriptStatus: input.inputKind === 'voice' ? 'pending' : undefined,
+    },
+  ];
+}
+
+export function markConversationMessageRetryable(
+  history: readonly ConversationMessage[],
+  clientMessageId: string,
+): ConversationMessage[] {
+  return history.map((message) =>
+    message.role === 'user' && message.clientMessageId === clientMessageId
+      ? {
+          ...message,
+          delivery: 'retryable' as const,
+          temporary: true,
+          transcriptStatus: message.inputKind === 'voice' ? ('retryable' as const) : undefined,
+        }
+      : message,
+  );
 }
 
 export interface PublishableRequestDraft {

@@ -1,0 +1,83 @@
+import { describe, expect, it } from 'vitest';
+import {
+  addressDisplayName,
+  coordinatesSchema,
+  RIYADH_NAME_AR,
+  serviceLocationResolutionSchema,
+  sameCoordinates,
+  sanitizeReverseGeocode,
+  savedAddressSchema,
+} from '../src/features/location/location-model';
+
+describe('customer location model', () => {
+  it('accepts global device coordinates and leaves service-area policy to the server', () => {
+    expect(coordinatesSchema.safeParse({ latitude: 24.7136, longitude: 46.6753 }).success).toBe(
+      true,
+    );
+    expect(coordinatesSchema.safeParse({ latitude: 38.5767, longitude: -92.1735 }).success).toBe(
+      true,
+    );
+    expect(coordinatesSchema.safeParse({ latitude: 91, longitude: 0 }).success).toBe(false);
+  });
+
+  it('parses each server-authoritative service-area outcome without inventing a city', () => {
+    expect(
+      serviceLocationResolutionSchema.parse({
+        status: 'supported',
+        countryCode: 'SA',
+        city: {
+          id: '11111111-1111-4111-8111-111111111111',
+          code: 'jeddah',
+          nameAr: '\u062c\u062f\u0629',
+          nameEn: 'Jeddah',
+        },
+      }).city.code,
+    ).toBe('jeddah');
+    expect(
+      serviceLocationResolutionSchema.parse({
+        status: 'outside_saudi_arabia',
+        countryCode: null,
+        city: null,
+      }).city,
+    ).toBeNull();
+  });
+
+  it('normalizes reverse-geocoding without duplicating address parts', () => {
+    expect(
+      sanitizeReverseGeocode({
+        name: '12',
+        street: 'King Road',
+        district: 'Al Olaya',
+        city: 'Riyadh',
+        region: 'Riyadh',
+      }),
+    ).toBe('12\u060c King Road\u060c Al Olaya\u060c Riyadh');
+  });
+
+  it('parses the server address boundary and localizes the city fallback', () => {
+    const address = savedAddressSchema.parse({
+      id: '11111111-1111-4111-8111-111111111111',
+      label: 'Home',
+      formattedAddress: '',
+      building: null,
+      unit: null,
+      accessNotes: null,
+      cityCode: 'riyadh',
+      cityNameAr: RIYADH_NAME_AR,
+      cityNameEn: 'Riyadh',
+      isDefault: true,
+      coordinates: { latitude: 24.7136, longitude: 46.6753 },
+    });
+    expect(addressDisplayName(address, 'ar')).toBe(`Home · ${RIYADH_NAME_AR}`);
+    expect(addressDisplayName(address, 'en')).toBe('Home · Riyadh');
+  });
+
+  it('compares map coordinates at pin precision', () => {
+    expect(
+      sameCoordinates(
+        { latitude: 24.7136001, longitude: 46.6753001 },
+        { latitude: 24.7136002, longitude: 46.6753002 },
+      ),
+    ).toBe(true);
+  });
+});

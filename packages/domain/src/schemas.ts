@@ -66,6 +66,7 @@ export const aiDiagnosticSchema = z.object({
   observedSymptoms: z.array(z.string().max(300)).max(30),
   possibleCauses: z.array(z.string().max(300)).max(20),
   followUpQuestions: z.array(z.string().max(500)).max(5),
+  quickReplies: z.array(z.string().min(1).max(120)).max(4).default([]),
   safetyFlags: z
     .array(
       z.enum([

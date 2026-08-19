@@ -1,32 +1,59 @@
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { ChatBubble } from '../../design-system/customer-components';
 import type { ConversationMessage } from './conversation-state';
 
 interface ConversationTimelineProps {
   messages: readonly ConversationMessage[];
   userLabel: string;
   assistantLabel: string;
+  pendingLabel: string;
+  retryLabel: string;
+  offlineLabel: string;
+  onRetry: (clientMessageId: string) => void;
 }
 
 export function ConversationTimeline({
   messages,
   userLabel,
   assistantLabel,
+  pendingLabel,
+  retryLabel,
+  offlineLabel,
+  onRetry,
 }: ConversationTimelineProps) {
   return (
     <View accessibilityRole="list">
-      {messages.map((message, index) => (
-        <View
-          accessibilityLabel={`${message.role === 'user' ? userLabel : assistantLabel}: ${message.text}`}
-          accessibilityRole="text"
-          key={`${message.role}-${index}`}
-          style={{ backgroundColor: '#FFFFFF', borderRadius: 16, marginBottom: 10, padding: 14 }}
-        >
-          <Text style={{ color: '#7A3E12', fontWeight: '700' }}>
-            {message.role === 'user' ? userLabel : assistantLabel}
-          </Text>
-          <Text style={{ color: '#1B1B1B', marginTop: 6 }}>{message.text}</Text>
-        </View>
-      ))}
+      {messages.map((message, index) => {
+        const delivery = message.delivery ?? (message.authoritative ? 'sent' : undefined);
+        const statusLabel =
+          delivery === 'retryable'
+            ? retryLabel
+            : delivery === 'offline'
+              ? offlineLabel
+              : delivery === 'pending'
+                ? pendingLabel
+                : undefined;
+        const clientMessageId = message.clientMessageId;
+        const retry =
+          message.role === 'user' && delivery === 'retryable' && clientMessageId
+            ? () => onRetry(clientMessageId)
+            : null;
+        return (
+          <ChatBubble
+            key={
+              clientMessageId ? `${message.role}-${clientMessageId}` : `${message.role}-${index}`
+            }
+            {...(delivery ? { delivery } : {})}
+            label={message.role === 'assistant' ? assistantLabel : userLabel}
+            message={message.text}
+            {...(retry ? { onRetry: retry } : {})}
+            pending={Boolean(message.temporary && message.role === 'assistant')}
+            retryLabel={retryLabel}
+            role={message.role === 'assistant' ? 'assistant' : 'customer'}
+            {...(message.role === 'user' && statusLabel ? { statusLabel } : {})}
+          />
+        );
+      })}
     </View>
   );
 }

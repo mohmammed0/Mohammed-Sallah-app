@@ -63,7 +63,10 @@ sequenceDiagram
 ```
 
 `confirmedCategorySlug` and `summaryRequested` are explicit prompt inputs, not metadata-only hints.
-The active database prompt declaration and diagnostic metadata use `diagnostic-v3`. AI never
+The active database prompt declaration and diagnostic metadata use `diagnostic-v4`. Its strict
+schema includes up to four localized `quickReplies` bound to the current first follow-up question;
+the deterministic fallback uses the same contextual contract and the mobile client always keeps
+free text available. AI never
 publishes, quotes a guaranteed price, diagnoses with certainty, or replaces emergency guidance.
 The UI keeps suggested, selected, and customer-confirmed category state separate. The initial AI
 suggestion is null; only an authoritative diagnostic can populate it. Selection records `manual`,
@@ -80,3 +83,19 @@ provider-generated output remain separate.
 ## Provider brief translation
 
 `translate-provider-brief` authorizes the current provider against an unexpired match and derives the target locale from that provider profile. It translates only local test data today: the deterministic adapter is visibly marked and disabled in production. The original brief is always shown; category/city identifiers, urgency, requested time, and request version are copied from the source after translation and cannot be translation-authored. Results and failures are stored with a content hash, locale pair, adapter version, and status. Connecting any external translation processor is intentionally blocked until the data-processing terms, payload fields, retention, region, and customer/provider notices receive human approval.
+
+## Category-first customer intake
+
+The customer chooses and confirms the broad category before the AI conversation. The optional
+subcategory is persisted with the encrypted intake snapshot and every queued turn. Both confirmed
+slugs cross the Edge Function schema and are included in the server prompt as trusted application
+context outside the untrusted complaint envelope. This prevents the assistant from needlessly
+rediscovering the selected service while preserving its ability to recommend a correction.
+
+Camera, gallery and voice remain turn-scoped. Offline replay preserves `clientMessageId`, media
+bindings and category/subcategory context. AI completion only makes a best-available structured
+summary available for review; it never publishes a request. Location, timing, customer edits and
+explicit approval are separate focused states, and publication continues through the durable
+idempotent mutation journal. The authoritative message timeline scrolls independently while the
+shared composer remains fixed above the keyboard and safe area. Delivery, offline and retry status
+is rendered on the exact customer message rather than as an unrelated global banner.

@@ -10,6 +10,7 @@ import { Screen, styles } from '@/components/ui';
 import { ConnectivityBanner } from '@/components/connectivity-banner';
 import { StartupRecoveryScreen } from '@/features/auth/startup-recovery-screen';
 import { canEnterProductArea, productLandingRoute } from '@/features/auth/route-policy';
+import { CustomerLocationProvider } from '@/features/location/location-provider';
 
 function LocalizedStack() {
   const { t } = useLocale();
@@ -88,9 +89,10 @@ function LocalizedStack() {
         </Stack.Protected>
         <Stack.Protected guard={customerAllowed}>
           <Stack.Screen name="(customer)" options={{ headerShown: false }} />
-          <Stack.Screen name="request/new" options={{ title: t('newRequestTitle') }} />
+          <Stack.Screen name="request/new" options={{ headerShown: false }} />
           <Stack.Screen name="requests" options={{ title: t('requestsAndOffers') }} />
           <Stack.Screen name="offers" options={{ title: t('compareOffers') }} />
+          <Stack.Screen name="locations" options={{ headerShown: false }} />
         </Stack.Protected>
         <Stack.Protected guard={providerRoleAllowed}>
           <Stack.Screen name="provider/onboarding" options={{ title: t('providerOnboarding') }} />
@@ -118,7 +120,9 @@ export default function RootLayout() {
     <AppQueryProvider>
       <LocaleProvider>
         <SessionProvider>
-          <LocalizedStack />
+          <CustomerLocationProvider>
+            <LocalizedStack />
+          </CustomerLocationProvider>
         </SessionProvider>
       </LocaleProvider>
     </AppQueryProvider>
