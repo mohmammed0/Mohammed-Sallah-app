@@ -1,0 +1,66 @@
+name: Monitor EAS Preview Build
+
+on:
+  push:
+    branches:
+      - codex/eas-build-monitor
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+jobs:
+  monitor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Publish sanitized build-run status to Issue #8
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          runs_json="$RUNNER_TEMP/runs.json"
+          report="$RUNNER_TEMP/report.md"
+
+          gh api \
+            -H 'Accept: application/vnd.github+json' \
+            "/repos/$GITHUB_REPOSITORY/actions/runs?branch=codex/eas-android-preview-build&event=push&per_page=20" \
+            > "$runs_json"
+
+          RUNS_JSON="$runs_json" REPORT="$report" node <<'NODE'
+          const fs = require('node:fs');
+          const payload = JSON.parse(fs.readFileSync(process.env.RUNS_JSON, 'utf8'));
+          const runs = (payload.workflow_runs ?? [])
+            .filter((run) => run.name === 'EAS Android Preview Build — Approved One-Time')
+            .map((run) => ({
+              id: run.id,
+              url: run.html_url,
+              headSha: run.head_sha,
+              status: run.status,
+              conclusion: run.conclusion,
+              attempt: run.run_attempt,
+              createdAt: run.created_at,
+              updatedAt: run.updated_at,
+            }))
+            .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+
+          const lines = [
+            '## EAS build workflow monitor',
+            '',
+            `- Matching runs found: **${runs.length}**`,
+          ];
+          for (const run of runs) {
+            lines.push(
+              `- [Run ${run.id}](${run.url}) — status: \`${run.status}\`; conclusion: \`${run.conclusion ?? 'pending'}\`; attempt: \`${run.attempt}\`; head: \`${run.headSha}\`; updated: \`${run.updatedAt}\``,
+            );
+          }
+          if (runs.length === 0) {
+            lines.push('- No matching workflow run was registered at monitor time.');
+          }
+          lines.push('', '_Monitor only: this workflow cannot authenticate to Expo or start an EAS build._');
+          fs.writeFileSync(process.env.REPORT, `${lines.join('\n')}\n`);
+          NODE
+
+          gh issue comment 8 --repo "$GITHUB_REPOSITORY" --body-file "$report"
