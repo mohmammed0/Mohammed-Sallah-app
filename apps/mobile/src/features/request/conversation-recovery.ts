@@ -56,6 +56,7 @@ export const aiIntakeSnapshotSchema = z.object({
       .nullable()
       .transform((value) => value ?? ''),
     selectedCategorySlug: z.string(),
+    selectedSubcategorySlug: z.string().default(''),
     categoryConfirmedByUser: z.boolean(),
     categorySelectionSource: z.enum(['ai_suggestion', 'customer_correction', 'manual']).nullable(),
     cityCode: z.string(),
@@ -64,6 +65,17 @@ export const aiIntakeSnapshotSchema = z.object({
       .enum(['asap', 'scheduled', 'today', 'flexible'])
       .transform((value) => (value === 'today' ? ('scheduled' as const) : value)),
     coordinates: z.object({ latitude: z.number(), longitude: z.number() }).nullable(),
+    selectedAddressId: z.uuid().nullable().default(null),
+    formattedAddress: z.string().max(500).default(''),
+    addressLabel: z.string().max(80).default(''),
+    building: z.string().max(80).default(''),
+    unit: z.string().max(80).default(''),
+    accessNotes: z.string().max(500).default(''),
+    requestedStart: z.string().datetime().nullable().default(null),
+    requestedEnd: z.string().datetime().nullable().default(null),
+    journeyStep: z
+      .enum(['category', 'chat', 'location', 'timing', 'review', 'success'])
+      .default('category'),
     diagnostic: z.unknown().nullable(),
     imageUpload: cleanUploadSchema.nullable(),
     voiceUpload: cleanUploadSchema.nullable(),

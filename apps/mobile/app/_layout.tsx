@@ -88,7 +88,7 @@ function LocalizedStack() {
         </Stack.Protected>
         <Stack.Protected guard={customerAllowed}>
           <Stack.Screen name="(customer)" options={{ headerShown: false }} />
-          <Stack.Screen name="request/new" options={{ title: t('newRequestTitle') }} />
+          <Stack.Screen name="request/new" options={{ headerShown: false }} />
           <Stack.Screen name="requests" options={{ title: t('requestsAndOffers') }} />
           <Stack.Screen name="offers" options={{ title: t('compareOffers') }} />
         </Stack.Protected>

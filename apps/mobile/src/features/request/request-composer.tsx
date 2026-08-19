@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Image, ScrollView, Text, TextInput, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { Alert, Image, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import MapView, { Marker, type MapPressEvent } from 'react-native-maps';
 import { useQuery } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
@@ -13,7 +15,20 @@ import {
 } from 'expo-audio';
 import { DeterministicAiProvider, aiDiagnosticSchema, type AiDiagnostic } from '@sallah/domain';
 import { z } from 'zod';
-import { Button, Card, Screen, styles } from '@/components/ui';
+import {
+  ActionButton,
+  CustomerScreen,
+  Field,
+  LoadingBlock,
+  Notice,
+  Pill,
+  SectionHeader,
+  StepHeader,
+  Surface,
+  customerStyles,
+} from '@/design-system/primitives';
+import { AppIcon, categoryIconName } from '@/design-system/icon';
+import { customerTokens as tokens } from '@/design-system/tokens';
 import { supabase } from '@/lib/supabase';
 import { secureUpload, type CleanUpload } from '@/lib/secure-upload';
 import { useLocale } from '@/providers/locale-provider';
@@ -52,12 +67,38 @@ import {
   bindingsForActiveTurn,
   collectRequestMediaUploadIds,
 } from './turn-media';
+import {
+  addressDisplayName,
+  sanitizeReverseGeocode,
+  type Coordinates,
+  type SavedAddress,
+} from '@/features/location/location-model';
+import { listMySavedAddresses, saveMyAddress } from '@/features/location/location-service';
+import {
+  buildRiyadhScheduleWindow,
+  isRequestReadyForReview,
+  publicationWindow,
+  requestJourneyStepNumber,
+  type RequestJourneyStep,
+} from './request-journey';
 
 const MAX_MEDIA_BYTES = 10 * 1024 * 1024;
 const MAX_RECORDING_MS = 120_000;
 const categorySchema = z.object({
+  id: z.uuid(),
   slug: z.string(),
-  service_category_translations: z.array(z.object({ name: z.string() })),
+  icon_key: z.string(),
+  service_category_translations: z.array(
+    z.object({ name: z.string(), description: z.string() }),
+  ),
+});
+const subcategorySchema = z.object({
+  id: z.uuid(),
+  category_id: z.uuid(),
+  slug: z.string(),
+  service_subcategory_translations: z.array(
+    z.object({ name: z.string(), description: z.string() }),
+  ),
 });
 const citySchema = z.object({ code: z.string(), name_ar: z.string(), name_en: z.string() });
 const functionResultSchema = z.object({ data: z.unknown(), error: z.unknown().nullable() });
@@ -78,6 +119,7 @@ const restoredSessionSchema = z.object({
 });
 
 export function RequestComposer() {
+  const { category: initialCategory } = useLocalSearchParams<{ category?: string }>();
   const { locale, t } = useLocale();
   const networkState = useNetworkState();
   const online = isNetworkOnline(networkState);
@@ -90,11 +132,10 @@ export function RequestComposer() {
   const [image, setImage] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [imageUpload, setImageUpload] = useState<CleanUpload | null>(null);
   const [voiceUpload, setVoiceUpload] = useState<CleanUpload | null>(null);
-  const [coordinates, setCoordinates] = useState<{ latitude: number; longitude: number } | null>(
-    null,
-  );
+  const [coordinates, setCoordinates] = useState<Coordinates | null>(null);
   const [suggestedCategorySlug, setSuggestedCategorySlug] = useState('');
   const [selectedCategorySlug, setSelectedCategorySlug] = useState('');
+  const [selectedSubcategorySlug, setSelectedSubcategorySlug] = useState('');
   const [categoryConfirmedByUser, setCategoryConfirmedByUser] = useState(false);
   const [categorySelectionSource, setCategorySelectionSource] = useState<
     'ai_suggestion' | 'customer_correction' | 'manual' | null
@@ -105,6 +146,18 @@ export function RequestComposer() {
   );
   const [schedule, setSchedule] = useState<'asap' | 'scheduled' | 'flexible'>('flexible');
   const [approved, setApproved] = useState(false);
+  const [journeyStep, setJourneyStep] = useState<RequestJourneyStep>('category');
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [formattedAddress, setFormattedAddress] = useState('');
+  const [addressLabel, setAddressLabel] = useState('');
+  const [building, setBuilding] = useState('');
+  const [unit, setUnit] = useState('');
+  const [accessNotes, setAccessNotes] = useState('');
+  const [addressIsDefault, setAddressIsDefault] = useState(false);
+  const [requestedStart, setRequestedStart] = useState<string | null>(null);
+  const [requestedEnd, setRequestedEnd] = useState<string | null>(null);
+  const [publishedRequestId, setPublishedRequestId] = useState<string | null>(null);
+  const [locationBusy, setLocationBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [userId, setUserId] = useState<string | null>(null);
@@ -146,12 +199,24 @@ export function RequestComposer() {
         setSummary(local.draft.summary);
         setSuggestedCategorySlug(local.draft.suggestedCategorySlug);
         setSelectedCategorySlug(local.draft.selectedCategorySlug);
+        setSelectedSubcategorySlug(local.draft.selectedSubcategorySlug);
         setCategoryConfirmedByUser(local.draft.categoryConfirmedByUser);
         setCategorySelectionSource(local.draft.categorySelectionSource);
         setCityCode(local.draft.cityCode);
         setUrgency(local.draft.urgency);
         setSchedule(local.draft.schedule);
         setCoordinates(local.draft.coordinates);
+        setSelectedAddressId(local.draft.selectedAddressId);
+        setFormattedAddress(local.draft.formattedAddress);
+        setAddressLabel(local.draft.addressLabel);
+        setBuilding(local.draft.building);
+        setUnit(local.draft.unit);
+        setAccessNotes(local.draft.accessNotes);
+        setRequestedStart(local.draft.requestedStart);
+        setRequestedEnd(local.draft.requestedEnd);
+        setJourneyStep(
+          local.draft.journeyStep === 'success' ? 'category' : local.draft.journeyStep,
+        );
         setImageUpload(local.draft.imageUpload);
         setVoiceUpload(local.draft.voiceUpload);
         setRetainedMedia(local.draft.retainedMedia);
@@ -296,12 +361,22 @@ export function RequestComposer() {
           summary,
           suggestedCategorySlug,
           selectedCategorySlug,
+          selectedSubcategorySlug,
           categoryConfirmedByUser,
           categorySelectionSource,
           cityCode,
           urgency,
           schedule,
           coordinates,
+          selectedAddressId,
+          formattedAddress,
+          addressLabel,
+          building,
+          unit,
+          accessNotes,
+          requestedStart,
+          requestedEnd,
+          journeyStep,
           diagnostic,
           imageUpload,
           voiceUpload,
@@ -324,12 +399,22 @@ export function RequestComposer() {
     summary,
     suggestedCategorySlug,
     selectedCategorySlug,
+    selectedSubcategorySlug,
     categoryConfirmedByUser,
     categorySelectionSource,
     cityCode,
     urgency,
     schedule,
     coordinates,
+    selectedAddressId,
+    formattedAddress,
+    addressLabel,
+    building,
+    unit,
+    accessNotes,
+    requestedStart,
+    requestedEnd,
+    journeyStep,
     diagnostic,
     imageUpload,
     voiceUpload,
@@ -341,22 +426,37 @@ export function RequestComposer() {
   const catalog = useQuery({
     queryKey: ['request-catalog', locale],
     queryFn: async () => {
-      const [categoriesResult, citiesResult] = await Promise.all([
+      const [categoriesResult, subcategoriesResult, citiesResult] = await Promise.all([
         supabase
           .from('service_categories')
-          .select('slug,service_category_translations(name)')
+          .select('id,slug,icon_key,service_category_translations(name,description)')
           .eq('service_category_translations.locale', locale)
+          .eq('enabled', true)
+          .order('sort_order'),
+        supabase
+          .from('service_subcategories')
+          .select(
+            'id,category_id,slug,service_subcategory_translations(name,description)',
+          )
+          .eq('service_subcategory_translations.locale', locale)
           .eq('enabled', true)
           .order('sort_order'),
         supabase.from('cities').select('code,name_ar,name_en').eq('enabled', true).order('name_ar'),
       ]);
       if (categoriesResult.error) throw categoriesResult.error;
+      if (subcategoriesResult.error) throw subcategoriesResult.error;
       if (citiesResult.error) throw citiesResult.error;
       return {
         categories: z.array(categorySchema).parse(categoriesResult.data ?? []),
+        subcategories: z.array(subcategorySchema).parse(subcategoriesResult.data ?? []),
         cities: z.array(citySchema).parse(citiesResult.data ?? []),
       };
     },
+  });
+  const savedAddresses = useQuery({
+    queryKey: ['customer-saved-addresses'],
+    queryFn: listMySavedAddresses,
+    enabled: Boolean(userId),
   });
   useEffect(() => {
     if (!cityCode && catalog.data?.cities.length)
@@ -366,6 +466,30 @@ export function RequestComposer() {
           '',
       );
   }, [catalog.data, cityCode]);
+  useEffect(() => {
+    if (
+      !selectedCategorySlug &&
+      initialCategory &&
+      catalog.data?.categories.some((item) => item.slug === initialCategory)
+    ) {
+      setSelectedCategorySlug(initialCategory);
+      setCategoryConfirmedByUser(true);
+      setCategorySelectionSource('manual');
+    }
+  }, [catalog.data, initialCategory, selectedCategorySlug]);
+  const selectedCategory = catalog.data?.categories.find(
+    (item) => item.slug === selectedCategorySlug,
+  );
+  const availableSubcategories = (catalog.data?.subcategories ?? []).filter(
+    (item) => item.category_id === selectedCategory?.id,
+  );
+  useEffect(() => {
+    if (
+      selectedSubcategorySlug &&
+      !availableSubcategories.some((item) => item.slug === selectedSubcategorySlug)
+    )
+      setSelectedSubcategorySlug('');
+  }, [availableSubcategories, selectedSubcategorySlug]);
   const canPublish = useMemo(
     () =>
       pendingTurns.length === 0 &&
@@ -386,6 +510,33 @@ export function RequestComposer() {
       categoryConfirmedByUser,
       cityCode,
       approved,
+      pendingTurns.length,
+    ],
+  );
+  const readyForReview = useMemo(
+    () =>
+      isRequestReadyForReview({
+        selectedCategorySlug,
+        categoryConfirmedByUser,
+        title,
+        summary,
+        coordinates,
+        cityCode,
+        timingMode: schedule,
+        requestedStart,
+        requestedEnd,
+        pendingTurnCount: pendingTurns.length,
+      }),
+    [
+      selectedCategorySlug,
+      categoryConfirmedByUser,
+      title,
+      summary,
+      coordinates,
+      cityCode,
+      schedule,
+      requestedStart,
+      requestedEnd,
       pendingTurns.length,
     ],
   );
@@ -457,17 +608,89 @@ export function RequestComposer() {
       setError(t('publishOrUploadFailed'));
     }
   }
+  async function resolveLocation(nextCoordinates: Coordinates) {
+    setCoordinates(nextCoordinates);
+    setSelectedAddressId(null);
+    try {
+      const [result] = await Location.reverseGeocodeAsync(nextCoordinates);
+      const resolved = sanitizeReverseGeocode(result);
+      if (resolved) setFormattedAddress(resolved);
+      else setError(t('reverseGeocodeFailed'));
+    } catch {
+      setError(t('reverseGeocodeFailed'));
+    }
+    invalidateApproval();
+  }
   async function locate() {
-    const permission = await Location.requestForegroundPermissionsAsync();
-    if (!permission.granted) {
-      setError(t('locationPermissionDenied'));
+    setLocationBusy(true);
+    setError('');
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) {
+        setError(t('locationPermissionDenied'));
+        return;
+      }
+      const current = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      await resolveLocation({
+        latitude: current.coords.latitude,
+        longitude: current.coords.longitude,
+      });
+    } catch {
+      setError(t('reverseGeocodeFailed'));
+    } finally {
+      setLocationBusy(false);
+    }
+  }
+  function onMapPress(event: MapPressEvent) {
+    const nextCoordinates = event.nativeEvent.coordinate;
+    void resolveLocation({
+      latitude: nextCoordinates.latitude,
+      longitude: nextCoordinates.longitude,
+    });
+  }
+  function chooseSavedAddress(address: SavedAddress) {
+    setSelectedAddressId(address.id);
+    setCoordinates(address.coordinates);
+    setFormattedAddress(address.formattedAddress);
+    setAddressLabel(address.label);
+    setBuilding(address.building ?? '');
+    setUnit(address.unit ?? '');
+    setAccessNotes(address.accessNotes ?? '');
+    setAddressIsDefault(address.isDefault);
+    setCityCode(address.cityCode);
+    setError('');
+    invalidateApproval();
+  }
+  async function saveCurrentAddress() {
+    if (!coordinates || !userId) {
+      setError(t('locationRequired'));
       return;
     }
-    const current = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.Balanced,
-    });
-    setCoordinates({ latitude: current.coords.latitude, longitude: current.coords.longitude });
-    invalidateApproval();
+    setLocationBusy(true);
+    setError('');
+    try {
+      const id = selectedAddressId ?? globalThis.crypto.randomUUID();
+      await saveMyAddress({
+        id,
+        label: addressLabel.trim() || t('serviceLocation'),
+        formattedAddress: formattedAddress.trim(),
+        building,
+        unit,
+        accessNotes,
+        cityCode,
+        isDefault: addressIsDefault,
+        coordinates,
+      });
+      setSelectedAddressId(id);
+      await savedAddresses.refetch();
+      setError(t('locationSaved'));
+    } catch {
+      setError(t('publishOrUploadFailed'));
+    } finally {
+      setLocationBusy(false);
+    }
   }
   async function startRecording() {
     const permission = await AudioModule.requestRecordingPermissionsAsync();
@@ -741,12 +964,22 @@ export function RequestComposer() {
             summary,
             suggestedCategorySlug,
             selectedCategorySlug,
+            selectedSubcategorySlug,
             categoryConfirmedByUser,
             categorySelectionSource,
             cityCode,
             urgency,
             schedule,
             coordinates,
+            selectedAddressId,
+            formattedAddress,
+            addressLabel,
+            building,
+            unit,
+            accessNotes,
+            requestedStart,
+            requestedEnd,
+            journeyStep,
             diagnostic,
             imageUpload: null,
             voiceUpload: null,
@@ -839,16 +1072,7 @@ export function RequestComposer() {
       const media = [...new Set(publicationMedia.mediaUploadIds)].map((uploadId) => ({
         upload_id: uploadId,
       }));
-      const now = Date.now();
-      const requestedStart =
-        schedule === 'scheduled'
-          ? new Date(now + 60 * 60 * 1000).toISOString()
-          : schedule === 'asap'
-            ? new Date(now).toISOString()
-            : null;
-      const requestedEnd = requestedStart
-        ? new Date(Date.parse(requestedStart) + 60 * 60 * 1000).toISOString()
-        : null;
+      const window = publicationWindow(schedule, requestedStart, requestedEnd);
       const publicationPayload = {
         title: title.trim(),
         original_text: conversationOriginalText([
@@ -859,15 +1083,24 @@ export function RequestComposer() {
         urgency,
         locale,
         selected_category_slug: selectedCategorySlug,
+        selected_subcategory_slug: selectedSubcategorySlug || null,
         suggested_category_slug: suggestedCategorySlug || null,
         category_confirmed_by_user: categoryConfirmedByUser,
         category_selection_source: categorySelectionSource,
         city_code: cityCode,
-        requested_start: requestedStart,
-        requested_end: requestedEnd,
+        requested_start: window.requestedStart,
+        requested_end: window.requestedEnd,
         schedule_preference: schedule,
         timing_mode: schedule,
         exact_location: coordinates,
+        saved_address_id: selectedAddressId,
+        location_details: {
+          label: addressLabel.trim() || t('serviceLocation'),
+          formatted_address: formattedAddress.trim(),
+          building: building.trim() || null,
+          unit: unit.trim() || null,
+          access_notes: accessNotes.trim() || null,
+        },
         media,
         customer_approved: true,
         ai_diagnostic: diagnostic,
@@ -894,7 +1127,8 @@ export function RequestComposer() {
       setActiveImageMediaId(null);
       setActiveVoiceMediaId(null);
       setRequestMediaUploadIds([]);
-      Alert.alert(t('requestPublishedTitle'), t('requestNumber', { id: requestId }));
+      setPublishedRequestId(requestId);
+      setJourneyStep('success');
     } catch {
       setError(t('publishOrUploadFailed'));
     } finally {
@@ -932,8 +1166,20 @@ export function RequestComposer() {
       setActiveVoiceMediaId(null);
       setRequestMediaUploadIds([]);
       setCoordinates(null);
+      setSelectedAddressId(null);
+      setFormattedAddress('');
+      setAddressLabel('');
+      setBuilding('');
+      setUnit('');
+      setAccessNotes('');
+      setAddressIsDefault(false);
+      setRequestedStart(null);
+      setRequestedEnd(null);
+      setPublishedRequestId(null);
+      setJourneyStep('category');
       setSuggestedCategorySlug('');
       setSelectedCategorySlug('');
+      setSelectedSubcategorySlug('');
       setCategoryConfirmedByUser(false);
       setCategorySelectionSource(null);
       setCityCode('');
@@ -947,246 +1193,898 @@ export function RequestComposer() {
       setBusy(false);
     }
   }
-  return (
-    <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-      <Screen>
-        <Text style={styles.title}>{t('describeProblem')}</Text>
-        <Text style={styles.lead}>{t('aiDisclaimer')}</Text>
-        <ConversationTimeline
-          messages={conversation}
-          userLabel={t('you')}
-          assistantLabel={t('assistant')}
-        />
-        <TextInput
-          style={[styles.input, { minHeight: 130, textAlignVertical: 'top' }]}
-          multiline
-          value={description}
-          maxLength={8000}
-          onChangeText={(value) => {
-            setDescription(value);
-            invalidateApproval();
-          }}
-          placeholder={
-            conversation.length
-              ? t('answerFollowUpPlaceholder')
-              : t('problemDescriptionPlaceholder')
-          }
-        />
-        <View style={styles.row}>
-          <Button
-            kind="secondary"
-            label={activeImageMediaId ? t('changePhoto') : t('addPhoto')}
-            onPress={() => void pickImage()}
-          />
-          <Button
-            kind="secondary"
-            label={
-              recorderState.isRecording
-                ? t('stopRecordingSeconds', {
-                    seconds: Math.ceil(recorderState.durationMillis / 1000),
-                  })
-                : t('recordVoice')
-            }
-            onPress={() => void (recorderState.isRecording ? stopRecording() : startRecording())}
-          />
-          <Button
-            kind="secondary"
-            label={coordinates ? t('locationSelected') : t('chooseLocation')}
-            onPress={() => void locate()}
-          />
-        </View>
-        {activeImageMediaId && (
-          <Image
-            source={{
-              uri:
-                image?.uri ??
-                retainedMedia.find((item) => item.id === activeImageMediaId)?.localUri ??
-                '',
-            }}
-            accessibilityLabel={t('attachedImageA11y')}
-            style={{ width: '100%', height: 180, borderRadius: 16 }}
-          />
-        )}
-        <Button
-          disabled={busy}
-          label={busy ? t('analyzing') : t('analyzeCreateDraft')}
-          onPress={() => void analyze(false)}
-        />
-        {diagnostic && (
-          <Card>
-            {diagnostic.safetyFlags.length > 0 && (
-              <Text style={styles.error}>
-                {t('safetyTitle')}: {t('safetyGuidance')}
-              </Text>
-            )}
-            <Text style={styles.badge}>
-              {t('confidenceSummary', {
-                confidence: Math.round(diagnostic.confidence * 100),
-              })}{' '}
-              · {diagnostic.metadata.fallback ? t('aiFallbackLabel') : t('aiProviderLabel')}
+  function moveToStep(next: RequestJourneyStep) {
+    setError('');
+    setJourneyStep(next);
+  }
+  function startAnotherDraft() {
+    setConversation([]);
+    setPendingTurns([]);
+    setSessionId(null);
+    sessionIdRef.current = null;
+    setDescription('');
+    setTitle('');
+    setSummary('');
+    setDiagnostic(null);
+    setImage(null);
+    setImageUpload(null);
+    setVoiceUpload(null);
+    setCoordinates(null);
+    setSelectedAddressId(null);
+    setFormattedAddress('');
+    setAddressLabel('');
+    setBuilding('');
+    setUnit('');
+    setAccessNotes('');
+    setRequestedStart(null);
+    setRequestedEnd(null);
+    setPublishedRequestId(null);
+    setSuggestedCategorySlug('');
+    setSelectedCategorySlug('');
+    setSelectedSubcategorySlug('');
+    setCategoryConfirmedByUser(false);
+    setCategorySelectionSource(null);
+    setUrgency('normal');
+    setSchedule('flexible');
+    setApproved(false);
+    setJourneyStep('category');
+  }
+  const mapCoordinates = coordinates ?? { latitude: 24.7136, longitude: 46.6753 };
+  const selectedSubcategory = availableSubcategories.find(
+    (item) => item.slug === selectedSubcategorySlug,
+  );
+  const timingSummary =
+    schedule === 'asap'
+      ? t('timingAsap')
+      : schedule === 'flexible'
+        ? t('timingFlexible')
+        : requestedStart && requestedEnd
+          ? t('scheduleWindow', {
+              start: new Date(requestedStart).toLocaleString(
+                locale === 'ar' ? 'ar-SA' : locale,
+                { timeZone: 'Asia/Riyadh', dateStyle: 'medium', timeStyle: 'short' },
+              ),
+              end: new Date(requestedEnd).toLocaleTimeString(
+                locale === 'ar' ? 'ar-SA' : locale,
+                { timeZone: 'Asia/Riyadh', hour: 'numeric', minute: '2-digit' },
+              ),
+            })
+          : t('timingRequired');
+
+  if (journeyStep === 'success') {
+    return (
+      <CustomerScreen testID="request-publish-success">
+        <View style={journeyStyles.success}>
+          <View style={journeyStyles.successIcon}>
+            <AppIcon color={tokens.colors.success} name="check" size={36} strokeWidth={3} />
+          </View>
+          <Text accessibilityLiveRegion="polite" accessibilityRole="header" style={customerStyles.display}>
+            {t('publishSuccessTitle')}
+          </Text>
+          <Text style={customerStyles.bodyMuted}>{t('publishSuccessBody')}</Text>
+          {publishedRequestId ? (
+            <Text selectable style={customerStyles.caption}>
+              {t('requestNumber', { id: publishedRequestId })}
             </Text>
-            {diagnostic.followUpQuestions.map((question) => (
-              <Text key={question} style={styles.lead}>
-                • {question}
-              </Text>
-            ))}
-            {!diagnostic.enoughInformation && (
-              <Button
-                kind="secondary"
-                label={t('createSummaryNow')}
-                onPress={() => void analyze(true)}
-              />
-            )}
-          </Card>
-        )}
-        <TextInput
-          style={styles.input}
-          value={title}
-          maxLength={120}
-          onChangeText={(value) => {
-            setTitle(value);
-            invalidateApproval();
-          }}
-          placeholder={t('requestTitlePlaceholder')}
+          ) : null}
+        </View>
+        <ActionButton
+          label={t('viewMyRequests')}
+          onPress={() => router.replace('/customer-requests')}
         />
-        <TextInput
-          style={[styles.input, { minHeight: 130, textAlignVertical: 'top' }]}
-          multiline
-          value={summary}
-          maxLength={8000}
-          onChangeText={(value) => {
-            setSummary(value);
-            invalidateApproval();
-          }}
-          placeholder={t('providerSummaryPlaceholder')}
+        <ActionButton
+          label={t('startAnotherRequest')}
+          onPress={startAnotherDraft}
+          variant="secondary"
         />
-        <Text style={styles.lead}>{t('editableAiCategory')}</Text>
-        {suggestedCategorySlug && !categoryConfirmedByUser && (
-          <Button
-            kind="secondary"
-            label={t('confirmSuggestedCategory')}
+      </CustomerScreen>
+    );
+  }
+
+  return (
+    <CustomerScreen testID={`request-step-${journeyStep}`}>
+      {journeyStep !== 'category' ? (
+        <ActionButton
+          icon="chevron-back"
+          label={t('back')}
+          onPress={() =>
+            moveToStep(
+              journeyStep === 'chat'
+                ? 'category'
+                : journeyStep === 'location'
+                  ? 'chat'
+                  : journeyStep === 'timing'
+                    ? 'location'
+                    : 'timing',
+            )
+          }
+          variant="ghost"
+        />
+      ) : null}
+      <StepHeader
+        body={
+          journeyStep === 'category'
+            ? t('categoryStepBody')
+            : journeyStep === 'chat'
+              ? t('chatStepBody')
+              : journeyStep === 'location'
+                ? t('locationStepBody')
+                : journeyStep === 'timing'
+                  ? t('timingStepBody')
+                  : t('reviewStepBody')
+        }
+        current={requestJourneyStepNumber(journeyStep)}
+        eyebrow={t('stepProgress', {
+          current: requestJourneyStepNumber(journeyStep),
+          total: 5,
+        })}
+        title={
+          journeyStep === 'category'
+            ? t('categoryStepTitle')
+            : journeyStep === 'chat'
+              ? t('chatStepTitle')
+              : journeyStep === 'location'
+                ? t('locationStepTitle')
+                : journeyStep === 'timing'
+                  ? t('timingStepTitle')
+                  : t('reviewStepTitle')
+        }
+        total={5}
+      />
+
+      {journeyStep === 'category' ? (
+        <>
+          {catalog.isPending ? <LoadingBlock label={t('loading')} rows={5} /> : null}
+          {catalog.isError ? (
+            <Notice live tone="danger">
+              {t('catalogLoadFailed')}
+            </Notice>
+          ) : null}
+          <View style={journeyStyles.categoryGrid}>
+            {catalog.data?.categories.map((category) => {
+              const selected = selectedCategorySlug === category.slug;
+              const translation = category.service_category_translations[0];
+              return (
+                <Pressable
+                  key={category.id}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  onPress={() => {
+                    setSelectedCategorySlug(category.slug);
+                    setSelectedSubcategorySlug('');
+                    setCategoryConfirmedByUser(true);
+                    setCategorySelectionSource(
+                      resolveCategorySelectionSource(
+                        category.slug,
+                        suggestedCategorySlug || null,
+                      ),
+                    );
+                    invalidateApproval();
+                  }}
+                  style={({ pressed }) => [
+                    journeyStyles.categoryCard,
+                    selected && journeyStyles.categoryCardSelected,
+                    pressed && journeyStyles.pressed,
+                  ]}
+                >
+                  <View style={journeyStyles.categoryIcon}>
+                    <AppIcon
+                      color={selected ? tokens.colors.white : tokens.colors.primaryStrong}
+                      name={categoryIconName(category.icon_key, category.slug)}
+                      size={27}
+                    />
+                  </View>
+                  <Text
+                    style={[
+                      journeyStyles.categoryName,
+                      selected && journeyStyles.categoryNameSelected,
+                    ]}
+                  >
+                    {translation?.name ?? category.slug}
+                  </Text>
+                  <Text
+                    numberOfLines={2}
+                    style={[
+                      customerStyles.caption,
+                      selected && journeyStyles.categoryDescriptionSelected,
+                    ]}
+                  >
+                    {translation?.description ?? ''}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          {selectedCategorySlug ? (
+            <Surface tone="muted">
+              <Text style={customerStyles.section}>{t('optionalSubcategory')}</Text>
+              <View style={customerStyles.wrap}>
+                <Pill
+                  label={t('noSubcategory')}
+                  onPress={() => setSelectedSubcategorySlug('')}
+                  selected={!selectedSubcategorySlug}
+                />
+                {availableSubcategories.map((subcategory) => (
+                  <Pill
+                    key={subcategory.id}
+                    label={
+                      subcategory.service_subcategory_translations[0]?.name ??
+                      subcategory.slug
+                    }
+                    onPress={() => setSelectedSubcategorySlug(subcategory.slug)}
+                    selected={selectedSubcategorySlug === subcategory.slug}
+                  />
+                ))}
+              </View>
+            </Surface>
+          ) : null}
+          {error ? (
+            <Notice live tone="danger">
+              {error}
+            </Notice>
+          ) : null}
+          <ActionButton
+            disabled={!selectedCategorySlug || catalog.isError}
+            label={t('continueToDiagnosis')}
             onPress={() => {
-              setSelectedCategorySlug(suggestedCategorySlug);
-              setCategoryConfirmedByUser(true);
-              setCategorySelectionSource('ai_suggestion');
-              invalidateApproval();
+              if (!selectedCategorySlug) {
+                setError(t('categoryRequired'));
+                return;
+              }
+              moveToStep('chat');
             }}
           />
-        )}
-        {categoryConfirmedByUser && (
-          <Text accessibilityLiveRegion="polite" style={styles.badge}>
-            {t('categoryConfirmed')}
-          </Text>
-        )}
-        <View style={styles.row}>
-          {catalog.data?.categories.map((category) => (
-            <Button
-              key={category.slug}
-              kind={selectedCategorySlug === category.slug ? 'primary' : 'secondary'}
-              label={category.service_category_translations[0]?.name ?? category.slug}
-              onPress={() => {
-                setSelectedCategorySlug(category.slug);
-                setCategoryConfirmedByUser(true);
-                setCategorySelectionSource(
-                  resolveCategorySelectionSource(category.slug, suggestedCategorySlug || null),
-                );
-                invalidateApproval();
-              }}
-            />
-          ))}
-        </View>
-        <Text style={styles.lead}>{t('city')}</Text>
-        <View style={styles.row}>
-          {catalog.data?.cities.map((city) => (
-            <Button
-              key={city.code}
-              kind={cityCode === city.code ? 'primary' : 'secondary'}
-              label={locale === 'ar' ? city.name_ar : city.name_en}
-              onPress={() => {
-                setCityCode(city.code);
-                invalidateApproval();
-              }}
-            />
-          ))}
-        </View>
-        <Text style={styles.lead}>{t('priority')}</Text>
-        <View style={styles.row}>
-          {(['flexible', 'normal', 'urgent'] as const).map((value) => (
-            <Button
-              key={value}
-              kind={urgency === value ? 'primary' : 'secondary'}
+        </>
+      ) : null}
+
+      {journeyStep === 'chat' ? (
+        <>
+          <Notice>{t('aiDisclaimer')}</Notice>
+          <ConversationTimeline
+            assistantLabel={t('aiAssistantName')}
+            messages={conversation}
+            userLabel={t('you')}
+          />
+          {diagnostic?.safetyFlags.length ? (
+            <Notice tone="danger">
+              {t('safetyGuidance')}
+            </Notice>
+          ) : null}
+          <Surface style={journeyStyles.composer}>
+            <Field
               label={
-                value === 'flexible'
-                  ? t('priorityFlexible')
-                  : value === 'normal'
-                    ? t('priorityNormal')
-                    : t('priorityUrgent')
+                conversation.length
+                  ? t('answerFollowUpPlaceholder')
+                  : t('problemDescriptionPlaceholder')
               }
-              onPress={() => {
-                setUrgency(value);
+              maxLength={8000}
+              multiline
+              onChangeText={(value) => {
+                setDescription(value);
                 invalidateApproval();
               }}
-            />
-          ))}
-        </View>
-        <Text style={styles.lead}>{t('preferredTiming')}</Text>
-        <View style={styles.row}>
-          {(['asap', 'scheduled', 'flexible'] as const).map((value) => (
-            <Button
-              key={value}
-              kind={schedule === value ? 'primary' : 'secondary'}
-              label={
-                value === 'asap'
-                  ? t('timingAsap')
-                  : value === 'scheduled'
-                    ? t('timingToday')
-                    : t('timingFlexible')
+              placeholder={
+                conversation.length
+                  ? t('answerFollowUpPlaceholder')
+                  : t('problemDescriptionPlaceholder')
               }
-              onPress={() => {
-                setSchedule(value);
+              value={description}
+            />
+            {activeImageMediaId ? (
+              <Image
+                accessibilityLabel={t('attachedImageA11y')}
+                source={{
+                  uri:
+                    image?.uri ??
+                    retainedMedia.find((item) => item.id === activeImageMediaId)?.localUri ??
+                    '',
+                }}
+                style={journeyStyles.previewImage}
+              />
+            ) : null}
+            {activeImageMediaId || activeVoiceMediaId ? (
+              <Notice tone="success">{t('attachmentReady')}</Notice>
+            ) : null}
+            <View style={journeyStyles.mediaActions}>
+              <ActionButton
+                icon="camera"
+                label={activeImageMediaId ? t('changePhoto') : t('addPhoto')}
+                onPress={() => void pickImage()}
+                variant="secondary"
+              />
+              <ActionButton
+                icon="microphone"
+                label={
+                  recorderState.isRecording
+                    ? t('stopRecordingSeconds', {
+                        seconds: Math.ceil(recorderState.durationMillis / 1000),
+                      })
+                    : t('recordVoice')
+                }
+                onPress={() =>
+                  void (recorderState.isRecording ? stopRecording() : startRecording())
+                }
+                variant="secondary"
+              />
+            </View>
+            <ActionButton
+              disabled={busy}
+              icon="send"
+              label={busy ? t('analyzing') : t('send')}
+              loading={busy}
+              onPress={() => void analyze(false)}
+            />
+          </Surface>
+          {diagnostic ? (
+            <Surface tone="muted">
+              <View style={customerStyles.row}>
+                <AppIcon color={tokens.colors.primaryStrong} name="sparkles" size={20} />
+                <Text style={customerStyles.section}>{t('aiAssistantName')}</Text>
+              </View>
+              <Text style={customerStyles.caption}>
+                {t('confidenceSummary', {
+                  confidence: Math.round(diagnostic.confidence * 100),
+                })}
+              </Text>
+              {diagnostic.followUpQuestions.map((question) => (
+                <Text key={question} style={customerStyles.body}>
+                  • {question}
+                </Text>
+              ))}
+              {!diagnostic.enoughInformation ? (
+                <ActionButton
+                  label={t('createSummaryNow')}
+                  onPress={() => void analyze(true)}
+                  variant="secondary"
+                />
+              ) : null}
+            </Surface>
+          ) : null}
+          {pendingTurns.some((turn) => turn.transcriptionStatus === 'retryable') ? (
+            <ActionButton
+              disabled={busy || !online}
+              icon="refresh"
+              label={t('retryTranscription')}
+              onPress={retryFailedTranscriptions}
+              variant="secondary"
+            />
+          ) : null}
+          {error ? (
+            <Notice live tone="warning">
+              {error}
+            </Notice>
+          ) : null}
+          <ActionButton
+            disabled={
+              pendingTurns.length > 0 ||
+              title.trim().length < 3 ||
+              summary.trim().length < 10
+            }
+            label={t('continueToLocation')}
+            onPress={() => moveToStep('location')}
+          />
+          {title.trim().length < 3 || summary.trim().length < 10 ? (
+            <Text style={customerStyles.caption}>{t('informationIncomplete')}</Text>
+          ) : null}
+          <ActionButton
+            disabled={busy || !userId}
+            label={t('deleteDraft')}
+            onPress={() =>
+              Alert.alert(t('deleteDraftTitle'), t('deleteDraftMessage'), [
+                { text: t('cancel'), style: 'cancel' },
+                {
+                  text: t('deleteDraft'),
+                  style: 'destructive',
+                  onPress: () => void deleteDraft(),
+                },
+              ])
+            }
+            variant="ghost"
+          />
+        </>
+      ) : null}
+
+      {journeyStep === 'location' ? (
+        <>
+          <Notice>{t('customerPrivacyNotice')}</Notice>
+          <ActionButton
+            icon="navigation"
+            label={t('useCurrentLocation')}
+            loading={locationBusy}
+            onPress={() => void locate()}
+            variant="secondary"
+          />
+          {savedAddresses.isPending ? <LoadingBlock label={t('loading')} rows={2} /> : null}
+          {savedAddresses.isError ? (
+            <Notice tone="warning">{t('savedAddressLoadFailed')}</Notice>
+          ) : null}
+          {savedAddresses.data?.length ? (
+            <View style={journeyStyles.locationSection}>
+              <SectionHeader title={t('savedLocations')} />
+              {savedAddresses.data.map((address) => (
+                <Pressable
+                  key={address.id}
+                  accessibilityRole="button"
+                  onPress={() => chooseSavedAddress(address)}
+                  style={({ pressed }) => [
+                    journeyStyles.savedAddress,
+                    selectedAddressId === address.id && journeyStyles.savedAddressSelected,
+                    pressed && journeyStyles.pressed,
+                  ]}
+                >
+                  <AppIcon
+                    color={tokens.colors.primaryStrong}
+                    name={address.isDefault ? 'home' : 'location'}
+                    size={21}
+                  />
+                  <View style={journeyStyles.flex}>
+                    <Text style={customerStyles.section}>{address.label}</Text>
+                    <Text numberOfLines={2} style={customerStyles.caption}>
+                      {addressDisplayName(address, locale)}
+                    </Text>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+          <View
+            accessibilityLabel={t('mapAccessibility')}
+            accessibilityRole="adjustable"
+            style={journeyStyles.mapShell}
+          >
+            <MapView
+              initialRegion={{
+                ...mapCoordinates,
+                latitudeDelta: 0.025,
+                longitudeDelta: 0.025,
+              }}
+              onPress={onMapPress}
+              style={StyleSheet.absoluteFill}
+            >
+              {coordinates ? (
+                <Marker
+                  coordinate={coordinates}
+                  draggable
+                  onDragEnd={(event) =>
+                    void resolveLocation({
+                      latitude: event.nativeEvent.coordinate.latitude,
+                      longitude: event.nativeEvent.coordinate.longitude,
+                    })
+                  }
+                />
+              ) : null}
+            </MapView>
+          </View>
+          <Text style={customerStyles.caption}>{t('mapPinHint')}</Text>
+          <Field
+            label={t('addressLabel')}
+            maxLength={80}
+            onChangeText={setAddressLabel}
+            placeholder={t('addressLabelPlaceholder')}
+            value={addressLabel}
+          />
+          <Field
+            label={t('formattedAddress')}
+            maxLength={500}
+            multiline
+            onChangeText={setFormattedAddress}
+            value={formattedAddress}
+          />
+          <View style={journeyStyles.twoColumns}>
+            <View style={journeyStyles.flex}>
+              <Field label={t('building')} maxLength={80} onChangeText={setBuilding} value={building} />
+            </View>
+            <View style={journeyStyles.flex}>
+              <Field label={t('unit')} maxLength={80} onChangeText={setUnit} value={unit} />
+            </View>
+          </View>
+          <Field
+            label={t('accessNotes')}
+            maxLength={500}
+            multiline
+            onChangeText={setAccessNotes}
+            value={accessNotes}
+          />
+          <Text style={customerStyles.section}>{t('city')}</Text>
+          <View style={customerStyles.wrap}>
+            {catalog.data?.cities.map((city) => (
+              <Pill
+                key={city.code}
+                label={locale === 'ar' || locale === 'ur' ? city.name_ar : city.name_en}
+                onPress={() => setCityCode(city.code)}
+                selected={cityCode === city.code}
+              />
+            ))}
+          </View>
+          <View style={journeyStyles.switchRow}>
+            <Text style={customerStyles.body}>{t('makeDefault')}</Text>
+            <Switch
+              accessibilityLabel={t('makeDefault')}
+              onValueChange={setAddressIsDefault}
+              value={addressIsDefault}
+            />
+          </View>
+          <ActionButton
+            disabled={
+              !coordinates ||
+              formattedAddress.trim().length < 3 ||
+              !cityCode ||
+              locationBusy
+            }
+            label={t('saveThisLocation')}
+            loading={locationBusy}
+            onPress={() => void saveCurrentAddress()}
+            variant="secondary"
+          />
+          {error ? (
+            <Notice
+              live
+              tone={error === t('locationSaved') ? 'success' : 'warning'}
+            >
+              {error}
+            </Notice>
+          ) : null}
+          <ActionButton
+            disabled={!coordinates || formattedAddress.trim().length < 3 || !cityCode}
+            label={t('confirmLocation')}
+            onPress={() => {
+              if (!coordinates || formattedAddress.trim().length < 3) {
+                setError(t('locationRequired'));
+                return;
+              }
+              moveToStep('timing');
+            }}
+          />
+        </>
+      ) : null}
+
+      {journeyStep === 'timing' ? (
+        <>
+          <View style={journeyStyles.choiceStack}>
+            {(['asap', 'scheduled', 'flexible'] as const).map((value) => (
+              <Pressable
+                key={value}
+                accessibilityRole="button"
+                accessibilityState={{ selected: schedule === value }}
+                onPress={() => {
+                  setSchedule(value);
+                  if (value === 'scheduled') {
+                    const window = buildRiyadhScheduleWindow('morning');
+                    setRequestedStart(window.requestedStart);
+                    setRequestedEnd(window.requestedEnd);
+                  } else {
+                    setRequestedStart(null);
+                    setRequestedEnd(null);
+                  }
+                  invalidateApproval();
+                }}
+                style={[
+                  journeyStyles.choiceCard,
+                  schedule === value && journeyStyles.choiceCardSelected,
+                ]}
+              >
+                <AppIcon
+                  color={
+                    schedule === value
+                      ? tokens.colors.primaryStrong
+                      : tokens.colors.textMuted
+                  }
+                  name={value === 'scheduled' ? 'calendar' : 'time'}
+                  size={24}
+                />
+                <View style={journeyStyles.flex}>
+                  <Text style={customerStyles.section}>
+                    {value === 'asap'
+                      ? t('timingAsap')
+                      : value === 'scheduled'
+                        ? t('schedule')
+                        : t('timingFlexible')}
+                  </Text>
+                  <Text style={customerStyles.caption}>
+                    {value === 'flexible' ? t('providerPrivacyNotice') : t('timingStepBody')}
+                  </Text>
+                </View>
+                {schedule === value ? (
+                  <AppIcon color={tokens.colors.primaryStrong} name="check" size={22} />
+                ) : null}
+              </Pressable>
+            ))}
+          </View>
+          {schedule === 'scheduled' ? (
+            <Surface tone="muted">
+              <Text style={customerStyles.section}>{t('schedule')}</Text>
+              <View style={customerStyles.wrap}>
+                {(['morning', 'afternoon', 'evening'] as const).map((preset) => {
+                  const window = buildRiyadhScheduleWindow(preset);
+                  return (
+                    <Pill
+                      key={preset}
+                      label={
+                        preset === 'morning'
+                          ? t('scheduleMorning')
+                          : preset === 'afternoon'
+                            ? t('scheduleAfternoon')
+                            : t('scheduleEvening')
+                      }
+                      onPress={() => {
+                        setRequestedStart(window.requestedStart);
+                        setRequestedEnd(window.requestedEnd);
+                        invalidateApproval();
+                      }}
+                      selected={requestedStart === window.requestedStart}
+                    />
+                  );
+                })}
+              </View>
+              <Text style={customerStyles.body}>{timingSummary}</Text>
+            </Surface>
+          ) : null}
+          <Surface>
+            <Text style={customerStyles.section}>{t('priority')}</Text>
+            <View style={customerStyles.wrap}>
+              {(['flexible', 'normal', 'urgent'] as const).map((value) => (
+                <Pill
+                  key={value}
+                  label={
+                    value === 'flexible'
+                      ? t('priorityFlexible')
+                      : value === 'normal'
+                        ? t('priorityNormal')
+                        : t('priorityUrgent')
+                  }
+                  onPress={() => {
+                    setUrgency(value);
+                    invalidateApproval();
+                  }}
+                  selected={urgency === value}
+                />
+              ))}
+            </View>
+          </Surface>
+          {!readyForReview ? (
+            <Notice tone="warning">{t('timingRequired')}</Notice>
+          ) : null}
+          <ActionButton
+            disabled={!readyForReview}
+            label={t('continueToReview')}
+            onPress={() => moveToStep('review')}
+          />
+        </>
+      ) : null}
+
+      {journeyStep === 'review' ? (
+        <>
+          <Surface>
+            <View style={customerStyles.between}>
+              <Text style={customerStyles.section}>{t('requestDetails')}</Text>
+              <ActionButton
+                label={t('requestStepChat')}
+                onPress={() => moveToStep('chat')}
+                variant="ghost"
+              />
+            </View>
+            <Field
+              label={t('requestTitlePlaceholder')}
+              maxLength={120}
+              onChangeText={(value) => {
+                setTitle(value);
                 invalidateApproval();
               }}
+              value={title}
             />
-          ))}
-        </View>
-        <Card>
-          <Text style={styles.lead}>{t('draftReviewNotice')}</Text>
-          <Button
-            kind={approved ? 'primary' : 'secondary'}
-            label={approved ? t('draftApproved') : t('approveDraftPublish')}
+            <Field
+              label={t('aiSummary')}
+              maxLength={8000}
+              multiline
+              onChangeText={(value) => {
+                setSummary(value);
+                invalidateApproval();
+              }}
+              value={summary}
+            />
+          </Surface>
+          <Surface>
+            <View style={customerStyles.between}>
+              <Text style={customerStyles.section}>{t('serviceCategories')}</Text>
+              <ActionButton
+                label={t('requestStepCategory')}
+                onPress={() => moveToStep('category')}
+                variant="ghost"
+              />
+            </View>
+            <Text style={customerStyles.body}>
+              {selectedCategory?.service_category_translations[0]?.name ??
+                selectedCategorySlug}
+              {selectedSubcategory
+                ? ` · ${selectedSubcategory.service_subcategory_translations[0]?.name ?? selectedSubcategory.slug}`
+                : ''}
+            </Text>
+            {suggestedCategorySlug ? (
+              <Text style={customerStyles.caption}>
+                {t('editableAiCategory')}: {suggestedCategorySlug}
+              </Text>
+            ) : null}
+          </Surface>
+          <Surface>
+            <View style={customerStyles.between}>
+              <Text style={customerStyles.section}>{t('serviceLocation')}</Text>
+              <ActionButton
+                label={t('requestStepLocation')}
+                onPress={() => moveToStep('location')}
+                variant="ghost"
+              />
+            </View>
+            <Text style={customerStyles.body}>{formattedAddress}</Text>
+            {building || unit ? (
+              <Text style={customerStyles.caption}>
+                {[building, unit].filter(Boolean).join(' · ')}
+              </Text>
+            ) : null}
+            <Notice>{t('customerPrivacyNotice')}</Notice>
+          </Surface>
+          <Surface>
+            <View style={customerStyles.between}>
+              <Text style={customerStyles.section}>{t('requestedTiming')}</Text>
+              <ActionButton
+                label={t('requestStepTiming')}
+                onPress={() => moveToStep('timing')}
+                variant="ghost"
+              />
+            </View>
+            <Text style={customerStyles.body}>{timingSummary}</Text>
+          </Surface>
+          <Pressable
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: approved }}
             onPress={() => setApproved((value) => !value)}
+            style={[
+              journeyStyles.approval,
+              approved && journeyStyles.approvalSelected,
+            ]}
+          >
+            <View style={journeyStyles.checkbox}>
+              {approved ? (
+                <AppIcon color={tokens.colors.white} name="check" size={18} />
+              ) : null}
+            </View>
+            <Text style={journeyStyles.approvalText}>{t('customerApprovalLabel')}</Text>
+          </Pressable>
+          {!approved ? <Notice tone="warning">{t('approvalRequired')}</Notice> : null}
+          {error ? (
+            <Notice live tone="danger">
+              {error}
+            </Notice>
+          ) : null}
+          <ActionButton
+            disabled={!canPublish || busy}
+            label={busy ? t('publishingRequest') : t('publishRequest')}
+            loading={busy}
+            onPress={() => void publish()}
           />
-        </Card>
-        {error && (
-          <Text accessibilityLiveRegion="polite" style={styles.error}>
-            {error}
-          </Text>
-        )}
-        {pendingTurns.some((turn) => turn.transcriptionStatus === 'retryable') && (
-          <Button
-            kind="secondary"
-            disabled={busy || !online}
-            label={t('retryTranscription')}
-            onPress={retryFailedTranscriptions}
-          />
-        )}
-        <Button
-          disabled={!canPublish || busy}
-          label={t('publishRequest')}
-          onPress={() => void publish()}
-        />
-        <Button
-          disabled={busy || !userId}
-          kind="secondary"
-          label={t('deleteDraft')}
-          onPress={() =>
-            Alert.alert(t('deleteDraftTitle'), t('deleteDraftMessage'), [
-              { text: t('cancel'), style: 'cancel' },
-              { text: t('deleteDraft'), style: 'destructive', onPress: () => void deleteDraft() },
-            ])
-          }
-        />
-      </Screen>
-    </ScrollView>
+        </>
+      ) : null}
+    </CustomerScreen>
   );
 }
+
+const journeyStyles = StyleSheet.create({
+  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
+  categoryCard: {
+    width: '48%',
+    minHeight: 154,
+    borderRadius: tokens.radius.lg,
+    padding: tokens.spacing.md,
+    gap: tokens.spacing.xs,
+    backgroundColor: tokens.colors.surface,
+    borderColor: tokens.colors.border,
+    borderWidth: 1,
+  },
+  categoryCardSelected: {
+    backgroundColor: tokens.colors.primary,
+    borderColor: tokens.colors.primary,
+  },
+  categoryIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: tokens.radius.md,
+    backgroundColor: tokens.colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categoryName: { ...tokens.type.label, color: tokens.colors.ink, textAlign: 'left' },
+  categoryNameSelected: { color: tokens.colors.white },
+  categoryDescriptionSelected: { color: tokens.colors.primarySoft },
+  pressed: { opacity: 0.72, transform: [{ scale: 0.99 }] },
+  composer: { gap: tokens.spacing.md },
+  mediaActions: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
+  previewImage: { width: '100%', height: 190, borderRadius: tokens.radius.md },
+  mapShell: {
+    height: 330,
+    overflow: 'hidden',
+    borderRadius: tokens.radius.lg,
+    borderWidth: 1,
+    borderColor: tokens.colors.border,
+    backgroundColor: tokens.colors.surfaceMuted,
+  },
+  locationSection: { gap: tokens.spacing.sm },
+  savedAddress: {
+    minHeight: 70,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: tokens.spacing.sm,
+    borderRadius: tokens.radius.md,
+    borderWidth: 1,
+    borderColor: tokens.colors.border,
+    backgroundColor: tokens.colors.surface,
+    padding: tokens.spacing.md,
+  },
+  savedAddressSelected: {
+    borderColor: tokens.colors.primary,
+    backgroundColor: tokens.colors.primarySoft,
+  },
+  flex: { flex: 1, gap: tokens.spacing.xxs },
+  twoColumns: { flexDirection: 'row', gap: tokens.spacing.sm },
+  switchRow: {
+    minHeight: tokens.touchTarget,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: tokens.spacing.md,
+  },
+  choiceStack: { gap: tokens.spacing.sm },
+  choiceCard: {
+    minHeight: 88,
+    borderRadius: tokens.radius.lg,
+    borderWidth: 1,
+    borderColor: tokens.colors.border,
+    backgroundColor: tokens.colors.surface,
+    padding: tokens.spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: tokens.spacing.md,
+  },
+  choiceCardSelected: {
+    borderColor: tokens.colors.primary,
+    backgroundColor: tokens.colors.primarySoft,
+  },
+  approval: {
+    minHeight: 72,
+    borderRadius: tokens.radius.lg,
+    borderWidth: 1,
+    borderColor: tokens.colors.borderStrong,
+    backgroundColor: tokens.colors.surface,
+    padding: tokens.spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: tokens.spacing.md,
+  },
+  approvalSelected: {
+    borderColor: tokens.colors.primary,
+    backgroundColor: tokens.colors.primarySoft,
+  },
+  checkbox: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: tokens.colors.primary,
+    backgroundColor: tokens.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  approvalText: { flex: 1, ...tokens.type.body, color: tokens.colors.ink, textAlign: 'left' },
+  success: {
+    minHeight: 360,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: tokens.spacing.md,
+  },
+  successIcon: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: tokens.colors.successSoft,
+  },
+});
