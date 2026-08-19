@@ -106,3 +106,61 @@ rate limiting, and audit rows. The repository total is 21 pgTAP files / 492 data
 616 countable automated assertions when combined with the previously validated Deno, workspace,
 integration, security, and Playwright suites. Hosted advisor counts and CI run links are recorded in
 the Issue #9/PR handoff after the exact commit completes.
+
+## Customer mobile experience redesign (Draft PR #14)
+
+Date: 2026-08-19. Execution boundary: GitHub API and GitHub Actions only. The Windows
+checkout, Android Studio, emulator, Metro, Gradle, local Supabase, EAS Build, production
+infrastructure, and app stores were not used.
+
+### Implemented contract
+
+- Customer navigation is Home, Requests, Messages, and Account. The legacy provider branch remains
+  unchanged and customer jobs are no longer a visible tab.
+- The request route is an explicit recoverable journey:
+  category → diagnostic chat → location → timing → review → success. Publication still requires
+  customer confirmation and the existing idempotent Supabase command.
+- Customer categories and subcategories are database-backed. Authoritative AI context now retains
+  the confirmed subcategory through offline replay without fabricating an AI suggestion.
+- Saved locations use owner-scoped RPCs and RLS. A transient selection stays in memory; publication
+  creates an immutable request-location snapshot in the same transaction. Only foreground location
+  permission is requested.
+- The shared customer design system provides semantic light/dark tokens, accessible interaction
+  states, RTL/LTR helpers, Lucide icons, localized loading/empty/error/success states, and
+  reduced-motion behavior.
+- The reference at `docs/screenshots/customer-experience-v1.svg` is an original design reference,
+  not a device screenshot.
+
+### Cloud validation evidence
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Migration chain from zero | PASS | Disposable Supabase reset completed before generated types were committed in `4b96368c60c3d0b7b300086501abeb21028e03d4`. |
+| Generated database types | PASS | Regenerated from the reset database; final CI verifies zero drift. |
+| pgTAP and RLS | PASS | 22 files / 510 assertions, including 18 saved-location/publication assertions. |
+| Legacy timing upgrade | PASS | 5/5 legacy combinations. |
+| Local Supabase integration | PASS | Storage, AI, and true concurrent core idempotency. |
+| Mobile lint and strict typecheck | PASS | GitHub Actions mobile job. |
+| Mobile unit/component tests | PASS | 21 files / 81 tests. |
+| Expo Doctor and Android export/config check | PASS | GitHub Actions mobile job; production placeholders remain fail-closed. |
+| Web lint/typecheck/build | PASS | GitHub Actions web job. |
+| Web unit tests | PASS | 3 files / 15 tests. |
+| Playwright | PASS | 8 passed / 2 explicitly skipped in the established suite. |
+| Repository format and generated artifacts | PASS | Cloud finalizer formatted sources, regenerated types, removed itself, and produced commit `4b96368c60c3d0b7b300086501abeb21028e03d4`. |
+| Final full CI on report HEAD | PENDING | The final report commit triggers the authoritative push and pull-request runs; links are recorded in Draft PR #14. |
+
+The first pre-final CI run failed only at formatting and generated-type drift after its preceding
+database/RLS/integration gates passed. Those generated artifacts were then corrected by the bounded
+cloud finalizer. No test failure was suppressed.
+
+### External and human gates
+
+- Android emulator and physical-device visual validation: **NOT RUN** under the cloud-only boundary.
+  Follow-up and required Maps preview key/package/SHA-1 restrictions are tracked in Issue #15.
+- Camera/gallery, voice, foreground location, map gestures, large text, screen reader, RTL/LTR, and
+  restart behavior on a real device: **NOT RUN** pending Issue #15 evidence.
+- Provider visual redesign is deliberately outside this change and tracked in Issue #16.
+- EAS Build/APK/AAB: **NOT STARTED**. No signing credential was accessed.
+- Production deployment, migrations, secrets, paid services, and store submission: **NOT
+  PERFORMED**.
+- Draft PR #14 must remain open, draft, unmerged, and separate from production release gates.
