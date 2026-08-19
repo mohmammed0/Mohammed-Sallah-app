@@ -197,6 +197,7 @@ describe('session bootstrap recovery', () => {
     });
 
     await Promise.resolve();
+    await Promise.resolve();
     expect(active).toBe(1);
     resolveFirst?.();
     await expect(Promise.all([first, second])).resolves.toEqual(['first', 'second']);

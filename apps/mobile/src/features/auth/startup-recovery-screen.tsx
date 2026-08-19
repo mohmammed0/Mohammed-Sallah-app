@@ -1,8 +1,8 @@
 import { Text, View } from 'react-native';
 import type { TranslationKey } from '@sallah/i18n';
-import { Button, Card, Screen, styles } from '@/components/ui';
-import { useLocale } from '@/providers/locale-provider';
-import type { StartupErrorCategory } from '@/providers/session-bootstrap';
+import { Button, Card, Screen, styles } from '../../components/ui';
+import { useLocale } from '../../providers/locale-provider';
+import type { StartupErrorCategory } from '../../providers/session-bootstrap';
 
 const categoryKeys = {
   storage_unavailable: 'startupErrorStorage',
