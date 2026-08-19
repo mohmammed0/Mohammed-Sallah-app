@@ -10,13 +10,13 @@ permissions:
   issues: write
 
 concurrency:
-  group: eas-android-preview-build-${{ github.ref }}
+  group: eas-android-preview-build-singleton
   cancel-in-progress: false
 
 env:
   CI: 'true'
   EAS_CLI_VERSION: '22.0.0'
-  TARGET_BUILD_SHA: 0df4a3cb6a7e9e0c76c5261cdc547d4eb13e59b8
+  TARGET_BUILD_SHA: a1049fe249aac9675f421b0dacae12c99ba1f94f
   EXPECTED_EXPO_OWNER: binmuhayas-team
   EXPECTED_EAS_PROJECT_ID: f098f941-ae73-4007-b582-ba6fb1b8aa7a
   EXPECTED_ANDROID_PACKAGE: com.mohmammed0.sallah.preview
@@ -25,11 +25,11 @@ env:
 
 jobs:
   build:
-    name: Resume or build one Android Preview APK
+    name: Build one Android Preview APK
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     steps:
-      - name: Check out the approved build source
+      - name: Check out the approved RC source
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           ref: ${{ env.TARGET_BUILD_SHA }}
@@ -51,7 +51,7 @@ jobs:
       - name: Install frozen dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Verify required repository secrets exist
+      - name: Verify required repository secrets
         shell: bash
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
@@ -60,7 +60,8 @@ jobs:
           set -euo pipefail
           [[ -n "${EXPO_TOKEN:-}" ]] || { echo '::error::EXPO_TOKEN repository secret is missing'; exit 1; }
           [[ -n "${SUPABASE_PREVIEW_PUBLISHABLE_KEY:-}" ]] || { echo '::error::SUPABASE_PREVIEW_PUBLISHABLE_KEY repository secret is missing'; exit 1; }
-          echo 'Required repository secrets are configured; values were not displayed.'
+          [[ "$SUPABASE_PREVIEW_PUBLISHABLE_KEY" == sb_publishable_* ]] || { echo '::error::The configured Supabase key is not a modern publishable key'; exit 1; }
+          echo 'Required secrets are configured and structurally valid; values were not displayed.'
 
       - name: Set up authenticated EAS CLI
         uses: expo/expo-github-action@eab7a230208c952974db8c3245cfd78402c7b385
@@ -69,7 +70,7 @@ jobs:
           packager: pnpm --allow-build=dtrace-provider
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Configure Preview environment and enforce the free-quota gate
+      - name: Configure EAS Preview and enforce the free-quota gate
         id: prepare
         working-directory: apps/mobile
         shell: bash
@@ -79,6 +80,7 @@ jobs:
           set -euo pipefail
 
           usage_json="$RUNNER_TEMP/eas-account-usage.json"
+          env_json="$RUNNER_TEMP/eas-preview-environment.json"
           config_json="$RUNNER_TEMP/eas-preview-config.json"
           cost_json="$RUNNER_TEMP/eas-cost-gate.json"
 
@@ -107,13 +109,17 @@ jobs:
           eas env:create preview --name EXPO_PUBLIC_SUPABASE_URL --value "$SUPABASE_PREVIEW_URL" --visibility plaintext --scope project --force --non-interactive >/dev/null
           eas env:create preview --name EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY --value "$SUPABASE_PREVIEW_PUBLISHABLE_KEY" --visibility sensitive --scope project --force --non-interactive >/dev/null
 
+          eas env:list preview --json --non-interactive > "$env_json"
           eas config --platform android --profile preview --json --non-interactive > "$config_json"
 
-          EAS_CONFIG_JSON="$config_json" node <<'NODE'
+          EAS_ENV_JSON="$env_json" EAS_CONFIG_JSON="$config_json" node <<'NODE'
           const fs = require('node:fs');
+          const environment = JSON.parse(fs.readFileSync(process.env.EAS_ENV_JSON, 'utf8'));
           const config = JSON.parse(fs.readFileSync(process.env.EAS_CONFIG_JSON, 'utf8'));
+          const serializedEnvironment = JSON.stringify(environment);
           const app = config?.appConfig;
           const profile = config?.buildProfile;
+
           const checks = {
             owner: app?.owner === process.env.EXPECTED_EXPO_OWNER,
             projectId: app?.extra?.eas?.projectId === process.env.EXPECTED_EAS_PROJECT_ID,
@@ -123,146 +129,116 @@ jobs:
             channel: profile?.channel === 'preview',
             buildType: profile?.buildType === 'apk',
             appEnvironment: profile?.env?.EXPO_PUBLIC_APP_ENV === 'preview',
-            supabaseUrl: profile?.env?.EXPO_PUBLIC_SUPABASE_URL === process.env.SUPABASE_PREVIEW_URL,
-            publishableKeyPresent:
-              typeof profile?.env?.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY === 'string' &&
-              profile.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY.length >= 20,
+            supabaseUrlVariableRegistered:
+              serializedEnvironment.includes('EXPO_PUBLIC_SUPABASE_URL'),
+            publishableKeyVariableRegistered:
+              serializedEnvironment.includes('EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY'),
           };
-          const failed = Object.entries(checks).filter(([, ok]) => !ok).map(([name]) => name);
-          if (failed.length > 0) throw new Error(`PREVIEW_CONFIG_VALIDATION_FAILED:${failed.join(',')}`);
+          const failed = Object.entries(checks)
+            .filter(([, passed]) => !passed)
+            .map(([name]) => name);
+          if (failed.length > 0) {
+            throw new Error(`PREVIEW_CONFIG_VALIDATION_FAILED:${failed.join(',')}`);
+          }
           NODE
 
           echo "cost_json=$cost_json" >> "$GITHUB_OUTPUT"
+          echo 'Preview environment names, public app configuration, and free quota passed.'
 
-      - name: Resume an existing build or start the single approved build
+      - name: Start and wait for the single approved EAS build
         id: eas_build
         working-directory: apps/mobile
         shell: bash
         run: |
           set -euo pipefail
 
-          list_json="$RUNNER_TEMP/eas-build-list.json"
-          build_json="$RUNNER_TEMP/eas-build-result.json"
+          build_json="$RUNNER_TEMP/eas-android-preview-build.json"
           report_json="$RUNNER_TEMP/eas-android-preview-report.json"
-          apk_path="$RUNNER_TEMP/sallah-preview.apk"
           report_md="$RUNNER_TEMP/eas-android-preview-report.md"
+          apk_path="$RUNNER_TEMP/sallah-preview.apk"
 
-          eas build:list \
+          eas build \
             --platform android \
-            --build-profile preview \
-            --git-commit-hash "$TARGET_BUILD_SHA" \
-            --limit 10 \
+            --profile preview \
+            --non-interactive \
+            --wait \
             --json \
-            --non-interactive > "$list_json"
+            --message "Approved Sallah Preview APK from RC $TARGET_BUILD_SHA" \
+            > "$build_json"
 
-          BUILD_LIST_JSON="$list_json" node <<'NODE' > "$RUNNER_TEMP/build-selection.json"
-          const fs = require('node:fs');
-          const builds = JSON.parse(fs.readFileSync(process.env.BUILD_LIST_JSON, 'utf8'));
-          const rows = Array.isArray(builds) ? builds : [];
-          const live = rows.find((row) => ['new','in-queue','in-progress','pending-cancel'].includes(String(row.status ?? '').toLowerCase()));
-          const finished = rows.find((row) => ['finished','complete','completed'].includes(String(row.status ?? '').toLowerCase()));
-          const terminalFailure = rows.find((row) => ['errored','canceled'].includes(String(row.status ?? '').toLowerCase()));
-          process.stdout.write(JSON.stringify({ live: live?.id ?? null, finished: finished?.id ?? null, terminalFailure: terminalFailure?.id ?? null }));
-          NODE
-
-          IFS=$'\t' read -r live_id finished_id failed_id < <(
-            node - "$RUNNER_TEMP/build-selection.json" <<'NODE'
-          const fs = require('node:fs');
-          const value = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-          process.stdout.write(`${value.live ?? ''}\t${value.finished ?? ''}\t${value.terminalFailure ?? ''}\n`);
-          NODE
-          )
-
-          build_id=''
-          if [[ -n "$finished_id" ]]; then
-            build_id="$finished_id"
-          elif [[ -n "$live_id" ]]; then
-            build_id="$live_id"
-          elif [[ -n "$failed_id" ]]; then
-            echo "::error::The single approved EAS build already ended unsuccessfully: $failed_id"
-            exit 1
-          else
-            eas build \
-              --platform android \
-              --profile preview \
-              --non-interactive \
-              --no-wait \
-              --json \
-              --message "Approved Sallah Preview APK from GitHub source $TARGET_BUILD_SHA" \
-              > "$build_json"
-            build_id="$(node - "$build_json" <<'NODE'
-          const fs = require('node:fs');
-          const raw = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-          const build = Array.isArray(raw) ? raw[0] : raw;
-          if (!build?.id) throw new Error('BUILD_ID_MISSING');
-          process.stdout.write(build.id);
-          NODE
-            )"
-          fi
-
-          for attempt in $(seq 1 240); do
-            eas build:view "$build_id" --json > "$build_json"
-            status="$(node - "$build_json" <<'NODE'
-          const fs = require('node:fs');
-          const build = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-          process.stdout.write(String(build?.status ?? '').toLowerCase());
-          NODE
-            )"
-            case "$status" in
-              finished|complete|completed) break ;;
-              errored|canceled)
-                echo "::error::EAS build ended with status $status"
-                exit 1
-                ;;
-            esac
-            if [[ "$attempt" == 240 ]]; then
-              echo '::error::Timed out waiting for EAS build completion'
-              exit 1
-            fi
-            sleep 30
-          done
-
-          BUILD_JSON="$build_json" REPORT_JSON="$report_json" APK_PATH="$apk_path" REPORT_MD="$report_md" node <<'NODE'
+          BUILD_JSON="$build_json" REPORT_JSON="$report_json" REPORT_MD="$report_md" APK_PATH="$apk_path" node <<'NODE'
           const crypto = require('node:crypto');
           const fs = require('node:fs');
 
           async function main() {
-            const build = JSON.parse(fs.readFileSync(process.env.BUILD_JSON, 'utf8'));
-            const status = String(build?.status ?? '').toLowerCase();
-            if (!['finished','complete','completed'].includes(status)) throw new Error('BUILD_NOT_FINISHED');
-            const id = build?.id;
-            const artifactUrl = build?.artifacts?.buildUrl ?? build?.artifacts?.applicationArchiveUrl ?? build?.artifactUrl ?? null;
+            const raw = JSON.parse(fs.readFileSync(process.env.BUILD_JSON, 'utf8'));
+            const build = Array.isArray(raw) ? raw[0] : raw;
+            if (!build || typeof build !== 'object') throw new Error('BUILD_RESULT_MISSING');
+
+            const status = String(build.status ?? '').toLowerCase();
+            if (!['finished', 'complete', 'completed'].includes(status)) {
+              throw new Error(`BUILD_NOT_FINISHED:${status || 'unknown'}`);
+            }
+
+            const id = build.id;
+            const artifactUrl =
+              build?.artifacts?.buildUrl ??
+              build?.artifacts?.applicationArchiveUrl ??
+              build?.artifactUrl ??
+              null;
             if (typeof id !== 'string' || typeof artifactUrl !== 'string' || !artifactUrl.startsWith('https://')) {
               throw new Error('BUILD_ARTIFACT_METADATA_MISSING');
             }
-            const recordedCommit = build.gitCommitHash ?? build?.gitCommit?.hash ?? build?.metadata?.gitCommitHash ?? null;
-            if (recordedCommit && recordedCommit !== process.env.TARGET_BUILD_SHA) throw new Error('BUILD_COMMIT_SHA_MISMATCH');
+
+            const recordedCommit =
+              build.gitCommitHash ?? build?.gitCommit?.hash ?? build?.metadata?.gitCommitHash ?? null;
+            if (recordedCommit && recordedCommit !== process.env.TARGET_BUILD_SHA) {
+              throw new Error('BUILD_COMMIT_SHA_MISMATCH');
+            }
 
             const response = await fetch(artifactUrl, { redirect: 'follow' });
             if (!response.ok) throw new Error(`APK_DOWNLOAD_FAILED:${response.status}`);
             const bytes = Buffer.from(await response.arrayBuffer());
-            if (bytes.length < 1_000_000 || bytes[0] !== 0x50 || bytes[1] !== 0x4b) throw new Error('INVALID_APK_ARCHIVE');
+            if (bytes.length < 1_000_000 || bytes[0] !== 0x50 || bytes[1] !== 0x4b) {
+              throw new Error('INVALID_APK_ARCHIVE');
+            }
             fs.writeFileSync(process.env.APK_PATH, bytes, { mode: 0o600 });
 
             const sha256 = crypto.createHash('sha256').update(bytes).digest('hex');
-            const dashboardUrl = build?.buildDetailsPageUrl ?? build?.url ?? `https://expo.dev/accounts/${process.env.EXPECTED_EXPO_OWNER}/projects/sallah/builds/${id}`;
+            const dashboardUrl =
+              build?.buildDetailsPageUrl ??
+              build?.url ??
+              `https://expo.dev/accounts/${process.env.EXPECTED_EXPO_OWNER}/projects/sallah/builds/${id}`;
+
             const report = {
-              result: 'PASS', buildId: id, status: build.status, sourceCommit: process.env.TARGET_BUILD_SHA,
-              recordedCommit, dashboardUrl, artifactUrl,
+              result: 'PASS',
+              buildId: id,
+              status: build.status,
+              sourceCommit: process.env.TARGET_BUILD_SHA,
+              recordedCommit,
+              dashboardUrl,
+              artifactUrl,
               projectId: process.env.EXPECTED_EAS_PROJECT_ID,
               androidPackage: process.env.EXPECTED_ANDROID_PACKAGE,
               supabaseProjectRef: process.env.EXPECTED_SUPABASE_REF,
               apk: { filename: 'sallah-preview.apk', sizeBytes: bytes.length, sha256 },
               signing: 'EAS-managed Android Preview/internal-distribution signing',
-              storeSubmission: false, productionDeployment: false,
+              storeSubmission: false,
+              productionDeployment: false,
             };
-            fs.writeFileSync(process.env.REPORT_JSON, `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600 });
+            fs.writeFileSync(
+              process.env.REPORT_JSON,
+              `${JSON.stringify(report, null, 2)}\n`,
+              { mode: 0o600 },
+            );
+
             const markdown = [
-              '## EAS Android Preview Build — PASS', '',
+              '## EAS Android Preview Build — PASS',
+              '',
               `- GitHub Actions run: https://github.com/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
               `- EAS build ID: \`${id}\``,
               `- EAS dashboard: ${dashboardUrl}`,
-              `- Approved source SHA: \`${process.env.TARGET_BUILD_SHA}\``,
+              `- Approved RC source SHA: \`${process.env.TARGET_BUILD_SHA}\``,
               `- Android package: \`${process.env.EXPECTED_ANDROID_PACKAGE}\``,
               `- Supabase Preview ref: \`${process.env.EXPECTED_SUPABASE_REF}\``,
               `- APK bytes: \`${bytes.length}\``,
@@ -274,12 +250,15 @@ jobs:
             ].join('\n') + '\n';
             fs.writeFileSync(process.env.REPORT_MD, markdown, { mode: 0o600 });
             fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown);
-            fs.appendFileSync(process.env.GITHUB_OUTPUT, `build_id=${id}\n`);
             fs.appendFileSync(process.env.GITHUB_OUTPUT, `apk_path=${process.env.APK_PATH}\n`);
             fs.appendFileSync(process.env.GITHUB_OUTPUT, `report_path=${process.env.REPORT_JSON}\n`);
             fs.appendFileSync(process.env.GITHUB_OUTPUT, `report_md=${process.env.REPORT_MD}\n`);
           }
-          main().catch((error) => { console.error(error instanceof Error ? error.message : 'REPORT_FAILED'); process.exit(1); });
+
+          main().catch((error) => {
+            console.error(error instanceof Error ? error.message : 'BUILD_REPORT_FAILED');
+            process.exit(1);
+          });
           NODE
 
       - name: Upload APK and sanitized evidence
@@ -299,3 +278,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh issue comment 8 --repo "$GITHUB_REPOSITORY" --body-file "${{ steps.eas_build.outputs.report_md }}"
+
+      - name: Record sanitized failure in Issue #8
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue comment 8 --repo "$GITHUB_REPOSITORY" --body "## EAS Android Preview Build — FAILED\n\n- GitHub Actions run: https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\n- Approved RC source SHA: \`$TARGET_BUILD_SHA\`\n- No APK evidence was produced by this run.\n- Inspect the run log for the sanitized failure category.\n- Store submission and production deployment: **NOT RUN**."
