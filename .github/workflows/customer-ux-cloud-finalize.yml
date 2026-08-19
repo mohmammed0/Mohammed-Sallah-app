@@ -22,15 +22,12 @@ jobs:
         with:
           ref: codex/customer-experience-redesign-v1
           fetch-depth: 0
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11.19.0
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-          cache: pnpm
       - uses: supabase/setup-cli@v1
       - uses: denoland/setup-deno@v2
+      - run: corepack enable && corepack prepare pnpm@11.19.0 --activate
       - run: pnpm install --frozen-lockfile
       - name: Format customer experience sources
         run: pnpm format
