@@ -1,5 +1,5 @@
 begin;
-select plan(18);
+select plan(28);
 
 select has_column('public','addresses','address_kind','address kind distinguishes saved locations from request snapshots');
 select ok(has_function_privilege('authenticated','public.list_my_saved_addresses()','execute'),
@@ -116,6 +116,138 @@ select is((select a.address_kind from public.addresses a
   join public.service_requests r on r.exact_address_id=a.id
   join customer_location_fixture f on f.request_id=r.id),
   'request_snapshot','the request address is explicitly classified as a snapshot');
+
+select ok(
+  not has_table_privilege('authenticated','public.addresses','INSERT'),
+  'authenticated clients cannot insert address rows outside the authoritative RPC'
+);
+select ok(
+  not has_table_privilege('authenticated','public.addresses','UPDATE'),
+  'authenticated clients cannot update address rows outside the authoritative RPC'
+);
+select ok(
+  not has_table_privilege('authenticated','public.addresses','DELETE'),
+  'authenticated clients cannot delete address rows outside the authoritative RPC'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.role','authenticated',true);
+select set_config('request.jwt.claim.sub','c8100000-0000-4000-8000-000000000001',true);
+select throws_ok($test$
+  do $block$
+  declare snapshot_id uuid;
+  begin
+    select request.exact_address_id into snapshot_id
+    from public.service_requests request
+    join customer_location_fixture fixture on fixture.request_id=request.id;
+    update public.addresses
+    set formatted_address='Directly forged request snapshot',
+        access_notes='Directly forged access instructions',
+        location=extensions.st_setsrid(
+          extensions.st_makepoint(46.68,24.72),4326
+        )::extensions.geography,
+        address_kind='saved',deleted_at=now()
+    where id=snapshot_id;
+    raise exception 'EXPECTED_DENIAL_MISSING';
+  end $block$
+$test$,'permission denied for table addresses',
+  'an active customer cannot directly rewrite any request-snapshot location fields');
+select throws_ok($test$
+  do $block$
+  begin
+    delete from public.addresses
+    where id=(
+      select request.exact_address_id
+      from public.service_requests request
+      join customer_location_fixture fixture on fixture.request_id=request.id
+    );
+    raise exception 'EXPECTED_DENIAL_MISSING';
+  end $block$
+$test$,'permission denied for table addresses',
+  'an active customer cannot directly delete a request-bound snapshot');
+select throws_ok($test$
+  do $block$
+  begin
+    insert into public.addresses(
+      id,user_id,city_id,label,formatted_address,location,address_kind
+    ) select
+      'a8100000-0000-4000-8000-000000000009',
+      'c8100000-0000-4000-8000-000000000001',city.id,
+      'Forged snapshot','Direct resolver bypass',
+      extensions.st_setsrid(
+        extensions.st_makepoint(46.6753,24.7136),4326
+      )::extensions.geography,'request_snapshot'
+    from public.cities city where city.code='riyadh';
+    raise exception 'EXPECTED_DENIAL_MISSING';
+  end $block$
+$test$,'permission denied for table addresses',
+  'an active customer cannot insert an arbitrary request snapshot or bypass resolution');
+reset role;
+
+update public.profiles set status='suspended'
+where id='c8100000-0000-4000-8000-000000000001';
+set local role authenticated;
+select set_config('request.jwt.claim.role','authenticated',true);
+select set_config('request.jwt.claim.sub','c8100000-0000-4000-8000-000000000001',true);
+select throws_ok($test$
+  do $block$
+  declare snapshot_id uuid;
+  begin
+    select request.exact_address_id into snapshot_id
+    from public.service_requests request
+    join customer_location_fixture fixture on fixture.request_id=request.id;
+    update public.addresses
+    set formatted_address='Suspended direct forgery',
+        access_notes='Suspended direct access-note forgery',
+        location=extensions.st_setsrid(
+          extensions.st_makepoint(46.68,24.72),4326
+        )::extensions.geography,
+        address_kind='saved',deleted_at=now()
+    where id=snapshot_id;
+    raise exception 'EXPECTED_DENIAL_MISSING';
+  end $block$
+$test$,'permission denied for table addresses',
+  'a suspended customer cannot directly rewrite request-snapshot location fields');
+select throws_ok($test$
+  do $block$
+  begin
+    delete from public.addresses
+    where id=(
+      select request.exact_address_id
+      from public.service_requests request
+      join customer_location_fixture fixture on fixture.request_id=request.id
+    );
+    raise exception 'EXPECTED_DENIAL_MISSING';
+  end $block$
+$test$,'permission denied for table addresses',
+  'a suspended customer cannot directly delete a request-bound snapshot');
+select throws_ok($test$
+  do $block$
+  begin
+    insert into public.addresses(
+      id,user_id,city_id,label,formatted_address,location,address_kind
+    ) select
+      'a8100000-0000-4000-8000-000000000010',
+      'c8100000-0000-4000-8000-000000000001',city.id,
+      'Suspended forged snapshot','Suspended resolver bypass',
+      extensions.st_setsrid(
+        extensions.st_makepoint(46.6753,24.7136),4326
+      )::extensions.geography,'request_snapshot'
+    from public.cities city where city.code='riyadh';
+    raise exception 'EXPECTED_DENIAL_MISSING';
+  end $block$
+$test$,'permission denied for table addresses',
+  'a suspended customer cannot insert an arbitrary request snapshot');
+select throws_ok($$
+  select public.upsert_my_saved_address(jsonb_build_object(
+    'label','Suspended','formattedAddress','Suspended RPC attempt',
+    'building','','unit','','accessNotes','','cityCode','riyadh','isDefault',false,
+    'coordinates',jsonb_build_object('latitude',24.7136,'longitude',46.6753)
+  ))
+$$,'ACCOUNT_NOT_ACTIVE','the saved-address RPC still rejects a suspended customer');
+reset role;
+update public.profiles set status='active'
+where id='c8100000-0000-4000-8000-000000000001';
 
 set local role authenticated;
 select set_config('request.jwt.claim.role','authenticated',true);

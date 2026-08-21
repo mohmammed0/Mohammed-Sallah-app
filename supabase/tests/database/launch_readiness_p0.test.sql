@@ -1,5 +1,28 @@
 begin;
-select plan(53);
+select plan(58);
+
+select is(
+  (
+    select count(*)
+    from supabase_migrations.schema_migrations
+    where version=any(array[
+      '20260820010000','20260820225817','20260820233419','20260821001912',
+      '20260821013000','20260821013458','20260821030954','20260821032959',
+      '20260821035950','20260821043130','20260821045907'
+    ])
+  ),
+  0::bigint,
+  'unsafe split M1 migration versions are absent from the applied upgrade path'
+);
+select is(
+  (
+    select count(*)
+    from supabase_migrations.schema_migrations
+    where name='marketplace_trust_beta'
+  ),
+  1::bigint,
+  'the marketplace trust milestone applies through one consolidated migration'
+);
 
 select has_table('public','job_location_sharing_sessions','bounded location sharing sessions exist');
 
@@ -127,6 +150,13 @@ insert into public.file_uploads(
     'image/jpeg',140,20971520,'a1000000-0000-4000-8000-000000000001/message-quarantine.jpg',
     'message-attachments','a1000000-0000-4000-8000-000000000001/message.jpg',
     'a1000000-0000-4000-8000-000000000001/message.jpg',repeat('b',64),'clean','p0-scanner',false,now()
+  ),
+  (
+    'a1600000-0000-4000-8000-000000000004','a1000000-0000-4000-8000-000000000001',
+    'request_media',null,'request.png','png','image/png',
+    'image/png',68,10485760,'a1000000-0000-4000-8000-000000000001/request-quarantine.png',
+    'request-media','a1000000-0000-4000-8000-000000000001/request.png',
+    'a1000000-0000-4000-8000-000000000001/request.png',repeat('c',64),'clean','p0-scanner',false,now()
   );
 insert into public.completion_proofs(
   id,job_id,provider_id,storage_path,mime_type,size_bytes,description,file_upload_id
@@ -239,31 +269,53 @@ select is(
 
 reset role;
 set local role service_role;
+select set_config('request.jwt.claim.role','',true);
+select is(
+  public.authorize_protected_media(
+    'a1000000-0000-4000-8000-000000000001','a1600000-0000-4000-8000-000000000004'
+  )->>'deliveryMode',
+  'signed_url',
+  'the protected-media broker accepts a secret-key service role without a legacy JWT role claim'
+);
+select is(
+  public.authorize_protected_media(
+    'a1000000-0000-4000-8000-000000000001','a1600000-0000-4000-8000-000000000003'
+  )->>'deliveryMode',
+  'authenticated_proxy',
+  'the secret-key broker still reauthorizes message media through the communication-aware proxy'
+);
 select set_config('request.jwt.claim.role','service_role',true);
 select lives_ok(
-  $$select public.authorize_clean_media(
+  $$select public.authorize_protected_media(
     'a1000000-0000-4000-8000-000000000001','a1600000-0000-4000-8000-000000000001'
-  )$$,'signed-media service authorizes a clean proof for a job participant'
+  )$$,'the protected-media broker authorizes a clean proof for a job participant'
 );
 select throws_ok(
-  $$select public.authorize_clean_media(
+  $$select public.authorize_protected_media(
     'a1000000-0000-4000-8000-000000000003','a1600000-0000-4000-8000-000000000001'
-  )$$,'MEDIA_ACCESS_DENIED','signed-media service rejects an unrelated user'
+  )$$,'MEDIA_ACCESS_DENIED','the protected-media broker rejects an unrelated user'
 );
 select throws_ok(
-  $$select public.authorize_clean_media(
+  $$select public.authorize_protected_media(
     'a1000000-0000-4000-8000-000000000002','a1600000-0000-4000-8000-000000000002'
-  )$$,'CLEAN_MEDIA_NOT_FOUND','signed-media service never signs an unscanned object'
+  )$$,'CLEAN_MEDIA_NOT_FOUND','the protected-media broker never signs an unscanned object'
 );
 select lives_ok(
-  $$select public.authorize_clean_media(
+  $$select public.authorize_protected_media(
     'a1000000-0000-4000-8000-000000000002','a1600000-0000-4000-8000-000000000003'
-  )$$,'signed-media service authorizes clean message media for a conversation participant'
+  )$$,'the protected-media broker authorizes clean message media for a live participant'
 );
 
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.role','authenticated',true);
+select throws_ok(
+  $$select public.authorize_protected_media(
+    'a1000000-0000-4000-8000-000000000001','a1600000-0000-4000-8000-000000000004'
+  )$$,
+  'permission denied for function authorize_protected_media',
+  'authenticated callers cannot invoke the protected-media service dispatcher directly'
+);
 select set_config('request.jwt.claim.sub','a1000000-0000-4000-8000-000000000003',true);
 select throws_ok(
   $$select public.send_message_with_attachments(
