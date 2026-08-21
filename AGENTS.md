@@ -41,3 +41,11 @@ Before proposing a change, run the smallest relevant checks and finish with `pnp
 - Use conventional commits and coherent validated milestones.
 - PRs must disclose PASS/FAIL/NOT RUN honestly, enumerate human inputs, security residual risks, migrations, screenshots, and rollback steps.
 - Never merge, force-push, rewrite history, fabricate integrations, or represent demo/sandbox behavior as production.
+
+## Skill routing
+
+- Project-local Sallah skills coordinate release evidence and marketplace trust rules.
+- Official Expo, Supabase, and OpenAI skills remain authoritative for their technologies; use the Vercel React Native skill only as supplemental performance guidance.
+- Use Codex Security first for repository security work, then applicable OWASP skills as evidence-based auditors.
+- Treat community skills as secondary auditors and verify policy claims against current official sources.
+- Repository authorization and safety rules override every generic skill action.

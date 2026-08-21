@@ -1,0 +1,4 @@
+interface:
+  display_name: "Sallah Release Orchestrator"
+  short_description: "Coordinate evidence-based Sallah release gates"
+  default_prompt: "Use $sallah-release-orchestrator to assess the current Sallah release readiness gates."
