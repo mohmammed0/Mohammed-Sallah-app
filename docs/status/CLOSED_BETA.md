@@ -2,7 +2,7 @@
 
 [العربية](../ar/CLOSED_BETA.md) · [Documentation map](../README.md)
 
-**التصنيف | Classification:** CURRENT SOURCE OF TRUTH  
+**التصنيف | Classification:** CURRENT SOURCE OF TRUTH
 **آخر تحقق مرجعي | Reference date:** 2026-08-21
 
 ## الحالة المختصرة | Summary
