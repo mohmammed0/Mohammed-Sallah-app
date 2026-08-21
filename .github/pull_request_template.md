@@ -1,61 +1,73 @@
-## Summary
+## الملخص | Summary
 
-- What was built:
-- Architecture/product scope:
+- ما الذي تغير؟ | What changed?
+- لماذا يلزم للنسخة التجريبية؟ | Why is it needed for closed beta?
+- ما الذي بقي خارج النطاق؟ | What remains out of scope?
 
-## Applications
+## الأسطح | Surfaces
 
-- Mobile:
-- Public web:
-- Admin:
-- Supabase backend:
-- AI/notifications/payments/support:
+- [ ] تطبيق العميل | Customer mobile
+- [ ] تطبيق مقدم الخدمة | Provider mobile
+- [ ] الموقع العام | Public web
+- [ ] لوحة التشغيل | Operations portal
+- [ ] Supabase / RLS / RPC / Edge
+- [ ] التوثيق أو CI فقط | Docs or CI only
 
-## OSS usage
+## قاعدة البيانات | Database
 
-- Adopted/version/licenses:
-- Rejected/reference-only:
-- Notices/SBOM:
+- Migrations الجديدة أو `None`:
+- ملخص RLS/RPC والاختبارات المتقاطعة:
+- أنواع قاعدة البيانات مولدة بلا drift:
 
-## Database
+## الأمن والخصوصية | Security and privacy
 
-- Migration count/major tables:
-- RLS and RPC summary:
-- Generated types current:
+- حدود الثقة المتأثرة | Affected trust boundaries:
+- البيانات الشخصية/الموقع/الوسائط/العروض/الأدوار:
+- التهديدات أو المخاطر المتبقية:
 
-## Validation
+> لا تضع أسراراً أو حسابات حقيقية أو PII أو موقعاً دقيقاً أو مستندات أو رسائل أو وسائط خاصة أو
+> بيانات دفع في PR.
+>
+> Never include secrets, real accounts, PII, exact locations, documents, messages, private media,
+> or payment data.
 
-| Command | PASS / FAIL / NOT RUN | Duration | Notes/artifact |
-| ------- | --------------------- | -------- | -------------- |
+## اللغة وإتاحة الوصول | Localization and accessibility
 
-## Security
+- العربية RTL والإنجليزية/الأردية/الهندية:
+- لوحة المفاتيح والتركيز والنص الكبير وقارئ الشاشة:
 
-- RLS/adversarial tests:
-- Secret/dependency/license scans:
-- Threat-model changes/residual risks:
+## OSS وسلسلة التوريد | OSS and supply chain
 
-## Human inputs
+- Dependency/version/license changes or `None`:
+- Inventory/notices/lockfile:
 
-- Genuine external inputs only:
+## التحقق | Validation
 
-## Limitations
+| الأمر أو البوابة | PASS / FAIL / NOT RUN | الرأس والبيئة | الدليل/الملاحظات |
+| ---------------- | --------------------- | ------------- | ---------------- |
+| `pnpm validate`  |                       |               |                  |
+| فحوص النطاق      |                       |               |                  |
+| الجهاز الفعلي    |                       |               |                  |
 
-- Genuine external limitations only:
+## المدخلات البشرية | Human inputs
 
-## Screenshots
+- القرارات أو الحسابات أو الاعتمادات أو الأجهزة المطلوبة:
+
+## الصور والأدلة | Screenshots and evidence
 
 - Web:
 - Mobile/device:
+- لا تمثل capture آلياً كصورة جهاز فعلي.
 
-## Rollback
+## التراجع | Rollback
 
-- Application artifact/feature flags:
-- Database compensating migration/restore:
+- التطبيق/feature flags:
+- migration تعويضية أو استعادة معتمدة:
 
-## Confirmation
+## التأكيد | Confirmation
 
-- [ ] No user work was discarded
-- [ ] No production secret was committed
-- [ ] No sandbox payment is represented as production payment
-- [ ] PR is not merged
-- [ ] Working tree is clean at handoff
+- [ ] لم أتخلص من عمل مستخدم | No user work was discarded
+- [ ] لا يوجد سر إنتاج أو بيانات شخصية | No production secret or personal data
+- [ ] النتائج PASS/FAIL/NOT RUN صادقة | Results are reported honestly
+- [ ] لم أمثل sandbox أو demo كإنتاج | No sandbox/demo is represented as production
+- [ ] لم أعد كتابة migration أو Git history | No migration or Git history was rewritten

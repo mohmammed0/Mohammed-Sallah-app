@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Private security report
-    url: https://github.com/mohmammed0/Mohammed-Sallah-app/security/advisories/new
-    about: Report vulnerabilities privately; never post sensitive evidence publicly.
+  - name: الإبلاغ الأمني الخاص | Private security reporting
+    url: https://github.com/mohmammed0/Mohammed-Sallah-app/blob/main/SECURITY.md
+    about: اقرأ SECURITY.md واستخدم الإبلاغ الخاص؛ لا تنشر دليلاً حساساً في Issue | Read SECURITY.md and use private reporting; never post sensitive evidence in an issue.

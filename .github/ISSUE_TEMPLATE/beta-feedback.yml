@@ -1,0 +1,70 @@
+name: ملاحظات النسخة التجريبية | Beta feedback
+description: سجل ملاحظة من اختبار beta من دون بيانات حقيقية | Record closed-beta feedback without real user data.
+title: '[Beta | تجريبي]: '
+labels: [closed-beta]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **ممنوع إدخال بيانات شخصية أو خاصة.**
+        لا تذكر أسماء أو هواتف أو بريد مستخدم أو عنواناً/إحداثيات دقيقة أو مستنداً أو رسالة أو صورة خاصة أو بيانات دفع أو سراً.
+
+        **Do not include personal or private data.**
+        Never include names, phone numbers, user email, exact addresses/coordinates, documents, messages, private images, payment data, or secrets.
+
+        أبلغ عن الثغرات وفق [SECURITY.md](https://github.com/mohmammed0/Mohammed-Sallah-app/blob/main/SECURITY.md) عبر [الإبلاغ الأمني الخاص](https://github.com/mohmammed0/Mohammed-Sallah-app/security/advisories/new)، وليس نموذج beta عاماً.
+        Report vulnerabilities through [SECURITY.md](https://github.com/mohmammed0/Mohammed-Sallah-app/blob/main/SECURITY.md) and [private vulnerability reporting](https://github.com/mohmammed0/Mohammed-Sallah-app/security/advisories/new), not public beta feedback.
+  - type: dropdown
+    id: surface
+    attributes:
+      label: السطح | Surface
+      options:
+        - تطبيق العميل | Customer mobile
+        - تطبيق مقدم الخدمة | Provider mobile
+        - الموقع العام | Public web
+        - لوحة التشغيل | Operations portal
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: الإصدار أو build أو commit | Version, build, or commit
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: الجهاز والنظام | Device and OS
+      description: النوع والإصدار فقط، بلا معرّف فريد | Model and version only; no unique identifier.
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: ما شوهد | Observed
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: ما كان متوقعاً | Expected
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: الشدة | Severity
+      options:
+        - يمنع متابعة الرحلة | Blocks the journey
+        - يسبب نتيجة خاطئة | Causes an incorrect result
+        - صعوبة استخدام أو إتاحة | Usability or accessibility barrier
+        - ملاحظة بسيطة | Minor observation
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: خطوات التكرار | Reproduction
+      description: استخدم حسابات وقيم اختبار تركيبية فقط | Use only synthetic test accounts and values.
+    validations:
+      required: true
