@@ -1,5 +1,7 @@
 # Testing
 
+[العربية](ar/TESTING.md) · [Documentation map](README.md)
+
 | Layer             | Command                                            | Purpose                                                          |
 | ----------------- | -------------------------------------------------- | ---------------------------------------------------------------- |
 | Format/lint/types | `pnpm format:check && pnpm lint && pnpm typecheck` | Static quality and generated-contract use                        |

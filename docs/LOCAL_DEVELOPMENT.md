@@ -1,5 +1,7 @@
 # Local development
 
+[العربية](ar/LOCAL_DEVELOPMENT.md) · [Documentation map](README.md)
+
 Prerequisites: Node 24 LTS, Corepack/pnpm 11.19.0, Docker Desktop, Supabase CLI 2.114.0, and Android Studio/Xcode only for native device work. k6 and Maestro are external validation CLIs and are never shipped with the application.
 
 ```bash

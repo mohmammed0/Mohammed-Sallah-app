@@ -1,5 +1,7 @@
 # Required human inputs
 
+[العربية](ar/HUMAN_INPUTS.md) · [Documentation map](README.md)
+
 These values cannot be safely invented. Development placeholders deliberately make production validation fail.
 
 | Input                                                                                                 | Owner                   | Required before               | Safe fallback                                                       |
