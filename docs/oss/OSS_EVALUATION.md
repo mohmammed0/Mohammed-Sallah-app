@@ -4,7 +4,7 @@ Research date: 2026-08-17. Versions are exact resolved package versions; mainten
 
 | Candidate                        | License          | Decision               | Rationale                                                                                                               |
 | -------------------------------- | ---------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Expo / Expo Router               | MIT              | Adopted 57.0.14        | Stable SDK 57, native modules, EAS integration; Expo Doctor 21/21                                                       |
+| Expo / Expo Router               | MIT              | Adopted 57.0.15        | Stable SDK 57, native modules, EAS integration; Expo Doctor 21/21                                                       |
 | React Native                     | MIT              | Adopted 0.86.2         | Expo-required version including Hermes regression fix                                                                   |
 | Supabase platform/CLI/JS         | Apache-2.0/MIT   | Adopted                | Auth, Postgres/PostGIS/RLS, Storage, Realtime and Edge Functions in one operational boundary                            |
 | Next.js                          | MIT              | Adopted 16.3.1         | App Router, static public site, server-authorized admin and security headers                                            |

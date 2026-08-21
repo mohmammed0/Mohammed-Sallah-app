@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-08-19",
+  "generatedAt": "2026-08-21",
   "policy": "Exact versions from pnpm lock; ship permissive dependencies. Package-scoped build/data exceptions are documented.",
   "adopted": [
     {
       "project": "expo/expo",
       "package": "expo",
-      "version": "57.0.14",
+      "version": "57.0.15",
       "license": "MIT",
       "use": "iOS/Android framework, Router and native modules",
       "security": "GitHub security policy/advisories"
@@ -101,7 +101,7 @@
     {
       "project": "expo/expo",
       "package": "expo-file-system",
-      "version": "57.0.4",
+      "version": "57.0.5",
       "license": "MIT",
       "use": "durable user-scoped app-private storage for offline request media",
       "security": "Expo GitHub security policy/advisories"
