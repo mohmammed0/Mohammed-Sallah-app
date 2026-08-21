@@ -1,21 +1,24 @@
-# Contributing
+# المساهمة | Contributing
 
-Use Node 24 LTS, pnpm 11.19.0, Docker, and Supabase CLI 2.114.0. Create a `codex/` or issue-linked branch, make one coherent change, and never edit an already-deployed migration.
+[العربية](CONTRIBUTING.ar.md) · [English](CONTRIBUTING.en.md)
 
-## Quality gate
+العربية هي لغة الملاحة والتصميم الأولى، بينما تبقى أسماء الأوامر والمعرفات التقنية بالإنجليزية.
+ابدأ من الدليل الموافق للغتك واقرأ [عقد هندسة المستودع](AGENTS.md) قبل التغيير.
 
-```bash
-pnpm install --frozen-lockfile
-pnpm format:check
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm test:integration
-supabase db reset
-supabase test db
-pnpm build
-```
+Arabic leads repository navigation and product design; commands and technical identifiers remain
+English. Start with your language guide and read the [repository engineering contract](AGENTS.md)
+before changing anything.
 
-Database/RPC changes require deny-by-default RLS, cross-role pgTAP coverage, idempotency for retryable commands, and regenerated `packages/database/src/database.types.ts`. UI changes require Arabic RTL verification, accessibility labels, loading/empty/error states, and translation-key parity. Dependencies must be exact-versioned, permissively licensed, recorded in the OSS inventory, and pass the license/security gates.
+## قواعد لا تختصر | Non-negotiable rules
 
-Use Conventional Commits. A PR must disclose actual PASS/FAIL/NOT RUN results, migrations, security impact, human inputs, screenshots, and rollback. Never include production secrets, demo credentials, raw personal data, or fake integration claims.
+- استخدم Node 24 LTS وpnpm 11.19.0 وSupabase CLI 2.114.0.
+- استخدم Conventional Commits وفروع milestones محدودة من رأس beta المعتمد.
+- لا تعدل migration مطبقة؛ أضف migration forward-only مع RLS deny-by-default واختبارات pgTAP.
+- حدّث أنواع قاعدة البيانات المولدة وأثبت عدم وجود drift.
+- تحقّق من العربية RTL والإنجليزية/الهندية LTR والأردية RTL وإتاحة الوصول.
+- لا تضف dependency قبل مراجعة الترخيص والأمن وتحديث OSS inventory والإشعارات وlockfile.
+- أبلغ PASS/FAIL/NOT RUN والمدخلات البشرية بصراحة؛ لا تمثل sandbox أو placeholder كإنتاج.
+- لا تضع أسراراً أو بيانات شخصية أو مواقع دقيقة أو مستندات أو رسائل أو بيانات دفع في Issue أو PR.
+
+شغّل أصغر فحص أثناء التطوير واختم بـ `pnpm validate`. تغييرات قاعدة البيانات تتطلب أيضاً
+`supabase db reset` و`pnpm test:db` عند توفر Docker.
