@@ -6,5 +6,6 @@ coverage
 pnpm-lock.yaml
 supabase/.temp
 apps/web/next-env.d.ts
+.agents/
 
 supabase/functions

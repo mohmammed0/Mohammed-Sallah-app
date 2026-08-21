@@ -2,27 +2,33 @@
 
 All exposed public tables have RLS enabled. No service-role key is available to clients.
 
-| Resource                               | Customer                  | Matched provider          | Selected provider        | Assigned/granted support                        | Operations / other staff                                                                 | Other user |
-| -------------------------------------- | ------------------------- | ------------------------- | ------------------------ | ----------------------------------------------- | ---------------------------------------------------------------------------------------- | ---------- |
-| Raw profile/preferences                | own                       | own                       | own                      | deny; linked safe identity RPC only             | deny; purpose-scoped projection RPCs only                                                | deny       |
-| Safe identity / customer PII RPC       | own                       | deny unrelated            | deny unrelated           | assigned-case display identity only             | PII requires `customer.pii.read`; marketplace/verification projections are field-limited | deny       |
-| Exact address / job location RPC       | own job only              | deny                      | selected active job only | linked case + `exact_location` + reason + audit | `operations.exact_location.read` + reason + audit                                        | deny       |
-| Service-area coordinate resolution     | authenticated RPC only    | deny                      | authenticated RPC only   | authenticated RPC only                          | authenticated RPC only                                                                   | deny       |
-| Foreground location-sharing sessions   | own job read              | deny                      | own active session       | deny unless separately linked and permissioned  | narrowly permissioned                                                                    | deny       |
-| Request core/answers/clean media brief | own                       | matched, approximate only | participant              | authorized linked case only                     | `operations.marketplace.read`                                                            | deny       |
-| AI sessions/messages/diagnostics       | own                       | deny                      | deny                     | deny                                            | server/service workflow only                                                             | deny       |
-| Offers                                 | offers on own request     | own offer                 | own/selected             | authorized linked case only                     | `operations.marketplace.read`                                                            | deny       |
-| Competing offers                       | customer only             | deny                      | deny other offers        | only when linked case policy explicitly permits | `operations.marketplace.read`                                                            | deny       |
-| Jobs/history/change orders/proofs      | participant               | deny unless selected      | participant              | authorized linked case only                     | `operations.marketplace.read`                                                            | deny       |
-| Conversations/messages/attachments     | member/historical export  | deny unless member        | member                   | case-authorized pathways only                   | operations permission                                                                    | deny       |
-| Clean storage objects                  | no direct bucket read     | no direct bucket read     | no direct bucket read    | no direct bucket read                           | no direct bucket read                                                                    | deny       |
-| Signed-media broker                    | authorized owned/resource | matched-resource subset   | participant resource     | linked case + evidence/read capability          | explicit operations/provider-document permission                                         | deny       |
-| Provider documents/payout refs         | deny                      | own                       | own                      | deny                                            | verification/finance permission                                                          | deny       |
-| Payments/holds/refunds                 | participant subset        | deny                      | participant subset       | linked case does not grant ledger-wide access   | minimal finance queue; mutation/confirmation via RPC/service                             | deny       |
-| Support cases/messages/evidence        | opener; visible messages  | opener when applicable    | opener when applicable   | active assignment/grant and capability          | `operations.marketplace.read`                                                            | deny       |
-| Internal support notes                 | deny                      | deny                      | deny                     | active `internal_note` capability only          | deny unless separately assigned/authorized                                               | deny       |
-| Notifications/delivery history         | own                       | own                       | own                      | deny system-wide                                | `operations.notifications.read`                                                          | deny       |
-| Admin audit/config                     | deny                      | deny                      | deny                     | deny unless independently authorized            | exact permission; active roles only                                                      | deny       |
+| Resource                               | Customer                    | Matched provider          | Selected provider               | Assigned/granted support                        | Operations / other staff                                                                 | Other user |
+| -------------------------------------- | --------------------------- | ------------------------- | ------------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------- | ---------- |
+| Raw profile/preferences                | own                         | own                       | own                             | deny; linked safe identity RPC only             | deny; purpose-scoped projection RPCs only                                                | deny       |
+| Safe identity / customer PII RPC       | own                         | deny unrelated            | deny unrelated                  | assigned-case display identity only             | PII requires `customer.pii.read`; marketplace/verification projections are field-limited | deny       |
+| Exact address / job location RPC       | own address; active job RPC | deny                      | current eligible selected job   | linked case + `exact_location` + reason + audit | `operations.exact_location.read` + reason + audit                                        | deny       |
+| Service-area coordinate resolution     | authenticated RPC only      | deny                      | authenticated RPC only          | authenticated RPC only                          | authenticated RPC only                                                                   | deny       |
+| Foreground location-sharing sessions   | active account + own job    | deny                      | current eligible active session | deny unless separately linked and permissioned  | narrowly permissioned                                                                    | deny       |
+| Request core/answers/clean media brief | own                         | matched, approximate only | participant                     | authorized linked case only                     | `operations.marketplace.read`                                                            | deny       |
+| AI sessions/messages/diagnostics       | own                         | deny                      | deny                            | deny                                            | server/service workflow only                                                             | deny       |
+| Offers                                 | offers on own request       | own offer                 | own/selected                    | authorized linked case only                     | `operations.marketplace.read`                                                            | deny       |
+| Competing offers                       | customer only               | deny                      | deny other offers               | only when linked case policy explicitly permits | `operations.marketplace.read`                                                            | deny       |
+| Jobs/history/change orders/proofs      | participant                 | deny unless selected      | participant                     | authorized linked case only                     | `operations.marketplace.read`                                                            | deny       |
+| Conversations / historical text        | member, including blocked   | deny unless member        | member, including blocked       | case-authorized projections only                | `operations.marketplace.read` projection                                                 | deny       |
+| New message mutation                   | live eligible member only   | deny unless selected      | live eligible member only       | deny direct mutation                            | deny direct mutation; audited workflows only                                             | deny       |
+| Read-receipt mutation (M1)             | disabled                    | disabled                  | disabled                        | disabled                                        | disabled; no authoritative RPC                                                           | disabled   |
+| Message attachment metadata/media      | live eligible member only   | deny unless selected      | live eligible member only       | moderation-safe hash/metadata projection only   | moderation-safe hash/metadata projection only                                            | deny       |
+| Directional block state                | own rows via safe context   | deny raw counterparty row | own rows via safe context       | deny                                            | audited projection only                                                                  | deny       |
+| Marketplace reports/events             | safe own acknowledgement    | deny raw workflow         | safe own acknowledgement        | open reports for active linked cases only       | keyset-paginated open queue; mutation requires operations permission                     | deny       |
+| Report enforcement target(s)           | deny                        | deny                      | deny                            | deny                                            | read + mutate operations only; four non-PII contextual fields; batch 1–100               | deny       |
+| Clean message-storage objects          | no direct bucket read       | no direct bucket read     | no direct bucket read           | no direct bucket read                           | no direct bucket read                                                                    | deny       |
+| Signed-media broker                    | authorized owned/resource   | matched-resource subset   | participant resource            | linked case + evidence/read capability          | explicit operations/provider-document permission                                         | deny       |
+| Provider documents/payout refs         | deny                        | own                       | own                             | deny                                            | verification/finance permission                                                          | deny       |
+| Payments/holds/refunds                 | participant subset          | deny                      | participant subset              | linked case does not grant ledger-wide access   | minimal finance queue; mutation/confirmation via RPC/service                             | deny       |
+| Support cases/messages/evidence        | opener; visible messages    | opener when applicable    | opener when applicable          | active assignment/grant and capability          | `operations.marketplace.read`                                                            | deny       |
+| Internal support notes                 | deny                        | deny                      | deny                            | active `internal_note` capability only          | deny unless separately assigned/authorized                                               | deny       |
+| Notifications/delivery history         | own                         | own                       | own                             | deny system-wide                                | `operations.notifications.read`                                                          | deny       |
+| Admin audit/config                     | deny                        | deny                      | deny                            | deny unless independently authorized            | exact permission; active roles only                                                      | deny       |
 
 Support access requires an active account and non-revoked `support_agent` role plus either an active
 case assignment or a temporary/escalation grant. Grants last at most 24 hours, have explicit
@@ -32,12 +38,133 @@ PII, provider verification, notification, finance, and exact-location access are
 permissions. Support agents never inherit raw profile or ledger-wide reads. Customer PII lookup
 requires an active privacy-reviewer or super-admin role, a target, and an audited reason.
 
+## Marketplace trust and UGC safety
+
+`blocked_users` remains directional so only the blocker can unblock, but the communication predicate
+treats either direction as mutual. It derives the actual customer/provider pair from the job and
+conversation, requires active accounts, an active verified provider, active membership, and no block.
+Block/unblock, message send, offer submission, and offer selection take the same canonical
+customer/provider transaction lock before checking block state or entering their command-specific
+replay/mutation path. Whichever command holds the pair lock establishes the serial order: a committed
+block denies a waiting fresh command or exact replay, while a completed offer command may commit before
+the waiting block. An old conversation ID, role-mode switch, or once-valid client key cannot bypass the
+new state. Attachment identifiers are deduplicated, sorted, and locked in UUID order before inserts;
+duplicate or already-attached uploads receive bounded errors. Historical text remains
+participant-readable for evidence. Direct message writes are revoked in favor of the RPC; read-receipt
+mutation is disabled for M1 because no authoritative receipt RPC exists.
+
+Trust projections expose only the actor-owned unblock affordance. `get_marketplace_trust_context`
+returns conversation and counterparty IDs, `blockedByMe`, generic `canCommunicate`, and a restriction
+of `blocked` only when the actor owns the block; every other denied condition is
+`communication_unavailable`. It never returns counterparty-owned block state or a derived mutual-block
+flag. `set_user_block` similarly returns only target ID, the actor's desired `blocked` state,
+`changed`, and fail-closed `canCommunicate: false` for fresh, no-op, and replayed commands; clients
+refresh the conversation-specific trust context after every mutation. The preserved private
+mutation body is non-callable, so relationship checks, pair-lock order, idempotency, rate limiting,
+and immutable audit evidence remain authoritative without exposing enforcement direction.
+
+Message attachment RLS and `authorize_message_media` use the stricter live-communication predicate.
+The service-only `authorize_protected_media` dispatcher marks message uploads for an HMAC-bound Edge
+proxy instead of issuing a storage URL. Every proxy GET re-runs database authorization and streams the
+private Storage response without buffering the object, returns `Cache-Control: no-store`, and uses a
+maximum two-minute broker-token lifetime, so a URL minted before a block or suspension stops delivering immediately;
+the gateway JWT check is disabled only for `media-access` so broker GETs can reach the HMAC verifier,
+while POST still authenticates the bearer inside the handler before creating a privileged client.
+Other protected-media purposes retain their existing short-lived storage URL behavior through the same
+dispatcher. Its service boundary uses the active PostgreSQL `service_role`, so current non-JWT secret
+API keys and legacy service-role JWTs follow the same fail-closed path without relying on a
+JWT-specific claim GUC inside `SECURITY DEFINER`. The obsolete service-role execute grant on
+`authorize_clean_media` is revoked, so message
+media cannot fall back to its membership-only legacy branch. The authenticated clean-object policy
+also excludes the `message-attachments` bucket, including uploader and broad staff reads, so direct
+Storage select/list/sign flows cannot bypass broker reauthorization. Existing clean-object behavior
+for non-message buckets and the service-role Storage fetch used after broker authorization are
+preserved. Report evidence stores at most 2,000 text characters plus bounded attachment IDs, MIME,
+byte count, and content hash; it never stores object paths, signed URLs, broker tokens, or media copies.
+
+`marketplace_reports`, `marketplace_report_events`, and `user_block_events` are RLS-enabled and have no
+direct client table privileges. Reporters use `get_my_marketplace_reports`, which omits counterparty,
+support-case, and evidence fields. Assigned support reads only linked reports and immutable transition
+history; text snapshots and attachment evidence additionally require the case's `evidence` capability,
+and escalation requires `internal_note`. Operations/super-admin staff use non-null expected versions,
+command-namespaced idempotency, and audited triage/resolution. Embedded history is capped at the newest
+50 events and carries returned/total/truncated metadata; same-state/same-priority commands are rejected
+instead of appending no-op events. A suspended customer is rejected before offer-selection replay.
+Finance, verification, analysts, ordinary users, and unassigned support receive no moderation rows.
+Both report projections reject null or out-of-range limits. Closed-beta atomic
+limits are 60 message sends per UTC minute, 10 reports per UTC hour, and 20 block-state commands per UTC
+hour, independently keyed by a one-way actor hash.
+
+User-target reports use `create_marketplace_report_v2` and require the exact active conversation in
+which the two current participants interacted. The server derives and stores that conversation's job
+and request; its canonical idempotency payload and active-report uniqueness key include the
+conversation. The compatibility RPC rejects user targets with `REPORT_CONTEXT_REQUIRED` but continues
+to derive message and rating context server-side. Before replay or mutation, message intake requires
+the stored sender to be exactly the opposite job party in the bound conversation, while rating intake
+requires its customer/provider identities to equal the report-bound job parties and permits only the
+rated provider direction. Thus the same dual-role user may have separate active reports in separate
+jobs, while repeated reports in one conversation deduplicate. Enforcement-target lookups validate the
+stored conversation/job/request chain and classify the target from that exact job.
+
+`transition_job`, change-order creation/decision, completion submission, the supported seven-argument
+completion-acceptance command, foreground exact-location start/record, and participant exact-location
+read all lock and recheck current contextual authorization before replay, mutation, or disclosure. The
+customer account must be active. A provider must additionally retain the provider role, a verified
+provider profile, exact job participation, and no open eligibility review for that job; a resolved
+review does not itself block work. The audited staff exact-location overload retains its independent
+permission/case/reason boundary. Generic transition, including cancellation, fails closed for inactive
+participants; separate cancellation/dispute workflows remain available under their own policies.
+
+The provider branch of direct `addresses` RLS and participant reads of `job_location_updates` and
+`job_location_sharing_sessions` use the same current account, provider-role, verification, and
+exact-job review predicate. This prevents a publishable-key client from bypassing the participant RPC
+after suspension or provider deprivileging. Customer ownership of their own saved address remains
+unchanged, while suspended customers cannot directly read sharing-session identifiers or live
+coordinates. The existing separately permissioned staff session-metadata branch is preserved; exact
+address and live-coordinate staff access remains reasoned and audited through the staff RPC.
+Authenticated `INSERT`, `UPDATE`, and `DELETE` on `addresses` are revoked and the owner-write policy is
+removed. Saved-address creation, update, default selection, and archival therefore remain available
+only through their validating security-definer RPCs; neither active nor suspended clients can forge or
+rewrite immutable request/job snapshots or bypass coordinate resolution.
+
+`public.messages` is included in `supabase_realtime` for delivery only. Subscription rows remain
+governed by the existing member `SELECT` policy, direct authenticated inserts remain revoked, and new
+messages still require the authoritative RPC. No report, trust-event, moderation-action, or audit table
+is added to the publication.
+
+`list_open_marketplace_reports` is the authoritative work queue. It excludes resolved and dismissed
+reports before applying a 1–100 bound, orders oldest first by `(created_at, id)`, and returns a
+created-at/report-ID keyset cursor plus `hasMore`; therefore final reports cannot consume open queue
+slots and every open report remains reachable. Scoped support retains the same active case and
+independent evidence-capability checks as the compatibility projection. The compatibility
+`list_marketplace_reports` RPC remains available for existing callers.
+
+`get_marketplace_report_enforcement_target` and its bounded batch companion require both
+`operations.marketplace.read` and `operations.mutate`. They return only report, support-case,
+reported-user, and contextual target-role identifiers. The batch accepts 1–100 unique non-null report
+IDs, preserves input order, and fails the whole request if any target is unavailable. It resolves the
+bounded array through one ordinality-based relational plan with explicit context columns rather than
+per-report function calls or evidence-row loading. Customer/provider classification is derived from
+the report-bound job and validated against the stored user conversation or target-specific message or
+rating context, never from global provider-profile existence, so dual-role users remain unambiguous. A
+message target must belong to the report's stored conversation in both scalar and batch paths. Missing,
+unrelated, cross-conversation, or ambiguous context fails closed. Final reports remain eligible because
+moderation resolution and the separately authorized account action are distinct operational steps.
+
+`admin_set_customer_status` rechecks the caller's live operations role before replay. Its v2 durable
+intent hashes customer ID, requested status, and trimmed reason before target lookup and same-state
+validation, so a retry after a committed-but-lost response reconstructs success while the same key
+with altered payload fails closed. The original status, self/admin-protection, reason, session
+revocation, push-token, moderation-action, and audit semantics remain transactional.
+
 The authoritative runtime role list is exported by `@sallah/domain` and includes
 `privacy_reviewer`. Database-generated types, web authorization, and mobile session parsing consume
 the same contract. Staff-only roles never imply customer/provider navigation. An unknown future role
 produces a controlled restricted mobile state instead of an endless initialization state.
 
-Automated evidence: 24 pgTAP files execute 532 assertions, including
+Automated evidence includes the focused Task 1 active-job/location, trust, and moderation-pagination
+suites with 370 cross-role assertions, an eight-file scoped surface with 541 assertions, and the
+complete 27-file pgTAP suite with 915 assertions, including
 `scoped_support_authorization.test.sql`, `cross_role.test.sql`, `rls.test.sql`,
 `pii_admin_scope.test.sql`, `customer_location_authority.test.sql`, `schema.test.sql`, and
 `launch_readiness_p0.test.sql`. They cover direct
@@ -45,8 +172,9 @@ raw-table PII denial, purpose-scoped projections, assigned/unassigned/expired su
 explicitly ended assignments, revoked roles, unrelated request/job denial, independent exact-location and internal-note access,
 analyst denial, operations access, competing offers, unmatched location denial, clean-media
 authorization, message attachment ownership, and completion-proof access. Quarantine writes require
-the first object-path segment to equal `auth.uid()`; promoted clean buckets have no client read policy
-and are accessed only through short broker-issued URLs.
+the first object-path segment to equal `auth.uid()`. Clean message attachments have no direct
+authenticated read policy and are accessed only through the reauthorizing broker; reviewed non-message
+clean-object owner/staff behavior remains separately scoped.
 
 ## Preview security-hardening gate
 
