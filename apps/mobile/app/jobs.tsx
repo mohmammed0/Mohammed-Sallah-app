@@ -15,6 +15,11 @@ import { reduceLocationSharing, type LocationSharingState } from '@/features/job
 import { JobTrackingMap } from '@/features/jobs/job-tracking-map';
 import { allCompletionEvidenceViewed } from '@/features/jobs/completion-evidence';
 import { executeJournaledMutation, type MutationOperation } from '@/lib/mutation-journal';
+import type { MarketplaceReportIntent } from '@sallah/domain/trust';
+import { TrustControls } from '../src/features/trust/trust-controls';
+import { createTrustRpcClient, submitMarketplaceReport } from '../src/features/trust/trust-client';
+
+const trustClient = createTrustRpcClient(supabase);
 
 const changeOrderSchema = z.object({
   id: z.uuid(),
@@ -23,6 +28,14 @@ const changeOrderSchema = z.object({
   revised_total_minor: z.number().int(),
   status: z.string(),
   expires_at: z.string(),
+});
+const ratingSchema = z.object({
+  id: z.uuid(),
+  customer_id: z.uuid(),
+  provider_id: z.uuid(),
+  score: z.number().int().min(1).max(5),
+  review: z.string().nullable(),
+  moderation_status: z.string(),
 });
 const jobSchema = z.object({
   id: z.uuid(),
@@ -67,6 +80,7 @@ const jobSchema = z.object({
       }),
     )
     .default([]),
+  ratings: z.array(ratingSchema).default([]),
 });
 type Job = z.infer<typeof jobSchema>;
 const providerNext: Record<string, string | undefined> = {
@@ -147,7 +161,7 @@ export default function Jobs() {
       const { data, error } = await supabase
         .from('jobs')
         .select(
-          'id,customer_id,provider_id,status,approved_total_minor,version,created_at,payments(amount_minor,refunded_minor,status),conversations(id),job_location_updates(captured_at,expires_at),change_orders(id,reason,description,revised_total_minor,status,expires_at),cancellation_requests(id,status,reason,created_at),disputes(id,status,reason,created_at,resolved_at)',
+          'id,customer_id,provider_id,status,approved_total_minor,version,created_at,payments(amount_minor,refunded_minor,status),conversations(id),job_location_updates(captured_at,expires_at),change_orders(id,reason,description,revised_total_minor,status,expires_at),cancellation_requests(id,status,reason,created_at),disputes(id,status,reason,created_at,resolved_at),ratings(id,customer_id,provider_id,score,review,moderation_status)',
         )
         .order('created_at', { ascending: false })
         .limit(50);
@@ -177,6 +191,9 @@ export default function Jobs() {
       payload,
       execute,
     });
+  }
+  function submitTrustReport(intent: MarketplaceReportIntent) {
+    return submitMarketplaceReport(trustClient, intent);
   }
   function transition(job: Job, status: string) {
     const transitionReason = reason.trim() || t('jobStatusUpdateReason');
@@ -655,6 +672,13 @@ export default function Jobs() {
               : !customer
                 ? providerNext[job.status]
                 : undefined;
+          const reportableRatings =
+            !customer && job.status === 'completed'
+              ? job.ratings.filter(
+                  (item) =>
+                    item.provider_id === query.data?.userId && item.customer_id === job.customer_id,
+                )
+              : [];
           return (
             <Card key={job.id}>
               <Text style={styles.badge}>{formatStatusLabel(job.status, locale)}</Text>
@@ -856,6 +880,20 @@ export default function Jobs() {
                   <Button kind="secondary" label={t('openConversation')} />
                 </Link>
               )}
+              {reportableRatings.map((item) => (
+                <Card key={item.id}>
+                  <Text style={styles.lead}>{t('trustRatingTitle')}</Text>
+                  <Text>{t('trustRatingScore', { score: item.score })}</Text>
+                  {item.review ? <Text style={styles.lead}>{item.review}</Text> : null}
+                  <TrustControls
+                    onCompleted={async () => {
+                      await query.refetch();
+                    }}
+                    onSubmitReport={submitTrustReport}
+                    target={{ targetType: 'rating', targetId: item.id }}
+                  />
+                </Card>
+              ))}
               {!['completed', 'cancelled', 'disputed'].includes(job.status) &&
                 !openCancellation && (
                   <Button

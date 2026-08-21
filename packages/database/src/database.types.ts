@@ -2732,6 +2732,209 @@ export type Database = {
         };
         Relationships: [];
       };
+      marketplace_report_events: {
+        Row: {
+          actor_id: string;
+          created_at: string;
+          event_type: string;
+          from_status: string | null;
+          id: string;
+          idempotency_key: string;
+          payload: Json;
+          reason: string;
+          report_id: string;
+          to_status: string;
+        };
+        Insert: {
+          actor_id: string;
+          created_at?: string;
+          event_type: string;
+          from_status?: string | null;
+          id?: string;
+          idempotency_key: string;
+          payload?: Json;
+          reason: string;
+          report_id: string;
+          to_status: string;
+        };
+        Update: {
+          actor_id?: string;
+          created_at?: string;
+          event_type?: string;
+          from_status?: string | null;
+          id?: string;
+          idempotency_key?: string;
+          payload?: Json;
+          reason?: string;
+          report_id?: string;
+          to_status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'marketplace_report_events_actor_id_fkey';
+            columns: ['actor_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'marketplace_report_events_report_id_fkey';
+            columns: ['report_id'];
+            isOneToOne: false;
+            referencedRelation: 'marketplace_reports';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      marketplace_reports: {
+        Row: {
+          attachment_evidence: Json;
+          conversation_id: string | null;
+          correlation_id: string;
+          created_at: string;
+          explanation: string | null;
+          id: string;
+          job_id: string | null;
+          last_action_by: string | null;
+          message_id: string | null;
+          priority: string;
+          rating_id: string | null;
+          reason_category: string;
+          reported_user_id: string;
+          reporter_id: string;
+          request_id: string | null;
+          resolved_at: string | null;
+          status: string;
+          support_case_id: string;
+          target_id: string;
+          target_type: string;
+          text_snapshot: string | null;
+          updated_at: string;
+          version: number;
+        };
+        Insert: {
+          attachment_evidence?: Json;
+          conversation_id?: string | null;
+          correlation_id?: string;
+          created_at?: string;
+          explanation?: string | null;
+          id?: string;
+          job_id?: string | null;
+          last_action_by?: string | null;
+          message_id?: string | null;
+          priority?: string;
+          rating_id?: string | null;
+          reason_category: string;
+          reported_user_id: string;
+          reporter_id: string;
+          request_id?: string | null;
+          resolved_at?: string | null;
+          status?: string;
+          support_case_id: string;
+          target_id: string;
+          target_type: string;
+          text_snapshot?: string | null;
+          updated_at?: string;
+          version?: number;
+        };
+        Update: {
+          attachment_evidence?: Json;
+          conversation_id?: string | null;
+          correlation_id?: string;
+          created_at?: string;
+          explanation?: string | null;
+          id?: string;
+          job_id?: string | null;
+          last_action_by?: string | null;
+          message_id?: string | null;
+          priority?: string;
+          rating_id?: string | null;
+          reason_category?: string;
+          reported_user_id?: string;
+          reporter_id?: string;
+          request_id?: string | null;
+          resolved_at?: string | null;
+          status?: string;
+          support_case_id?: string;
+          target_id?: string;
+          target_type?: string;
+          text_snapshot?: string | null;
+          updated_at?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'marketplace_reports_conversation_id_fkey';
+            columns: ['conversation_id'];
+            isOneToOne: false;
+            referencedRelation: 'conversations';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'marketplace_reports_job_id_fkey';
+            columns: ['job_id'];
+            isOneToOne: false;
+            referencedRelation: 'jobs';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'marketplace_reports_last_action_by_fkey';
+            columns: ['last_action_by'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'marketplace_reports_message_id_fkey';
+            columns: ['message_id'];
+            isOneToOne: false;
+            referencedRelation: 'messages';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'marketplace_reports_rating_id_fkey';
+            columns: ['rating_id'];
+            isOneToOne: false;
+            referencedRelation: 'ratings';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'marketplace_reports_reported_user_id_fkey';
+            columns: ['reported_user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'marketplace_reports_reporter_id_fkey';
+            columns: ['reporter_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'marketplace_reports_request_id_fkey';
+            columns: ['request_id'];
+            isOneToOne: false;
+            referencedRelation: 'provider_request_briefs';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'marketplace_reports_request_id_fkey';
+            columns: ['request_id'];
+            isOneToOne: false;
+            referencedRelation: 'service_requests';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'marketplace_reports_support_case_id_fkey';
+            columns: ['support_case_id'];
+            isOneToOne: true;
+            referencedRelation: 'support_cases';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       matching_candidates: {
         Row: {
           created_at: string;
@@ -6523,6 +6726,54 @@ export type Database = {
           },
         ];
       };
+      user_block_events: {
+        Row: {
+          actor_id: string;
+          blocked: boolean;
+          changed: boolean;
+          created_at: string;
+          id: string;
+          idempotency_key: string;
+          reason: string;
+          target_user_id: string;
+        };
+        Insert: {
+          actor_id: string;
+          blocked: boolean;
+          changed: boolean;
+          created_at?: string;
+          id?: string;
+          idempotency_key: string;
+          reason: string;
+          target_user_id: string;
+        };
+        Update: {
+          actor_id?: string;
+          blocked?: boolean;
+          changed?: boolean;
+          created_at?: string;
+          id?: string;
+          idempotency_key?: string;
+          reason?: string;
+          target_user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'user_block_events_actor_id_fkey';
+            columns: ['actor_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'user_block_events_target_user_id_fkey';
+            columns: ['target_user_id'];
+            isOneToOne: false;
+            referencedRelation: 'profiles';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       user_devices: {
         Row: {
           app_version: string | null;
@@ -6905,6 +7156,14 @@ export type Database = {
         Args: { p_upload_id: string; p_user_id: string };
         Returns: Json;
       };
+      authorize_message_media: {
+        Args: { p_upload_id: string; p_user_id: string };
+        Returns: Json;
+      };
+      authorize_protected_media: {
+        Args: { p_upload_id: string; p_user_id: string };
+        Returns: Json;
+      };
       build_data_export: {
         Args: { p_request_id: string; p_user_id: string };
         Returns: Json;
@@ -6990,6 +7249,27 @@ export type Database = {
           p_purpose: string;
           p_resource_id: string;
           p_size_bytes: number;
+        };
+        Returns: Json;
+      };
+      create_marketplace_report: {
+        Args: {
+          p_explanation: string;
+          p_idempotency_key: string;
+          p_reason_category: string;
+          p_target_id: string;
+          p_target_type: string;
+        };
+        Returns: Json;
+      };
+      create_marketplace_report_v2: {
+        Args: {
+          p_context_conversation_id: string;
+          p_explanation: string;
+          p_idempotency_key: string;
+          p_reason_category: string;
+          p_target_id: string;
+          p_target_type: string;
         };
         Returns: Json;
       };
@@ -7087,10 +7367,23 @@ export type Database = {
       get_data_export_query_coverage: { Args: never; Returns: Json };
       get_data_export_query_coverage_v3: { Args: never; Returns: Json };
       get_finance_review_queue: { Args: never; Returns: Json };
+      get_marketplace_report_enforcement_target: {
+        Args: { p_report_id: string };
+        Returns: Json;
+      };
+      get_marketplace_report_enforcement_targets: {
+        Args: { p_report_ids: string[] };
+        Returns: Json;
+      };
       get_marketplace_safe_identity: {
         Args: { p_case_id?: string; p_user_id: string };
         Returns: Json;
       };
+      get_marketplace_trust_context: {
+        Args: { p_conversation_id: string };
+        Returns: Json;
+      };
+      get_my_marketplace_reports: { Args: { p_limit?: number }; Returns: Json };
       get_privacy_retention_config: { Args: never; Returns: Json };
       get_provider_request_brief: {
         Args: { p_request_id: string };
@@ -7125,7 +7418,19 @@ export type Database = {
         Args: { p_query: string; p_reason: string };
         Returns: Json;
       };
+      list_marketplace_reports: {
+        Args: { p_limit?: number; p_status?: string };
+        Returns: Json;
+      };
       list_my_saved_addresses: { Args: never; Returns: Json };
+      list_open_marketplace_reports: {
+        Args: {
+          p_after_created_at?: string;
+          p_after_report_id?: string;
+          p_limit?: number;
+        };
+        Returns: Json;
+      };
       make_my_saved_address_default: {
         Args: { p_address_id: string };
         Returns: undefined;
@@ -7227,6 +7532,16 @@ export type Database = {
         };
         Returns: Json;
       };
+      resolve_marketplace_report: {
+        Args: {
+          p_expected_version: number;
+          p_idempotency_key: string;
+          p_reason: string;
+          p_report_id: string;
+          p_resolution: string;
+        };
+        Returns: Json;
+      };
       resolve_service_location: {
         Args: { p_latitude: number; p_longitude: number };
         Returns: Json;
@@ -7291,6 +7606,15 @@ export type Database = {
         };
         Returns: Json;
       };
+      set_user_block: {
+        Args: {
+          p_blocked: boolean;
+          p_idempotency_key: string;
+          p_reason: string;
+          p_target_user_id: string;
+        };
+        Returns: Json;
+      };
       start_ai_intake_session: {
         Args: { p_idempotency_key: string; p_locale: string };
         Returns: string;
@@ -7318,6 +7642,16 @@ export type Database = {
           p_job_id: string;
           p_reason: string;
           p_to_status: string;
+        };
+        Returns: Json;
+      };
+      triage_marketplace_report: {
+        Args: {
+          p_expected_version: number;
+          p_idempotency_key: string;
+          p_priority: string;
+          p_reason: string;
+          p_report_id: string;
         };
         Returns: Json;
       };

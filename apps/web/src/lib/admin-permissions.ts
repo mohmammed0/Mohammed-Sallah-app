@@ -58,6 +58,25 @@ export interface AdminRoleRow {
   revoked_at: string | null;
 }
 
+export type ModerationScope = 'operations' | 'assignment' | 'delegation' | 'none';
+
+export interface ModerationCaseScope {
+  kind: 'assignment' | 'delegation';
+  permissions: readonly SupportCapability[];
+}
+
+export interface ModerationCapabilities {
+  canRead: boolean;
+  canReadEvidence: boolean;
+  canOpenCustomerEnforcement: boolean;
+  canOpenProviderEnforcement: boolean;
+  canTriage: boolean;
+  canEscalate: boolean;
+  canDismiss: boolean;
+  canResolve: boolean;
+  scope: ModerationScope;
+}
+
 export function activeAdminRoleNames(roles: readonly AdminRoleRow[]): string[] {
   return roles.filter((role) => role.revoked_at === null).map((role) => role.role);
 }
@@ -125,4 +144,39 @@ export function canReadSupportLinkedResource(
         (resource.jobId !== undefined && link.jobId === resource.jobId)) &&
       hasActiveSupportCaseCapability(profileStatus, roles, grants, link.caseId, 'read', now),
   );
+}
+
+export function moderationCapabilitiesForCase(
+  permissions: ReadonlySet<AdminPermission>,
+  caseScope: ModerationCaseScope | null,
+): ModerationCapabilities {
+  const operationsRead = permissions.has('operations.marketplace.read');
+  const operationsWrite = operationsRead && permissions.has('operations.mutate');
+  if (operationsRead) {
+    return {
+      canRead: true,
+      canReadEvidence: true,
+      canOpenCustomerEnforcement: operationsWrite,
+      canOpenProviderEnforcement: operationsWrite && permissions.has('provider.document.read'),
+      canTriage: operationsWrite,
+      canEscalate: operationsWrite,
+      canDismiss: operationsWrite,
+      canResolve: operationsWrite,
+      scope: 'operations',
+    };
+  }
+
+  const supportRead =
+    permissions.has('support.case.read') && caseScope?.permissions.includes('read') === true;
+  return {
+    canRead: supportRead,
+    canReadEvidence: supportRead && caseScope?.permissions.includes('evidence') === true,
+    canOpenCustomerEnforcement: false,
+    canOpenProviderEnforcement: false,
+    canTriage: false,
+    canEscalate: supportRead && caseScope?.permissions.includes('internal_note') === true,
+    canDismiss: false,
+    canResolve: false,
+    scope: supportRead ? (caseScope?.kind ?? 'none') : 'none',
+  };
 }

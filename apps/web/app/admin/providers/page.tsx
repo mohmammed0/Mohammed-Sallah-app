@@ -1,16 +1,31 @@
 import { requireAdmin } from '@/lib/auth';
 import { DurableCommandIntent } from '@/components/durable-command-intent';
+import { z } from 'zod';
 import { reviewProvider, reviewProviderService } from '../actions';
 
-export default async function ProvidersPage() {
+export default async function ProvidersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ providerId?: string }>;
+}) {
   const { client, roles } = await requireAdmin(['provider.document.read']);
-  const { data, error } = await client
+  const query = await searchParams;
+  const parsedProviderId =
+    query.providerId === undefined ? null : z.uuid().safeParse(query.providerId);
+  const providerId =
+    parsedProviderId === null
+      ? null
+      : parsedProviderId.success
+        ? parsedProviderId.data
+        : '00000000-0000-4000-8000-000000000000';
+  const providerQuery = client
     .from('provider_profiles')
     .select(
       'user_id,kind,business_name,verification_status,rating_average,rating_count,completed_jobs,created_at,provider_services(category_id,subcategory_id,enabled,review_status,review_reason,service_categories(slug))',
-    )
-    .order('created_at', { ascending: false })
-    .limit(100);
+    );
+  const { data, error } = await (providerId
+    ? providerQuery.eq('user_id', providerId).order('created_at', { ascending: false }).limit(1)
+    : providerQuery.order('created_at', { ascending: false }).limit(100));
   const canReview = roles.some(
     (role) => role === 'verification_reviewer' || role === 'super_admin',
   );

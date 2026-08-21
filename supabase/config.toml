@@ -80,4 +80,4 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.media-access]
-verify_jwt = true
+verify_jwt = false

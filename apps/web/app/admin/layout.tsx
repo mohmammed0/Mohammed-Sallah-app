@@ -1,7 +1,9 @@
 import Link from 'next/link';
+import { translate, type TranslationKey } from '@sallah/i18n';
 import { requireAdmin, type AdminPermission } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
+const t = (key: TranslationKey) => translate('ar', key);
 const links: ReadonlyArray<readonly [string, string, readonly AdminPermission[]]> = [
   ['/admin', 'الرئيسية', ['dashboard.aggregate.read']],
   ['/admin/customers', 'العملاء', ['customer.pii.read']],
@@ -10,6 +12,11 @@ const links: ReadonlyArray<readonly [string, string, readonly AdminPermission[]]
   ['/admin/requests', 'الطلبات', ['operations.marketplace.read']],
   ['/admin/jobs', 'الأعمال', ['operations.marketplace.read']],
   ['/admin/support', 'الدعم', ['support.case.read', 'operations.marketplace.read']],
+  [
+    '/admin/moderation',
+    t('adminModerationNavigation'),
+    ['support.case.read', 'operations.marketplace.read'],
+  ],
   ['/admin/finance', 'المالية', ['finance.read']],
   ['/admin/audit', 'التدقيق', ['operations.mutate']],
 ] as const;

@@ -29,6 +29,27 @@ export async function requireAnyAdmin(required: readonly AdminPermission[]) {
   return requireAdminAuthorization(required, 'any');
 }
 
+export async function requireModerationRead() {
+  return requireAnyAdmin(['support.case.read', 'operations.marketplace.read']);
+}
+
+export async function requireModerationOperations() {
+  return requireAdmin(['operations.marketplace.read', 'operations.mutate']);
+}
+
+export async function requireModerationActionSession() {
+  const client = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await client.auth.getUser();
+  if (!user) redirect('/login?next=/admin/moderation');
+  return { client, user };
+}
+
+export async function requireModerationEscalation() {
+  return requireAnyAdmin(['support.case.read', 'operations.marketplace.read']);
+}
+
 async function requireAdminAuthorization(
   required: readonly AdminPermission[],
   mode: 'all' | 'any',
