@@ -5,6 +5,7 @@ packages:
 
 overrides:
   xcode>uuid: 11.1.1
+  expo-linking>expo-constants: 57.0.14
 
 ignoredOptionalDependencies:
   - sharp
@@ -14,19 +15,29 @@ allowBuilds:
   libxmljs2: true
 
 minimumReleaseAgeExclude:
-  - '@expo/cli@57.0.16'
-  - '@expo/config@57.0.8'
-  - '@expo/fingerprint@0.20.8'
+  - '@expo/cli@57.0.16 || 57.0.18'
+  - '@expo/config@57.0.8 || 57.0.9'
+  - '@expo/fingerprint@0.20.8 || 0.20.10'
   - '@expo/inline-modules@0.1.6'
   - '@expo/log-box@57.0.3'
-  - '@expo/metro-runtime@57.0.11'
-  - expo-asset@57.0.12
-  - expo-constants@57.0.12
-  - expo-image-picker@57.0.11
-  - expo-location@57.0.11
-  - expo-notifications@57.0.12
-  - expo-router@57.0.14
-  - expo@57.0.14
+  - '@expo/metro-runtime@57.0.11 || 57.0.13'
+  - expo-asset@57.0.12 || 57.0.14
+  - expo-constants@57.0.12 || 57.0.14
+  - expo-image-picker@57.0.11 || 57.0.13
+  - expo-location@57.0.11 || 57.0.13
+  - expo-notifications@57.0.12 || 57.0.14
+  - expo-router@57.0.14 || 57.0.16
+  - expo@57.0.14 || 57.0.16
+  - '@expo/config-plugins@57.0.9'
+  - '@expo/image-utils@0.11.5'
+  - '@expo/metro-config@57.0.10'
+  - '@expo/metro-file-map@57.0.2'
+  - '@expo/prebuild-config@57.0.14'
+  - '@expo/require-utils@57.0.5'
+  - babel-preset-expo@57.0.8
+  - expo-modules-autolinking@57.0.11
+  - expo-modules-core@57.0.13
+  - '@expo/ui@57.0.13'
 
 onlyBuiltDependencies:
   - esbuild

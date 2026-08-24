@@ -75,7 +75,7 @@
     {
       "project": "expo/expo",
       "package": "expo",
-      "version": "57.0.15",
+      "version": "57.0.16",
       "license": "MIT",
       "use": "iOS/Android framework, Router and native modules",
       "security": "GitHub security policy/advisories"
