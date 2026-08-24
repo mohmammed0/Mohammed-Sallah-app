@@ -1,10 +1,11 @@
 import { spawn } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
@@ -24,6 +25,11 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const clamavImage =
   'clamav/clamav:1.4.6@sha256:e6444f72de025a3d57e2820dd1ad9f8734d1d4d6ab0e3336cdeb09fa2ba2f122';
 const workerImage = 'sallah-media-scanner-worker:m2v-node24.19.0-image1.13.0';
+const fixtureContainerPrefix = 'sallah-m2-fixture-';
+const fixtureContainerNamePattern =
+  /^sallah-m2-fixture-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+const fixtureCleanupDeadlineMs = 5_000;
+const fixtureCleanupQuietPeriodMs = 500;
 const eicar = Buffer.from(
   ['X5O!P%@AP[4\\PZX54(P^)7CC)7}$', 'EICAR', '-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*'].join(''),
   'ascii',
@@ -83,22 +89,66 @@ function runProcess(command, args, options = {}) {
       shell: options.shell ?? false,
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
-      ...(options.signal ? { signal: options.signal } : {}),
     });
     let stdout = '';
     let stderr = '';
+    let spawnError;
+    let timedOut = false;
+    let externallyAborted = false;
+    const terminate = () => {
+      if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+    };
+    const abort = () => {
+      externallyAborted = true;
+      terminate();
+    };
+    options.signal?.addEventListener('abort', abort, { once: true });
+    if (options.signal?.aborted) abort();
+    const timer = options.timeoutMs
+      ? setTimeout(() => {
+          timedOut = true;
+          terminate();
+        }, options.timeoutMs)
+      : undefined;
     child.stdout.on('data', (chunk) => {
       stdout = `${stdout}${String(chunk)}`.slice(-256_000);
     });
     child.stderr.on('data', (chunk) => {
       stderr = `${stderr}${String(chunk)}`.slice(-256_000);
     });
-    child.once('error', () => rejectRun(new Error('M2_INTEGRATION_PROCESS_FAILED')));
-    child.once('exit', (code) => {
+    child.once('error', (cause) => {
+      spawnError = cause;
+    });
+    child.once('close', (code) => {
+      if (timer) clearTimeout(timer);
+      options.signal?.removeEventListener('abort', abort);
+      if (timedOut) {
+        rejectRun(new Error(`M2_INTEGRATION_PROCESS_TIMEOUT:${options.label ?? command}`));
+        return;
+      }
+      if (externallyAborted) {
+        rejectRun(new Error(`M2_INTEGRATION_PROCESS_ABORTED:${options.label ?? command}`));
+        return;
+      }
+      if (spawnError) {
+        rejectRun(
+          Object.assign(new Error('M2_INTEGRATION_PROCESS_FAILED', { cause: spawnError }), {
+            stderr,
+            stdout,
+          }),
+        );
+        return;
+      }
       if (code === 0 || options.acceptCodes?.includes(code)) {
         resolveRun({ code, stdout, stderr });
       } else {
-        rejectRun(new Error(`M2_INTEGRATION_PROCESS_FAILED:${options.label ?? command}`));
+        rejectRun(
+          Object.assign(new Error(`M2_INTEGRATION_PROCESS_FAILED:${options.label ?? command}`), {
+            exitCode: code,
+            stderr,
+            stdout,
+          }),
+        );
       }
     });
   });
@@ -130,38 +180,152 @@ function containerPath(hostRoot, value) {
   return `/work/${value.slice(hostRoot.length + 1).replaceAll('\\', '/')}`;
 }
 
-async function runWorkerImageCommand(hostRoot, executable, args, options = {}) {
-  const mountRoot = process.platform === 'win32' ? windowsToWslPath(hostRoot) : hostRoot;
+function boundedProcessDetail(value, redactions) {
+  let detail = String(value ?? '').slice(-4_096);
+  for (const redaction of redactions) {
+    if (redaction) detail = detail.replaceAll(redaction, '<fixture-root>');
+  }
+  return detail.replaceAll(/\s+/gu, ' ').trim() || 'unavailable';
+}
+
+async function workerMountGroupArgs(hostRoot) {
+  if (process.platform === 'win32') return [];
+  const before = await lstat(hostRoot);
+  if (!before.isDirectory() || before.isSymbolicLink()) {
+    fail('M2_FIXTURE_MOUNT_INVALID');
+  }
+  if (typeof process.getuid === 'function' && before.uid !== process.getuid()) {
+    fail('M2_FIXTURE_MOUNT_OWNER_INVALID');
+  }
+  await chmod(hostRoot, 0o770);
+  const after = await stat(hostRoot);
+  if ((after.mode & 0o007) !== 0 || (after.mode & 0o070) !== 0o070) {
+    fail('M2_FIXTURE_MOUNT_MODE_INVALID');
+  }
+  return ['--group-add', String(after.gid)];
+}
+
+async function matchingFixtureWorkerContainers(containerName) {
   const result = await runDocker(
     [
-      'run',
-      '--rm',
-      '--read-only',
-      '--cap-drop',
-      'ALL',
-      '--security-opt',
-      'no-new-privileges:true',
-      '--pids-limit',
-      '32',
-      '--memory',
-      '512m',
-      '--memory-swap',
-      '512m',
-      '--cpus',
-      '1',
-      '--tmpfs',
-      '/tmp/scanner:rw,noexec,nosuid,nodev,size=128m,uid=65532,gid=65532,mode=0700',
-      '--user',
-      '65532:65532',
-      '--volume',
-      `${mountRoot}:/work:rw`,
-      '--entrypoint',
-      executable,
-      workerImage,
-      ...args.map((value) => containerPath(hostRoot, value)),
+      'container',
+      'ls',
+      '--all',
+      '--format',
+      '{{.Names}}',
+      '--filter',
+      `name=^/${containerName ? containerName : fixtureContainerPrefix}`,
     ],
-    { label: options.label ?? 'worker-image-command', signal: options.signal },
+    { label: 'fixture-container-list', timeoutMs: 2_000 },
   );
+  return result.stdout
+    .split(/\r?\n/gu)
+    .map((value) => value.trim())
+    .filter((value) =>
+      containerName ? value === containerName : value.startsWith(fixtureContainerPrefix),
+    );
+}
+
+async function removeFixtureWorkerContainer(containerName) {
+  const deadline = Date.now() + fixtureCleanupDeadlineMs;
+  let absentSince;
+  while (Date.now() < deadline) {
+    const remainingMs = Math.max(1, deadline - Date.now());
+    await runDocker(['rm', '--force', containerName], {
+      acceptCodes: [1],
+      label: 'fixture-container-timeout-cleanup',
+      timeoutMs: Math.min(2_000, remainingMs),
+    });
+    const matches = await matchingFixtureWorkerContainers(containerName);
+    if (matches.length === 0) {
+      absentSince ??= Date.now();
+      if (Date.now() - absentSince >= fixtureCleanupQuietPeriodMs) return;
+    } else {
+      absentSince = undefined;
+    }
+    await delay(Math.min(100, Math.max(1, deadline - Date.now())));
+  }
+  fail('M2_FIXTURE_CONTAINER_CLEANUP_FAILED');
+}
+
+export async function listFixtureWorkerContainers(containerName) {
+  if (!fixtureContainerNamePattern.test(containerName)) fail('M2_FIXTURE_CONTAINER_NAME_INVALID');
+  return await matchingFixtureWorkerContainers(containerName);
+}
+
+async function runWorkerImageCommand(hostRoot, executable, args, options = {}) {
+  const mountRoot = process.platform === 'win32' ? windowsToWslPath(hostRoot) : hostRoot;
+  const label = options.label ?? 'worker-image-command';
+  const containerName = `${fixtureContainerPrefix}${randomUUID()}`;
+  const groupArgs = await workerMountGroupArgs(hostRoot);
+  const controller = new AbortController();
+  let timedOut = false;
+  const abort = () => controller.abort();
+  options.signal?.addEventListener('abort', abort, { once: true });
+  if (options.signal?.aborted) abort();
+  const timer = options.timeoutMs
+    ? setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, options.timeoutMs)
+    : undefined;
+  let result;
+  try {
+    result = await runDocker(
+      [
+        'run',
+        '--rm',
+        '--name',
+        containerName,
+        '--read-only',
+        '--network',
+        'none',
+        '--cap-drop',
+        'ALL',
+        '--security-opt',
+        'no-new-privileges:true',
+        '--pids-limit',
+        '32',
+        '--memory',
+        '512m',
+        '--memory-swap',
+        '512m',
+        '--cpus',
+        '1',
+        '--tmpfs',
+        '/tmp/scanner:rw,noexec,nosuid,nodev,size=128m,uid=65532,gid=65532,mode=0700',
+        '--user',
+        '65532:65532',
+        ...groupArgs,
+        '--volume',
+        `${mountRoot}:/work:${options.readOnlyMount ? 'ro' : 'rw'}`,
+        '--entrypoint',
+        executable,
+        workerImage,
+        ...args.map((value) => containerPath(hostRoot, value)),
+      ],
+      { label, signal: controller.signal },
+    );
+  } catch (error) {
+    if (controller.signal.aborted) {
+      await removeFixtureWorkerContainer(containerName);
+    }
+    if (timedOut) {
+      throw Object.assign(new Error(`M2_INTEGRATION_PROCESS_TIMEOUT:${label}`), {
+        fixtureContainerName: containerName,
+      });
+    }
+    const exit = Number.isInteger(error?.exitCode) ? error.exitCode : 'spawn';
+    const detail = boundedProcessDetail(error?.stderr ?? error?.cause?.message, [
+      mountRoot,
+      hostRoot,
+      repositoryRoot,
+    ]);
+    throw new Error(`M2_INTEGRATION_PROCESS_FAILED:${label}:exit=${exit}:stderr=${detail}`);
+  } finally {
+    if (timer) clearTimeout(timer);
+    options.signal?.removeEventListener('abort', abort);
+  }
   if (
     Buffer.byteLength(result.stdout) > (options.maxStdoutBytes ?? 64 * 1024) ||
     Buffer.byteLength(result.stderr) > (options.maxStderrBytes ?? 64 * 1024)
@@ -169,6 +333,10 @@ async function runWorkerImageCommand(hostRoot, executable, args, options = {}) {
     fail('M2_REMUX_CONTROL_OUTPUT_OVERSIZED');
   }
   return result;
+}
+
+export async function runFixtureWorkerCommand(hostRoot, executable, args, options = {}) {
+  return await runWorkerImageCommand(hostRoot, executable, args, options);
 }
 
 function createContainerRemuxRunner(hostRoot) {
@@ -705,94 +873,172 @@ async function maximumImage() {
   return encoded;
 }
 
-async function generateAvFixtures(directory) {
-  const m4a = join(directory, 'integration-voice.m4a');
-  const audioMp4 = join(directory, 'integration-audio.mp4');
-  const videoMp4 = join(directory, 'integration-completion.mp4');
-  await runWorkerImageCommand(
+export async function verifyAvFixture(directory, path, expectedStreams, label) {
+  const result = await runWorkerImageCommand(
     directory,
-    '/opt/sallah-media/bin/ffmpeg',
+    '/opt/sallah-media/bin/ffprobe',
     [
       '-v',
       'error',
-      '-nostdin',
-      '-f',
-      'lavfi',
-      '-i',
-      'sine=frequency=440:duration=1',
-      '-c:a',
-      'aac',
-      '-b:a',
-      '64k',
-      '-metadata',
-      'title=IntegrationPrivate',
-      '-f',
-      'ipod',
-      '-y',
-      m4a,
+      '-show_entries',
+      'format=format_name,duration,size:stream=index,codec_type,codec_name',
+      '-of',
+      'json',
+      path,
     ],
-    { label: 'generate-integration-m4a' },
+    {
+      label: `verify-${label}`,
+      maxStdoutBytes: 16 * 1024,
+      maxStderrBytes: 8 * 1024,
+      readOnlyMount: true,
+      timeoutMs: 10_000,
+    },
   );
-  await runWorkerImageCommand(
-    directory,
-    '/opt/sallah-media/bin/ffmpeg',
-    [
-      '-v',
-      'error',
-      '-nostdin',
-      '-f',
-      'lavfi',
-      '-i',
-      'sine=frequency=550:duration=1',
-      '-c:a',
-      'aac',
-      '-b:a',
-      '64k',
-      '-metadata',
-      'title=IntegrationPrivate',
-      '-f',
-      'mp4',
-      '-y',
-      audioMp4,
-    ],
-    { label: 'generate-integration-audio-mp4' },
-  );
-  await runWorkerImageCommand(
-    directory,
-    '/opt/sallah-media/bin/ffmpeg',
-    [
-      '-v',
-      'error',
-      '-nostdin',
-      '-f',
-      'lavfi',
-      '-i',
-      'color=c=black:s=32x32:d=1',
-      '-f',
-      'lavfi',
-      '-i',
-      'anullsrc=r=48000:cl=stereo',
-      '-shortest',
-      '-c:v',
-      'libx264',
-      '-pix_fmt',
-      'yuv420p',
-      '-c:a',
-      'aac',
-      '-metadata',
-      'title=IntegrationPrivate',
-      '-f',
-      'mp4',
-      '-y',
-      videoMp4,
-    ],
-    { label: 'generate-integration-video-mp4' },
-  );
-  return {
-    m4a: Uint8Array.from(await readFile(m4a)),
-    audioMp4: Uint8Array.from(await readFile(audioMp4)),
-    videoMp4: Uint8Array.from(await readFile(videoMp4)),
-  };
+  let probe;
+  try {
+    probe = JSON.parse(result.stdout);
+  } catch {
+    fail(`M2_FIXTURE_PROBE_INVALID:${label}`);
+  }
+  const streams = Array.isArray(probe?.streams) ? probe.streams : [];
+  const actualStreams = streams.map((stream) => `${stream.codec_type}:${stream.codec_name}`).sort();
+  if (JSON.stringify(actualStreams) !== JSON.stringify([...expectedStreams].sort())) {
+    fail(`M2_FIXTURE_STREAMS_INVALID:${label}`);
+  }
+  const formatNames = String(probe?.format?.format_name ?? '').split(',');
+  const duration = Number(probe?.format?.duration);
+  const reportedSize = Number(probe?.format?.size);
+  const file = await readFile(path);
+  if (
+    !formatNames.includes('mov') ||
+    !formatNames.includes('mp4') ||
+    !Number.isFinite(duration) ||
+    duration < 0.5 ||
+    duration > 2 ||
+    !Number.isSafeInteger(reportedSize) ||
+    reportedSize !== file.byteLength ||
+    file.byteLength === 0 ||
+    file.byteLength > 1024 * 1024
+  ) {
+    fail(`M2_FIXTURE_FORMAT_INVALID:${label}`);
+  }
+  return Uint8Array.from(file);
+}
+
+export async function generateAvFixtures(directory) {
+  const identity = randomUUID();
+  const m4a = join(directory, `${identity}-voice.m4a`);
+  const audioMp4 = join(directory, `${identity}-audio.mp4`);
+  const videoMp4 = join(directory, `${identity}-completion.mp4`);
+  const commonInput = ['-v', 'error', '-nostdin', '-protocol_whitelist', 'file,pipe,fd'];
+  try {
+    await runWorkerImageCommand(
+      directory,
+      '/opt/sallah-media/bin/ffmpeg',
+      [
+        ...commonInput,
+        '-f',
+        'lavfi',
+        '-i',
+        'sine=frequency=440:duration=1',
+        '-c:a',
+        'aac',
+        '-b:a',
+        '64k',
+        '-threads',
+        '1',
+        '-metadata',
+        'title=IntegrationPrivate',
+        '-f',
+        'ipod',
+        '-y',
+        m4a,
+      ],
+      {
+        label: 'generate-integration-m4a',
+        maxStdoutBytes: 8 * 1024,
+        maxStderrBytes: 8 * 1024,
+        timeoutMs: 15_000,
+      },
+    );
+    await runWorkerImageCommand(
+      directory,
+      '/opt/sallah-media/bin/ffmpeg',
+      [
+        ...commonInput,
+        '-f',
+        'lavfi',
+        '-i',
+        'sine=frequency=550:duration=1',
+        '-c:a',
+        'aac',
+        '-b:a',
+        '64k',
+        '-threads',
+        '1',
+        '-metadata',
+        'title=IntegrationPrivate',
+        '-f',
+        'mp4',
+        '-y',
+        audioMp4,
+      ],
+      {
+        label: 'generate-integration-audio-mp4',
+        maxStdoutBytes: 8 * 1024,
+        maxStderrBytes: 8 * 1024,
+        timeoutMs: 15_000,
+      },
+    );
+    await runWorkerImageCommand(
+      directory,
+      '/opt/sallah-media/bin/ffmpeg',
+      [
+        ...commonInput,
+        '-f',
+        'lavfi',
+        '-i',
+        'color=c=black:s=32x32:d=1',
+        '-f',
+        'lavfi',
+        '-i',
+        'anullsrc=r=48000:cl=stereo',
+        '-shortest',
+        '-c:v',
+        'libx264',
+        '-pix_fmt',
+        'yuv420p',
+        '-c:a',
+        'aac',
+        '-threads',
+        '1',
+        '-metadata',
+        'title=IntegrationPrivate',
+        '-f',
+        'mp4',
+        '-y',
+        videoMp4,
+      ],
+      {
+        label: 'generate-integration-video-mp4',
+        maxStdoutBytes: 8 * 1024,
+        maxStderrBytes: 8 * 1024,
+        timeoutMs: 15_000,
+      },
+    );
+    const [m4aBytes, audioMp4Bytes, videoMp4Bytes] = await Promise.all([
+      verifyAvFixture(directory, m4a, ['audio:aac'], 'integration-m4a'),
+      verifyAvFixture(directory, audioMp4, ['audio:aac'], 'integration-audio-mp4'),
+      verifyAvFixture(directory, videoMp4, ['audio:aac', 'video:h264'], 'integration-video-mp4'),
+    ]);
+    return { m4a: m4aBytes, audioMp4: audioMp4Bytes, videoMp4: videoMp4Bytes };
+  } finally {
+    await Promise.all([
+      rm(m4a, { force: true }),
+      rm(audioMp4, { force: true }),
+      rm(videoMp4, { force: true }),
+    ]);
+  }
 }
 
 async function proveAutonomousStorageCleanup(scanner, context, workerOptions) {

@@ -82,6 +82,7 @@ test('CI has a mandatory scanner job covering every repository/local gate', asyn
     'pnpm test:media-scanner:unit',
     'pnpm test:edge-memory',
     'pnpm test:media-scanner',
+    'pnpm test:media-scanner:fixtures',
     'pnpm test:media-scanner:remux',
     'docker build --pull --file infra/media-scanner/worker.Dockerfile --tag sallah-media-scanner-worker:m2v-node24.19.0-image1.13.0 .',
     'supabase db reset',
@@ -275,6 +276,10 @@ test('root scripts expose a deterministic workflow gate and the real integration
   assert.equal(
     packageJson.scripts['test:edge-memory'],
     'node --test scripts/test-edge-memory.test.mjs',
+  );
+  assert.equal(
+    packageJson.scripts['test:media-scanner:fixtures'],
+    'node --test scripts/test-media-scanner-fixtures.test.mjs',
   );
   assert.equal(
     packageJson.scripts['test:media-scanner:supabase'],

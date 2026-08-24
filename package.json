@@ -17,6 +17,7 @@
     "test:local-supabase": "node scripts/test-local-supabase.mjs",
     "test:media-scanner": "node scripts/test-media-scanner.mjs",
     "test:media-scanner:remux": "node scripts/test-media-scanner-remux.mjs",
+    "test:media-scanner:fixtures": "node --test scripts/test-media-scanner-fixtures.test.mjs",
     "test:media-scanner:supabase": "node scripts/test-media-scanner-supabase.mjs",
     "test:media-scanner:cleanup": "node scripts/test-media-scanner-supabase.mjs --self-check",
     "test:media-scanner:unit": "node --test scripts/test-media-scanner.test.mjs",

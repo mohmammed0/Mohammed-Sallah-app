@@ -83,6 +83,7 @@ jobs:
         env:
           SALLAH_MEDIA_SCANNER_SIGNATURE_MODE: deterministic
       - run: docker build --pull --file infra/media-scanner/worker.Dockerfile --tag sallah-media-scanner-worker:m2v-node24.19.0-image1.13.0 .
+      - run: pnpm test:media-scanner:fixtures
       - run: pnpm test:media-scanner:remux
       - run: supabase start
       - run: supabase db reset
