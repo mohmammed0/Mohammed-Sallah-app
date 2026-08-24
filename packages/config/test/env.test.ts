@@ -5,6 +5,10 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { validateServerEnvironment } from '../src/env';
+import {
+  productionRequiredKeys,
+  validateProductionConfiguration,
+} from '../../../scripts/production-config-validation.mjs';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const productionValidator = resolve(repositoryRoot, 'scripts/validate-production-config.mjs');
@@ -63,14 +67,21 @@ const productionGateBase = {
   SALLAH_ANDROID_GOOGLE_MAPS_API_KEY: 'test-maps-key',
 };
 
-function runProductionGate(overrides: Record<string, string | undefined>) {
+function runNode(args: string[], overrides: Record<string, string | undefined>, timeout = 2_000) {
   const env: NodeJS.ProcessEnv = { ...process.env, ...productionGateBase, ...overrides };
   for (const [key, value] of Object.entries(env)) if (value === undefined) delete env[key];
-  return spawnSync(process.execPath, ['--experimental-strip-types', productionValidator], {
+  return spawnSync(process.execPath, args, {
     cwd: repositoryRoot,
     env,
     encoding: 'utf8',
+    timeout,
+    killSignal: 'SIGTERM',
+    windowsHide: true,
   });
+}
+
+function runProductionGate(overrides: Record<string, string | undefined>) {
+  return runNode(['--experimental-strip-types', productionValidator], overrides);
 }
 
 describe('environment safety', () => {
@@ -209,12 +220,21 @@ describe('environment safety', () => {
   });
 
   it('makes the named production gate enforce every scanner variable', () => {
-    for (const key of Object.keys(externalScanner)) {
-      const result = runProductionGate({ [key]: undefined });
-      expect(`${result.stdout}${result.stderr}`, key).toMatch(/scann(?:er|ing)/i);
-      expect(result.status, key).not.toBe(0);
+    for (const key of productionRequiredKeys) {
+      if (!key.startsWith('UPLOAD_SCANNER_')) continue;
+      const result = validateProductionConfiguration({
+        ...productionGateBase,
+        [key]: undefined,
+      });
+      expect(result.message, key).toMatch(/scann(?:er|ing)/i);
+      expect(result.ok, key).toBe(false);
     }
-    expect(runProductionGate({}).status).toBe(0);
+
+    const rejected = runProductionGate({ UPLOAD_SCANNER_MODE: undefined });
+    expect(`${rejected.stdout}${rejected.stderr}`).toMatch(/scann(?:er|ing)/i);
+    expect(rejected.status).not.toBe(0);
+    const accepted = runProductionGate({});
+    expect(accepted.status, `${accepted.stdout}${accepted.stderr}`).toBe(0);
   });
 
   it('blocks placeholder scanner origins and HMAC secrets in the named production gate', () => {
@@ -224,11 +244,18 @@ describe('environment safety', () => {
       ['UPLOAD_SCANNER_CONTROL_SECRET', 'changeme-scanner-control-secret-000000'],
       ['UPLOAD_SCANNER_ATTESTATION_SECRET', 'placeholder-scanner-attestation-00000'],
     ] as const) {
-      const result = runProductionGate({ [key]: value });
-      expect(result.status, key).not.toBe(0);
-      expect(`${result.stdout}${result.stderr}`, key).toMatch(
-        /Production configuration blocked.*placeholder/i,
-      );
+      const result = validateProductionConfiguration({ ...productionGateBase, [key]: value });
+      expect(result.ok, key).toBe(false);
+      expect(result.message, key).toMatch(/Production configuration blocked.*placeholder/i);
     }
+  });
+
+  it('bounds validator subprocesses and restores the parent environment', () => {
+    const before = process.env.APP_ENV;
+    const result = runNode(['-e', 'setInterval(() => undefined, 1_000)'], {}, 100);
+
+    expect(result.error?.message).toMatch(/timed out|ETIMEDOUT/i);
+    expect(result.status).toBeNull();
+    expect(process.env.APP_ENV).toBe(before);
   });
 });
