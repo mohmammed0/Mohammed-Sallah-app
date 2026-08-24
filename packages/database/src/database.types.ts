@@ -7156,6 +7156,16 @@ export type Database = {
         Args: { p_upload_id: string; p_user_id: string };
         Returns: Json;
       };
+      authorize_media_scan_readback: {
+        Args: {
+          p_attempt_id: string;
+          p_attempt_token: string;
+          p_operation_id: string;
+          p_output_sha256: string;
+          p_output_size_bytes: number;
+        };
+        Returns: Json;
+      };
       authorize_message_media: {
         Args: { p_upload_id: string; p_user_id: string };
         Returns: Json;
@@ -7176,6 +7186,24 @@ export type Database = {
         Args: { p_upload_id: string; p_user_id: string };
         Returns: Json;
       };
+      claim_media_scan_artifact_cleanup: {
+        Args: {
+          p_cleanup_token_hash: string;
+          p_operation_id: string;
+          p_worker_id: string;
+        };
+        Returns: Json;
+      };
+      claim_media_scan_job: {
+        Args: {
+          p_attempt_token_hash: string;
+          p_operation_id: string;
+          p_signature_max_age_seconds: number;
+          p_signature_timestamp: string;
+          p_worker_id: string;
+        };
+        Returns: Json;
+      };
       claim_privacy_job: { Args: { p_worker_id: string }; Returns: Json };
       claim_transcription_job: {
         Args: {
@@ -7190,6 +7218,10 @@ export type Database = {
       };
       claim_upload_quarantine_cleanup: {
         Args: { p_worker_id: string };
+        Returns: Json;
+      };
+      cleanup_expired_media_scanner_nonces: {
+        Args: { p_operation_id: string };
         Returns: Json;
       };
       complete_account_deletion: {
@@ -7219,6 +7251,15 @@ export type Database = {
         };
         Returns: Json;
       };
+      complete_media_scan_artifact_cleanup: {
+        Args: {
+          p_artifact_id: string;
+          p_cleanup_token: string;
+          p_operation_id: string;
+          p_worker_id: string;
+        };
+        Returns: Json;
+      };
       complete_upload_quarantine_cleanup: {
         Args: { p_upload_id: string; p_worker_id: string };
         Returns: undefined;
@@ -7229,6 +7270,17 @@ export type Database = {
           p_intent_id: string;
           p_provider_reference: string;
           p_reason: string;
+        };
+        Returns: Json;
+      };
+      consume_media_scanner_nonce: {
+        Args: {
+          p_action: string;
+          p_body_sha256: string;
+          p_nonce: string;
+          p_operation_id: string;
+          p_request_timestamp: number;
+          p_worker_id: string;
         };
         Returns: Json;
       };
@@ -7330,6 +7382,25 @@ export type Database = {
         };
         Returns: undefined;
       };
+      fail_media_scan_artifact_cleanup: {
+        Args: {
+          p_artifact_id: string;
+          p_cleanup_token: string;
+          p_failure_category: string;
+          p_operation_id: string;
+          p_worker_id: string;
+        };
+        Returns: Json;
+      };
+      fail_media_scan_attempt: {
+        Args: {
+          p_attempt_id: string;
+          p_attempt_token: string;
+          p_failure_category: string;
+          p_operation_id: string;
+        };
+        Returns: Json;
+      };
       fail_privacy_job: {
         Args: {
           p_error_category: string;
@@ -7345,6 +7416,15 @@ export type Database = {
           p_worker_id: string;
         };
         Returns: undefined;
+      };
+      finalize_media_scan_job: {
+        Args: {
+          p_attempt_id: string;
+          p_attempt_token: string;
+          p_manifest_fingerprint: string;
+          p_operation_id: string;
+        };
+        Returns: Json;
       };
       get_account_deletion_summary: { Args: never; Returns: Json };
       get_authorized_job_location:
@@ -7383,6 +7463,14 @@ export type Database = {
         Args: { p_conversation_id: string };
         Returns: Json;
       };
+      get_media_scan_attempt_status: {
+        Args: { p_attempt_id: string; p_attempt_token: string };
+        Returns: Json;
+      };
+      get_my_file_upload_status: {
+        Args: { p_upload_id: string };
+        Returns: Json;
+      };
       get_my_marketplace_reports: { Args: { p_limit?: number }; Returns: Json };
       get_privacy_retention_config: { Args: never; Returns: Json };
       get_provider_request_brief: {
@@ -7407,6 +7495,14 @@ export type Database = {
           p_permissions: string[];
           p_reason: string;
           p_user_id: string;
+        };
+        Returns: Json;
+      };
+      heartbeat_media_scan_attempt: {
+        Args: {
+          p_attempt_id: string;
+          p_attempt_token: string;
+          p_operation_id: string;
         };
         Returns: Json;
       };
@@ -7453,6 +7549,23 @@ export type Database = {
             };
             Returns: string;
           };
+      prepare_media_scan_output: {
+        Args: {
+          p_attempt_id: string;
+          p_attempt_token: string;
+          p_input_mime_type: string;
+          p_input_sha256: string;
+          p_input_size_bytes: number;
+          p_operation_id: string;
+          p_output_mime_type: string;
+          p_output_sha256: string;
+          p_output_size_bytes: number;
+          p_prepare_fingerprint: string;
+          p_sanitizer_id: string;
+          p_sanitizer_version: string;
+        };
+        Returns: Json;
+      };
       publish_service_request: { Args: { payload: Json }; Returns: string };
       reconcile_blocked_account_deletions: {
         Args: { p_request_id?: string };
@@ -7472,6 +7585,16 @@ export type Database = {
         };
         Returns: string;
       };
+      record_media_scan_attestation: {
+        Args: {
+          p_attempt_id: string;
+          p_attempt_token: string;
+          p_manifest: Json;
+          p_manifest_fingerprint: string;
+          p_operation_id: string;
+        };
+        Returns: Json;
+      };
       reject_file_upload: {
         Args: {
           p_failure_category: string;
@@ -7480,6 +7603,15 @@ export type Database = {
           p_user_id: string;
         };
         Returns: undefined;
+      };
+      reject_media_scan_job: {
+        Args: {
+          p_attempt_id: string;
+          p_attempt_token: string;
+          p_failure_category: string;
+          p_operation_id: string;
+        };
+        Returns: Json;
       };
       request_account_deletion: { Args: never; Returns: string };
       request_cancellation:
@@ -7625,6 +7757,10 @@ export type Database = {
           p_duration_minutes: number;
           p_job_id: string;
         };
+        Returns: Json;
+      };
+      start_or_get_media_scan: {
+        Args: { p_operation_id: string; p_upload_id: string };
         Returns: Json;
       };
       stop_job_location_sharing: {

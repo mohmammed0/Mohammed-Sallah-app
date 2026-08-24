@@ -1,6 +1,7 @@
 import { z } from 'npm:zod@4.4.3';
 import { authenticatedUser, serviceClient } from '../_shared/auth.ts';
 import { corsHeaders, json, safeError } from '../_shared/http.ts';
+import { parseAppEnvironment } from '../_shared/scanner-control.ts';
 
 const inputSchema = z.object({
   uploadId: z.uuid(),
@@ -135,6 +136,7 @@ export async function handleMediaAccess(request: Request) {
     return new Response(null, { status: 204, headers: mediaCorsHeaders(request) });
   }
   try {
+    const environment = parseAppEnvironment(Deno.env.get('APP_ENV'));
     if (request.method === 'GET') {
       const url = new URL(request.url);
       const input = proxyQuerySchema.parse(Object.fromEntries(url.searchParams));
@@ -197,7 +199,6 @@ export async function handleMediaAccess(request: Request) {
     if (signError || !signed?.signedUrl) throw new Error('MEDIA_SIGNING_FAILED');
     const signedUrl = new URL(signed.signedUrl, request.url);
     if (signedUrl.hostname === 'kong') {
-      const environment = Deno.env.get('APP_ENV') ?? 'local';
       const configuredPublicUrl = Deno.env.get('SUPABASE_PUBLIC_URL');
       if (!configuredPublicUrl && !['local', 'test'].includes(environment)) {
         throw new Error('PUBLIC_STORAGE_URL_NOT_CONFIGURED');

@@ -4,10 +4,7 @@ import { authenticatedUser, serviceClient } from '../_shared/auth.ts';
 import { corsHeaders, json, safeError } from '../_shared/http.ts';
 import { runClaimedTranscription } from '../_shared/transcription-claim.ts';
 const schema = z.object({
-  storagePath: z
-    .string()
-    .regex(/^[0-9a-f-]{36}\//)
-    .max(500),
+  uploadId: z.uuid(),
   locale: z.enum(['ar', 'en', 'ur', 'hi']),
   clientMessageId: z.string().min(8).max(128),
 });
@@ -19,17 +16,30 @@ Deno.serve(async (request) => {
   try {
     const user = await authenticatedUser(request);
     const input = schema.parse(await request.json());
-    if (!input.storagePath.startsWith(`${user.id}/`)) {
-      return json(request, { error: 'access_denied' }, 403);
-    }
     const db = serviceClient();
+    const uploadResult = await db.from('file_uploads').select(
+      'id,user_id,purpose,status,target_bucket,final_path,detected_mime_type,size_bytes',
+    ).eq('id', input.uploadId).eq('user_id', user.id).maybeSingle();
+    const upload = z.object({
+      id: z.uuid(),
+      user_id: z.uuid(),
+      purpose: z.literal('request_audio'),
+      status: z.literal('clean'),
+      target_bucket: z.string().min(1).max(100),
+      final_path: z.string().min(1).max(500),
+      detected_mime_type: z.literal('audio/mp4'),
+      size_bytes: z.number().int().positive().max(20 * 1024 * 1024),
+    }).safeParse(uploadResult.data);
+    if (uploadResult.error || !upload.success) {
+      return json(request, { error: 'clean_audio_required' }, 403);
+    }
     const model = Deno.env.get('TRANSCRIPTION_MODEL') ?? 'gpt-4o-mini-transcribe';
     const result = await runClaimedTranscription({
       async claim() {
         const { data, error } = await db.rpc('claim_transcription_job', {
           p_user_id: user.id,
           p_client_message_id: input.clientMessageId,
-          p_private_audio_path: input.storagePath,
+          p_private_audio_path: upload.data.final_path,
           p_source_locale: input.locale,
           p_provider: 'openai',
           p_model: model,
@@ -47,12 +57,14 @@ Deno.serve(async (request) => {
         ]).parse(data);
       },
       async transcribe(_jobId, _claimToken) {
-        const { data, error } = await db.storage.from('request-media').download(input.storagePath);
+        const { data, error } = await db.storage.from(upload.data.target_bucket).download(
+          upload.data.final_path,
+        );
         if (error || !data) throw new Error('PRIVATE_AUDIO_NOT_FOUND');
         const apiKey = Deno.env.get('OPENAI_API_KEY');
         if (!apiKey) throw new Error('TRANSCRIPTION_NOT_CONFIGURED');
         const client = new OpenAI({ apiKey });
-        const file = new File([data], input.storagePath.split('/').at(-1) ?? 'recording.m4a', {
+        const file = new File([data], 'recording.m4a', {
           type: data.type || 'audio/mp4',
         });
         const transcript = await client.audio.transcriptions.create({

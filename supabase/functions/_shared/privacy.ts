@@ -27,16 +27,49 @@ export const storageObjectSchema = z.object({
   name: z.string().min(1).max(1024),
 });
 
-export const quarantineCleanupSchema = z.object({
-  uploadId: z.uuid(),
-  userId: z.uuid(),
-  bucket: z.literal('quarantine'),
-  path: z.string().min(1).max(1024),
+const cleanupPathSchema = z.string().min(1).max(500).refine(
+  (path) => !path.includes('..') && !path.includes('\\') && !path.startsWith('/'),
+  'invalid_cleanup_path',
+);
+const cleanupTargetBucketSchema = z.enum([
+  'request-media',
+  'provider-documents',
+  'completion-proofs',
+  'message-attachments',
+]);
+const opaqueAttemptPath =
+  /^[0-9a-f]{2}\/[0-9a-f]{2}\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const opaqueFinalPath =
+  /^clean\/[0-9a-f]{2}\/[0-9a-f]{2}\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+export const mediaArtifactCleanupSchema = z.object({
+  artifactId: z.uuid(),
+  kind: z.enum(['quarantine', 'scan_input', 'scan_output', 'final_candidate']),
+  bucket: z.string().min(1).max(100),
+  path: cleanupPathSchema,
+  leaseExpiresAt: z.iso.datetime({ offset: true }),
+}).strict().superRefine((artifact, context) => {
+  const valid = artifact.kind === 'quarantine'
+    ? artifact.bucket === 'quarantine'
+    : artifact.kind === 'scan_input'
+    ? artifact.bucket === 'scan-input' && opaqueAttemptPath.test(artifact.path)
+    : artifact.kind === 'scan_output'
+    ? artifact.bucket === 'scan-output' && opaqueAttemptPath.test(artifact.path)
+    : cleanupTargetBucketSchema.safeParse(artifact.bucket).success &&
+      opaqueFinalPath.test(artifact.path);
+  if (!valid) context.addIssue({ code: 'custom', message: 'invalid_media_artifact_cleanup' });
 });
+
+export const scannerNonceCleanupSchema = z.object({
+  deleted: z.number().int().nonnegative(),
+  requestNoncesDeleted: z.number().int().nonnegative(),
+  attestationNoncesDeleted: z.number().int().nonnegative(),
+}).strict();
 
 export type PrivacyJob = z.infer<typeof privacyJobSchema>;
 export type PrivacyRetention = z.infer<typeof privacyRetentionSchema>;
 export type StorageObject = z.infer<typeof storageObjectSchema>;
+export type MediaArtifactCleanup = z.infer<typeof mediaArtifactCleanupSchema>;
 
 export class PrivacyWorkerError extends Error {
   constructor(readonly category: string) {

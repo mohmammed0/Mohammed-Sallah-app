@@ -73,6 +73,9 @@ verify_jwt = false
 [functions.scan-upload]
 verify_jwt = true
 
+[functions.scanner-control]
+verify_jwt = false
+
 [functions.translate-provider-brief]
 verify_jwt = true
 

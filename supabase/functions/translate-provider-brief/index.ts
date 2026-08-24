@@ -1,6 +1,7 @@
 import { z } from 'npm:zod@4.4.3';
 import { authenticatedUser, serviceClient } from '../_shared/auth.ts';
 import { corsHeaders, json, safeError } from '../_shared/http.ts';
+import { parseAppEnvironment } from '../_shared/scanner-control.ts';
 import {
   briefLocaleSchema,
   deterministicTestTranslation,
@@ -26,6 +27,7 @@ Deno.serve(async (request) => {
   if (request.method !== 'POST') return json(request, { error: 'method_not_allowed' }, 405);
   const started = Date.now();
   try {
+    const environment = parseAppEnvironment(Deno.env.get('APP_ENV'));
     const user = await authenticatedUser(request);
     const input = providerBriefRequestSchema.parse(await request.json());
     const db = serviceClient();
@@ -95,9 +97,8 @@ Deno.serve(async (request) => {
       ),
     });
     const sourceHash = await sha256(JSON.stringify(original));
-    const environment = Deno.env.get('APP_ENV') ?? Deno.env.get('SALLAH_ENV') ?? 'local';
     const configuredProvider = Deno.env.get('TRANSLATION_PROVIDER') ?? 'disabled';
-    const testProviderAllowed = environment !== 'production' &&
+    const testProviderAllowed = ['local', 'test'].includes(environment) &&
       configuredProvider === 'deterministic';
     const providerName = sourceLocale === targetLocale
       ? 'identity'
