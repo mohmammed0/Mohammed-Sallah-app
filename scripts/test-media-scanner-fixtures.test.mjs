@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readdir, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 
 import {
+  formatWorkerResultFailure,
   listFixtureWorkerContainers,
   generateAvFixtures,
   runFixtureWorkerCommand,
@@ -36,6 +37,73 @@ test('the pinned worker generates valid nonempty audio/video fixtures from a pri
     assert.deepEqual(await readdir(directory), [], 'fixture files must be removed after reading');
   });
 });
+
+test('the pinned worker can read a host-created private scanner attempt', async () => {
+  await withFixtureDirectory(async (directory) => {
+    const fixtures = await generateAvFixtures(directory);
+    const attemptDirectory = join(directory, 'attempt-private');
+    const inputPath = join(attemptDirectory, 'input.media');
+    await mkdir(attemptDirectory, { mode: 0o700 });
+    await writeFile(inputPath, fixtures.m4a, { flag: 'wx', mode: 0o600 });
+
+    const probe = await runFixtureWorkerCommand(
+      directory,
+      '/opt/sallah-media/bin/ffprobe',
+      ['-v', 'error', '-show_entries', 'format=format_name', inputPath],
+      {
+        label: 'private-attempt-probe',
+        readOnlyMount: true,
+        timeoutMs: 10_000,
+      },
+    );
+
+    assert.match(probe.stdout, /format_name=mov,mp4,m4a,3gp,3g2,mj2/u);
+    if (process.platform !== 'win32') {
+      const attemptMode = (await stat(attemptDirectory)).mode & 0o777;
+      const inputMode = (await stat(inputPath)).mode & 0o777;
+      assert.equal(attemptMode, 0o770, 'the attempt must remain private and group-traversable');
+      assert.equal(inputMode, 0o640, 'the input must remain private and group-readable');
+    }
+  });
+});
+
+test(
+  'a nested symlink cannot redirect a worker command path',
+  { skip: process.platform === 'win32' },
+  async () => {
+    await withFixtureDirectory(async (directory) => {
+      const fixtures = await generateAvFixtures(directory);
+      const targetDirectory = join(directory, 'attempt-target');
+      const linkedDirectory = join(directory, 'attempt-link');
+      await mkdir(targetDirectory, { mode: 0o770 });
+      await writeFile(join(targetDirectory, 'input.media'), fixtures.m4a, {
+        flag: 'wx',
+        mode: 0o640,
+      });
+      await symlink('attempt-target', linkedDirectory, 'dir');
+
+      await assert.rejects(
+        runFixtureWorkerCommand(
+          directory,
+          '/opt/sallah-media/bin/ffprobe',
+          [
+            '-v',
+            'error',
+            '-show_entries',
+            'format=format_name',
+            join(linkedDirectory, 'input.media'),
+          ],
+          {
+            label: 'linked-attempt-probe',
+            readOnlyMount: true,
+            timeoutMs: 10_000,
+          },
+        ),
+        /M2_FIXTURE_ARGUMENT_PATH_INVALID/u,
+      );
+    });
+  },
+);
 
 test('parallel fixture generation uses distinct paths and leaves no files behind', async () => {
   await withFixtureDirectory(async (directory) => {
@@ -108,6 +176,26 @@ test('a missing worker tool returns bounded actionable diagnostics without the h
       },
     );
   });
+});
+
+test('worker failures report only a bounded allowlisted stage', () => {
+  const details = {
+    attemptCount: 1,
+    jobState: 'retryable_failure',
+    attemptState: 'retryable_failure',
+    terminalCategory: 'scanner_unavailable',
+  };
+  assert.equal(
+    formatWorkerResultFailure('clean', 'retryable_failure', details, {
+      failureStage: 'remux_input_probe',
+    }),
+    'M2_WORKER_RESULT_INVALID:clean:retryable_failure:retryable_failure:retryable_failure:scanner_unavailable:stage=remux_input_probe:attempt=1',
+  );
+  const redacted = formatWorkerResultFailure('clean', 'retryable_failure', details, {
+    failureStage: 'https://secret.invalid/private/path?token=forbidden',
+  });
+  assert.match(redacted, /:stage=worker:attempt=1$/u);
+  assert.doesNotMatch(redacted, /secret|private|token|https/u);
 });
 
 test('FFprobe rejects an empty M4A instead of trusting file existence', async () => {

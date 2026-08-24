@@ -4,7 +4,7 @@ import { chmod, lstat, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'nod
 import { createRequire } from 'node:module';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -70,9 +70,31 @@ const requiredEvidence = [
   'protected-broker-authorization',
   'residue-equality',
 ];
+const safeWorkerStages = new Set([
+  'worker',
+  'media_policy',
+  'image_sanitizer',
+  'remux_input_probe',
+  'ffmpeg_remux',
+  'remux_output_probe',
+  'remux_complete',
+]);
 
 function fail(category) {
   throw new Error(category);
+}
+
+export function formatWorkerResultFailure(expected, resultStatus, details, diagnostics = {}) {
+  const stage = safeWorkerStages.has(diagnostics.failureStage)
+    ? diagnostics.failureStage
+    : safeWorkerStages.has(diagnostics.stage)
+      ? diagnostics.stage
+      : 'worker';
+  const attempt =
+    Number.isSafeInteger(details.attemptCount) && details.attemptCount >= 0
+      ? details.attemptCount
+      : '-';
+  return `M2_WORKER_RESULT_INVALID:${expected}:${resultStatus}:${details.jobState}:${details.attemptState}:${details.terminalCategory ?? '-'}:stage=${stage}:attempt=${attempt}`;
 }
 
 function windowsToWslPath(value) {
@@ -188,7 +210,53 @@ function boundedProcessDetail(value, redactions) {
   return detail.replaceAll(/\s+/gu, ' ').trim() || 'unavailable';
 }
 
-async function workerMountGroupArgs(hostRoot) {
+async function prepareWorkerCommandPath(hostRoot, value, workerGroupGid) {
+  if (value !== hostRoot && !value.startsWith(`${hostRoot}${sep}`)) return;
+  const root = resolve(hostRoot);
+  const candidate = resolve(value);
+  const relativePath = relative(root, candidate);
+  if (relativePath === '..' || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath)) {
+    fail('M2_FIXTURE_ARGUMENT_PATH_INVALID');
+  }
+  if (!relativePath) return;
+  const processUid = typeof process.getuid === 'function' ? process.getuid() : undefined;
+  let current = root;
+  const segments = relativePath.split(sep);
+  for (const [index, segment] of segments.entries()) {
+    current = join(current, segment);
+    let entry;
+    try {
+      entry = await lstat(current);
+    } catch (error) {
+      if (error?.code === 'ENOENT' && index === segments.length - 1) return;
+      fail('M2_FIXTURE_ARGUMENT_PATH_INVALID');
+    }
+    if (entry.isSymbolicLink()) fail('M2_FIXTURE_ARGUMENT_PATH_INVALID');
+    const ownedByHarness = processUid !== undefined && entry.uid === processUid;
+    const ownedByWorker = entry.uid === 65532;
+    if (!ownedByHarness && !ownedByWorker) fail('M2_FIXTURE_ARGUMENT_PATH_INVALID');
+    if (entry.isDirectory()) {
+      if (ownedByHarness) {
+        if (entry.gid !== workerGroupGid) fail('M2_FIXTURE_ARGUMENT_PATH_INVALID');
+        await chmod(current, 0o770);
+      } else if ((entry.mode & 0o700) !== 0o700) {
+        fail('M2_FIXTURE_ARGUMENT_PATH_INVALID');
+      }
+      continue;
+    }
+    if (!entry.isFile() || index !== segments.length - 1) {
+      fail('M2_FIXTURE_ARGUMENT_PATH_INVALID');
+    }
+    if (ownedByHarness) {
+      if (entry.gid !== workerGroupGid) fail('M2_FIXTURE_ARGUMENT_PATH_INVALID');
+      await chmod(current, 0o640);
+    } else if ((entry.mode & 0o400) === 0) {
+      fail('M2_FIXTURE_ARGUMENT_PATH_INVALID');
+    }
+  }
+}
+
+async function workerMountGroupArgs(hostRoot, args) {
   if (process.platform === 'win32') return [];
   const before = await lstat(hostRoot);
   if (!before.isDirectory() || before.isSymbolicLink()) {
@@ -201,6 +269,9 @@ async function workerMountGroupArgs(hostRoot) {
   const after = await stat(hostRoot);
   if ((after.mode & 0o007) !== 0 || (after.mode & 0o070) !== 0o070) {
     fail('M2_FIXTURE_MOUNT_MODE_INVALID');
+  }
+  for (const value of args) {
+    await prepareWorkerCommandPath(hostRoot, value, after.gid);
   }
   return ['--group-add', String(after.gid)];
 }
@@ -257,7 +328,7 @@ async function runWorkerImageCommand(hostRoot, executable, args, options = {}) {
   const mountRoot = process.platform === 'win32' ? windowsToWslPath(hostRoot) : hostRoot;
   const label = options.label ?? 'worker-image-command';
   const containerName = `${fixtureContainerPrefix}${randomUUID()}`;
-  const groupArgs = await workerMountGroupArgs(hostRoot);
+  const groupArgs = await workerMountGroupArgs(hostRoot, args);
   const controller = new AbortController();
   let timedOut = false;
   const abort = () => controller.abort();
@@ -339,15 +410,30 @@ export async function runFixtureWorkerCommand(hostRoot, executable, args, option
   return await runWorkerImageCommand(hostRoot, executable, args, options);
 }
 
-function createContainerRemuxRunner(hostRoot) {
+function createContainerRemuxRunner(hostRoot, diagnostics) {
+  let nextProbeStage = 'remux_input_probe';
   return async (command) => {
-    const result = await runWorkerImageCommand(hostRoot, command.executable, command.args, {
-      label: 'media-remux-command',
-      signal: command.signal,
-      maxStdoutBytes: command.maxStdoutBytes,
-      maxStderrBytes: command.maxStderrBytes,
-    });
-    return { stdout: result.stdout, stderr: result.stderr };
+    const stage =
+      command.executable === '/opt/sallah-media/bin/ffmpeg' ? 'ffmpeg_remux' : nextProbeStage;
+    diagnostics.stage = stage;
+    try {
+      const result = await runWorkerImageCommand(hostRoot, command.executable, command.args, {
+        label: 'media-remux-command',
+        signal: command.signal,
+        maxStdoutBytes: command.maxStdoutBytes,
+        maxStderrBytes: command.maxStderrBytes,
+      });
+      if (stage === 'ffmpeg_remux') nextProbeStage = 'remux_output_probe';
+      if (stage === 'remux_output_probe') {
+        nextProbeStage = 'remux_input_probe';
+        diagnostics.stage = 'remux_complete';
+      }
+      return { stdout: result.stdout, stderr: result.stderr };
+    } catch (error) {
+      diagnostics.failureStage = stage;
+      nextProbeStage = 'remux_input_probe';
+      throw error;
+    }
   };
 }
 
@@ -656,6 +742,7 @@ async function waitForReadiness(clamd) {
 }
 
 function scannerRuntime(scanner, options) {
+  const diagnostics = { stage: 'worker' };
   const clamd = new scanner.ClamdClient({
     host: '127.0.0.1',
     port: options.clamdPort,
@@ -667,12 +754,14 @@ function scannerRuntime(scanner, options) {
   });
   const imageSanitizer = scanner.createIsolatedImageSanitizer();
   const remux = scanner.createFfmpegRemuxer({
-    run: createContainerRemuxRunner(options.tempRoot),
+    run: createContainerRemuxRunner(options.tempRoot, diagnostics),
   });
   const sanitizer = async (input) => {
     if (input.declaredMimeType !== 'audio/mp4' && input.declaredMimeType !== 'video/mp4') {
+      diagnostics.stage = 'image_sanitizer';
       return await imageSanitizer(input);
     }
+    diagnostics.stage = 'media_policy';
     try {
       return await remux(input);
     } catch (error) {
@@ -684,6 +773,7 @@ function scannerRuntime(scanner, options) {
   };
   return {
     clamd,
+    diagnostics,
     pipeline: scanner.createScannerPipeline({ malwareScanner: clamd, sanitizer }),
   };
 }
@@ -770,7 +860,13 @@ function createWorker(scanner, options) {
     readiness: (signal) => runtime.clamd.readiness(signal),
     ...(upload ? { upload } : {}),
   });
-  return { worker, control: base, clamd: runtime.clamd, captured };
+  return {
+    worker,
+    control: base,
+    clamd: runtime.clamd,
+    captured,
+    diagnostics: runtime.diagnostics,
+  };
 }
 
 async function runWorkerFor(scanner, options, uploadId, expected, behavior = {}) {
@@ -778,9 +874,7 @@ async function runWorkerFor(scanner, options, uploadId, expected, behavior = {})
   const result = await runtime.worker.runOne();
   const details = await attemptDetails(uploadId);
   if (result.status !== expected) {
-    fail(
-      `M2_WORKER_RESULT_INVALID:${expected}:${result.status}:${details.jobState}:${details.attemptState}:${details.terminalCategory ?? '-'}`,
-    );
+    fail(formatWorkerResultFailure(expected, result.status, details, runtime.diagnostics));
   }
   return { ...runtime, result, details };
 }
