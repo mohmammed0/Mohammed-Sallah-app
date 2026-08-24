@@ -15,6 +15,13 @@
     "test": "turbo test",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:local-supabase": "node scripts/test-local-supabase.mjs",
+    "test:media-scanner": "node scripts/test-media-scanner.mjs",
+    "test:media-scanner:remux": "node scripts/test-media-scanner-remux.mjs",
+    "test:media-scanner:supabase": "node scripts/test-media-scanner-supabase.mjs",
+    "test:media-scanner:cleanup": "node scripts/test-media-scanner-supabase.mjs --self-check",
+    "test:media-scanner:unit": "node --test scripts/test-media-scanner.test.mjs",
+    "test:media-scanner:gates": "node --test scripts/test-media-scanner-ci.test.mjs",
+    "test:edge-memory": "node --test scripts/test-edge-memory.test.mjs",
     "test:legacy-upgrade": "node scripts/test-legacy-timing-upgrade.mjs",
     "test:db": "node scripts/run-command.mjs supabase test db",
     "test:security": "vitest run tests/security",
@@ -25,16 +32,18 @@
     "format:check": "prettier --check .",
     "docs:check:test": "node --test scripts/check-docs.test.mjs",
     "docs:check": "pnpm docs:check:test && node scripts/check-docs.mjs",
-    "validate": "pnpm format:check && pnpm docs:check && pnpm i18n:check && pnpm customer-captures:check && pnpm data-inventory:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "validate": "pnpm format:check && pnpm docs:check && pnpm i18n:check && pnpm customer-captures:check && pnpm data-inventory:check && pnpm test:media-scanner:gates && pnpm lint && pnpm typecheck && pnpm test && pnpm build:validate",
+    "build:validate": "node scripts/run-validation-build.mjs",
     "mobile:expo-check": "pnpm --filter @sallah/mobile exec expo export --platform android --output-dir .expo-check",
     "mobile:expo-doctor": "pnpm --filter @sallah/mobile exec expo-doctor",
-    "config:validate:production": "node scripts/validate-production-config.mjs",
+    "config:validate:production": "node --experimental-strip-types scripts/validate-production-config.mjs",
     "i18n:check": "node scripts/check-i18n.mjs",
     "customer-captures:check": "node scripts/render-customer-captures.mjs --check",
     "data-inventory:check": "node scripts/check-data-inventory.mjs",
     "licenses:check": "node scripts/check-licenses.mjs",
     "security:scan": "node scripts/security-scan.mjs",
     "sbom:generate": "node scripts/generate-sbom.mjs",
+    "sbom:container": "node scripts/generate-container-sbom.mjs",
     "prepare": "node scripts/prepare.mjs",
     "test:functions": "node scripts/test-edge-functions.mjs"
   },
@@ -52,6 +61,7 @@
   },
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "services/*"
   ]
 }

@@ -1,0 +1,122 @@
+name: sallah-media-scanner-local
+
+x-sallah-resource-budgets:
+  edge_metadata_limit_mib: 256
+  edge_acceptance_peak_mib: 128
+  worker_memory_mib: 1024
+  worker_acceptance_peak_mib: 768
+  clamd_memory_mib: 4096
+  scanner_job_deadline_seconds: 120
+
+services:
+  signature-update:
+    image: clamav/clamav:1.4.6@sha256:e6444f72de025a3d57e2820dd1ad9f8734d1d4d6ab0e3336cdeb09fa2ba2f122
+    platform: linux/amd64
+    entrypoint: ['freshclam', '--stdout', '--log=/tmp/freshclam.log', '--datadir=/var/lib/clamav']
+    user: '100:101'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,uid=100,gid=101,mode=0750
+    volumes:
+      - clamav-db:/var/lib/clamav
+    networks: [worker-egress]
+    init: true
+    pids_limit: 32
+    mem_limit: 512m
+    cpus: 0.5
+    restart: 'no'
+
+  clamd:
+    image: clamav/clamav:1.4.6@sha256:e6444f72de025a3d57e2820dd1ad9f8734d1d4d6ab0e3336cdeb09fa2ba2f122
+    platform: linux/amd64
+    entrypoint: ['clamd', '--foreground=true', '--config-file=/etc/clamav/clamd-sallah.conf']
+    depends_on:
+      signature-update:
+        condition: service_completed_successfully
+    user: '100:101'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,uid=100,gid=101,mode=0750
+    volumes:
+      - ./clamd.conf:/etc/clamav/clamd-sallah.conf:ro
+      - clamav-db:/var/lib/clamav:ro
+    expose: ['3310']
+    networks: [scanner-private]
+    init: true
+    pids_limit: 128
+    mem_limit: 4g
+    cpus: 2.0
+    stop_grace_period: 30s
+    healthcheck:
+      test: ['CMD-SHELL', "printf 'zPING\\0' | nc -w 2 127.0.0.1 3310 | grep -qx 'PONG'"]
+      interval: 5s
+      timeout: 3s
+      retries: 36
+      start_period: 45s
+    restart: 'no'
+
+  worker:
+    image: sallah-media-scanner-worker:m2v-node24.19.0-image1.13.0
+    build:
+      context: ../..
+      dockerfile: infra/media-scanner/worker.Dockerfile
+    depends_on:
+      clamd:
+        condition: service_healthy
+    command: ['node', 'start-worker.mjs']
+    user: '65532:65532'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp/scanner:rw,noexec,nosuid,nodev,size=256m,uid=65532,gid=65532,mode=0700
+    secrets:
+      - scanner-control-secret
+      - scanner-attestation-secret
+    environment:
+      APP_ENV: ${APP_ENV:?set APP_ENV explicitly}
+      UPLOAD_SCANNER_MODE: external
+      UPLOAD_SCANNER_WORKER_ID: ${UPLOAD_SCANNER_WORKER_ID:?set an opaque worker ID}
+      UPLOAD_SCANNER_CONTROL_ORIGIN: ${UPLOAD_SCANNER_CONTROL_ORIGIN:?set exact control origin}
+      UPLOAD_SCANNER_STORAGE_ORIGIN: ${UPLOAD_SCANNER_STORAGE_ORIGIN:?set exact Storage origin}
+      UPLOAD_SCANNER_SIGNATURE_MAX_AGE_HOURS: ${UPLOAD_SCANNER_SIGNATURE_MAX_AGE_HOURS:?set signature age}
+      UPLOAD_SCANNER_MAX_CONCURRENT_JOBS: '1'
+      UPLOAD_SCANNER_JOB_DEADLINE_SECONDS: '120'
+      UPLOAD_SCANNER_CONTROL_TIMEOUT_MS: '5000'
+      UPLOAD_SCANNER_IDLE_DELAY_MS: '1000'
+      NODE_OPTIONS: --max-old-space-size=256
+      MALLOC_ARENA_MAX: '2'
+      RAYON_NUM_THREADS: '1'
+      UV_THREADPOOL_SIZE: '1'
+    networks: [scanner-private, worker-egress]
+    init: true
+    pids_limit: 128
+    mem_limit: 1g
+    memswap_limit: 1g
+    cpus: 2.0
+    stop_grace_period: 20s
+    healthcheck:
+      test: ['CMD', 'node', '-e', 'try{process.kill(1,0)}catch{process.exit(1)}']
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: 'no'
+
+networks:
+  scanner-private:
+    internal: true
+  worker-egress: {}
+
+volumes:
+  clamav-db: {}
+
+secrets:
+  scanner-control-secret:
+    file: ${SALLAH_SCANNER_CONTROL_SECRET_FILE:?set a local control-secret file}
+  scanner-attestation-secret:
+    file: ${SALLAH_SCANNER_ATTESTATION_SECRET_FILE:?set a distinct local attestation-secret file}
