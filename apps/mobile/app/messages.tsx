@@ -574,6 +574,7 @@ export default function Messages() {
         mimeType: asset.mimeType ?? 'image/jpeg',
         purpose: 'message_attachment',
         resourceId: activeConversationId,
+        recoveryKey: `message-attachment:${activeConversationId}`,
       });
       if (!isCurrentOperation()) return;
       updateConversationState(activeConversationId, (current) => ({

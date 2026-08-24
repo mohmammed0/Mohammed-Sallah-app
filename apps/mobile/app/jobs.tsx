@@ -231,21 +231,29 @@ export default function Jobs() {
     if ((asset.fileSize ?? 0) > 20 * 1024 * 1024) throw new Error('PROOF_TOO_LARGE');
     const response = await fetch(asset.uri);
     const bytes = new Uint8Array(await response.arrayBuffer());
-    const mimeType = asset.mimeType ?? 'image/jpeg';
-    const extension = mimeType === 'video/mp4' ? 'mp4' : mimeType === 'image/png' ? 'png' : 'jpg';
+    const mimeType = asset.mimeType ?? (asset.type === 'video' ? 'video/mp4' : 'image/jpeg');
+    if (!['image/jpeg', 'image/png', 'image/webp', 'video/mp4'].includes(mimeType)) {
+      throw new Error('PROOF_MEDIA_UNSUPPORTED');
+    }
+    const extension =
+      mimeType === 'video/mp4'
+        ? 'mp4'
+        : mimeType === 'image/png'
+          ? 'png'
+          : mimeType === 'image/webp'
+            ? 'webp'
+            : 'jpg';
     const upload = await secureUpload({
       bytes,
       filename: `${globalThis.crypto.randomUUID()}.${extension}`,
       mimeType,
       purpose: 'completion_proof',
       resourceId: job.id,
+      recoveryKey: `completion-proof:${job.id}:${job.version}`,
     });
     const proofs = [
       {
         uploadId: upload.uploadId,
-        storagePath: upload.storagePath,
-        mimeType: upload.mimeType,
-        sizeBytes: upload.sizeBytes,
         description: t('completionEvidenceDescription'),
       },
     ];
@@ -263,9 +271,6 @@ export default function Jobs() {
             proofs: z.array(
               z.object({
                 uploadId: z.uuid(),
-                storagePath: z.string(),
-                mimeType: z.string(),
-                sizeBytes: z.number().int(),
                 description: z.string(),
               }),
             ),

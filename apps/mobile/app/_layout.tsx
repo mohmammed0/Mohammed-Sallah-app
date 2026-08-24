@@ -11,6 +11,7 @@ import { ConnectivityBanner } from '@/components/connectivity-banner';
 import { StartupRecoveryScreen } from '@/features/auth/startup-recovery-screen';
 import { canEnterProductArea, productLandingRoute } from '@/features/auth/route-policy';
 import { CustomerLocationProvider } from '@/features/location/location-provider';
+import { SecureUploadRecoveryCoordinator } from '@/features/media/secure-upload-recovery';
 
 function LocalizedStack() {
   const { t } = useLocale();
@@ -71,6 +72,7 @@ function LocalizedStack() {
     <>
       <StatusBar style="dark" />
       <ConnectivityBanner />
+      <SecureUploadRecoveryCoordinator ownerId={session?.user.id ?? null} />
       <Stack
         screenOptions={{
           headerBackTitle: t('back'),

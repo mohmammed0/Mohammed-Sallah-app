@@ -126,16 +126,21 @@ export default function ProviderOnboarding() {
       )
         throw new Error('MISSING_REQUIRED_FIELDS');
       const uploadedDocuments = await Promise.all(
-        documents.map(async (document) => {
+        documents.map(async (document, index) => {
           const response = await fetch(document.uri);
           if (!response.ok) throw new Error('DOCUMENT_READ_FAILED');
           const bytes = new Uint8Array(await response.arrayBuffer());
           const extension = document.mimeType === 'image/png' ? 'png' : 'jpg';
+          const documentType =
+            input.kind === 'company' && index === 0
+              ? 'commercial_registration'
+              : 'identity_or_license';
           return await secureUpload({
             bytes,
             filename: `${globalThis.crypto.randomUUID()}.${extension}`,
             mimeType: document.mimeType ?? 'image/jpeg',
             purpose: 'provider_document',
+            recoveryKey: `provider-document:${documentType}:${index + 1}`,
           });
         }),
       );
@@ -155,14 +160,11 @@ export default function ProviderOnboarding() {
         locale,
         submit: shouldSubmit,
         documents: uploadedDocuments.map((upload, index) => ({
+          uploadId: upload.uploadId,
           documentType:
             input.kind === 'company' && index === 0
               ? 'commercial_registration'
               : 'identity_or_license',
-          storagePath: upload.storagePath,
-          contentHash: upload.contentHash,
-          mimeType: upload.mimeType,
-          sizeBytes: upload.sizeBytes,
         })),
       };
       const { data: userData } = await supabase.auth.getUser();

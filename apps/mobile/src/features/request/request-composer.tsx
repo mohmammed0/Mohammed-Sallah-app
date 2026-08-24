@@ -96,6 +96,11 @@ const subcategorySchema = z.object({
   ),
 });
 const functionResultSchema = z.object({ data: z.unknown(), error: z.unknown().nullable() });
+const transcriptionResultSchema = z.object({
+  transcript: z.string().min(1).max(20_000),
+  editable: z.literal(true),
+  cached: z.boolean().optional(),
+});
 const restoredSessionSchema = z.object({
   session: z.object({ id: z.uuid() }).nullable(),
   messages: z.array(
@@ -570,11 +575,12 @@ export function RequestComposer() {
     filename: string,
     mimeType: string,
     purpose: 'request_media' | 'request_audio',
+    recoveryKey: string,
   ) {
     const response = await fetch(uri);
     if (!response.ok) throw new Error('LOCAL_MEDIA_READ_FAILED');
     const bytes = new Uint8Array(await response.arrayBuffer());
-    return await secureUpload({ bytes, filename, mimeType, purpose });
+    return await secureUpload({ bytes, filename, mimeType, purpose, recoveryKey });
   }
   async function pickImage(source: 'camera' | 'library') {
     if (!userId) {
@@ -737,11 +743,12 @@ export function RequestComposer() {
           media.filename,
           media.mimeType,
           media.kind === 'image' ? 'request_media' : 'request_audio',
+          `request-media:${media.id}`,
         ));
       bindings[index] = { ...binding, upload };
       if (!uploads.includes(upload.uploadId)) uploads.push(upload.uploadId);
     }
-    let prepared: PendingCustomerTurn = {
+    const prepared: PendingCustomerTurn = {
       ...turn,
       mediaUploadIds: uploads,
       mediaBindings: bindings,
@@ -750,31 +757,6 @@ export function RequestComposer() {
     setPendingTurns((current) =>
       current.map((item) => (item.clientMessageId === turn.clientMessageId ? prepared : item)),
     );
-    if (prepared.inputKind === 'voice' && prepared.transcriptionStatus !== 'completed') {
-      const voiceStoragePath = bindings.find((binding) => binding.kind === 'voice')?.upload
-        ?.storagePath;
-      if (!voiceStoragePath) throw new Error('VOICE_UPLOAD_REQUIRED');
-      const raw: unknown = await supabase.functions.invoke<unknown>('transcribe', {
-        body: { storagePath: voiceStoragePath, locale, clientMessageId: prepared.clientMessageId },
-      });
-      const invoked = functionResultSchema.parse(raw);
-      const parsed = z.object({ transcript: z.string().min(1) }).safeParse(invoked.data);
-      if (invoked.error || !parsed.success) {
-        prepared = { ...prepared, transcriptionStatus: 'retryable' };
-        setPendingTurns((current) =>
-          current.map((item) => (item.clientMessageId === turn.clientMessageId ? prepared : item)),
-        );
-        throw new Error('TRANSCRIPTION_RETRY_REQUIRED');
-      }
-      prepared = {
-        ...prepared,
-        transcript: parsed.data.transcript,
-        transcriptionStatus: 'completed',
-        text: prepared.text.trim()
-          ? `${prepared.text.trim()}\n${parsed.data.transcript}`
-          : parsed.data.transcript,
-      };
-    }
     setPendingTurns((current) =>
       current.map((item) => (item.clientMessageId === turn.clientMessageId ? prepared : item)),
     );
@@ -784,7 +766,31 @@ export function RequestComposer() {
   async function invokeQueuedTurn(
     queuedTurn: PendingCustomerTurn,
   ): Promise<{ diagnostic: AiDiagnostic; turn: PendingCustomerTurn }> {
-    const turn = await prepareQueuedTurn(queuedTurn);
+    let turn = await prepareQueuedTurn(queuedTurn);
+    if (turn.inputKind === 'voice') {
+      const voiceUploadId = turn.mediaBindings.find((binding) => binding.kind === 'voice')?.upload
+        ?.uploadId;
+      if (!voiceUploadId) throw new Error('CLEAN_VOICE_UPLOAD_REQUIRED');
+      const transcriptionRaw: unknown = await supabase.functions.invoke<unknown>('transcribe', {
+        body: {
+          uploadId: voiceUploadId,
+          locale,
+          clientMessageId: turn.clientMessageId,
+        },
+      });
+      const transcriptionResponse = functionResultSchema.parse(transcriptionRaw);
+      if (transcriptionResponse.error) throw new Error('TRANSCRIPTION_FAILED');
+      const transcription = transcriptionResultSchema.parse(transcriptionResponse.data);
+      turn = {
+        ...turn,
+        text: transcription.transcript,
+        transcript: transcription.transcript,
+        transcriptionStatus: 'completed',
+      };
+      setPendingTurns((current) =>
+        current.map((item) => (item.clientMessageId === turn.clientMessageId ? turn : item)),
+      );
+    }
     const raw: unknown = await supabase.functions.invoke<unknown>('ai-diagnostic', {
       body: {
         sessionId: sessionIdRef.current ?? undefined,

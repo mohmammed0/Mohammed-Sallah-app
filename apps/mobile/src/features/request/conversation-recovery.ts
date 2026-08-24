@@ -3,14 +3,29 @@ import { chunkedSecureStorage } from '../../lib/secure-storage';
 import type { ConversationMessage } from './conversation-state';
 import { retainedMediaSchema } from '../../lib/durable-media';
 
-export const cleanUploadSchema = z.object({
-  uploadId: z.uuid(),
-  status: z.literal('clean'),
-  storagePath: z.string(),
-  mimeType: z.string(),
-  sizeBytes: z.number().int().positive(),
-  contentHash: z.string(),
-});
+export const cleanUploadSchema = z
+  .object({
+    uploadId: z.uuid(),
+    status: z.literal('clean'),
+    sanitized: z.literal(true).default(true),
+    mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'audio/mp4', 'video/mp4']),
+    sizeBytes: z
+      .number()
+      .int()
+      .positive()
+      .max(20 * 1024 * 1024),
+    // Accept these only while migrating old on-device snapshots. The transform
+    // strips both private fields so V2 callers cannot re-persist or submit them.
+    storagePath: z.string().optional(),
+    contentHash: z.string().optional(),
+  })
+  .transform((value) => ({
+    uploadId: value.uploadId,
+    status: value.status,
+    sanitized: value.sanitized,
+    mimeType: value.mimeType,
+    sizeBytes: value.sizeBytes,
+  }));
 export type RecoveredCleanUpload = z.infer<typeof cleanUploadSchema>;
 export const turnMediaBindingSchema = z.object({
   localMediaId: z.string().min(8).max(128),
