@@ -1,10 +1,23 @@
-import { spawn } from 'node:child_process';
-import { resolve } from 'node:path';
+import { spawn, spawnSync } from 'node:child_process';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { resolveTool, spawnTool } from './resolve-tool.mjs';
 
 function fail(message) {
   throw new Error(message);
+}
+
+export function localTestFunctionEnvironment(input = process.env) {
+  if (
+    input.APP_ENV !== 'test' ||
+    input.UPLOAD_SCANNER_MODE !== 'deterministic' ||
+    input.AI_PROVIDER !== 'deterministic'
+  ) {
+    fail('LOCAL_SUPABASE_TEST_ENV_INVALID');
+  }
+  return 'APP_ENV=test\nUPLOAD_SCANNER_MODE=deterministic\nAI_PROVIDER=deterministic\n';
 }
 
 export function localEnvironment() {
@@ -67,6 +80,42 @@ function windowsToWslPath(value) {
   const match = /^([A-Za-z]):\\(.*)$/u.exec(value);
   if (!match?.[1] || match[2] === undefined) return value;
   return `/mnt/${match[1].toLowerCase()}/${match[2].replaceAll('\\', '/')}`;
+}
+
+function runLocalDatabaseFixture(sql) {
+  const args = [
+    'exec',
+    '-i',
+    'supabase_db_sallah',
+    'psql',
+    '-X',
+    '-qAt',
+    '-v',
+    'ON_ERROR_STOP=1',
+    '-U',
+    'postgres',
+    '-d',
+    'postgres',
+  ];
+  const result =
+    process.platform === 'win32'
+      ? spawnSync('wsl.exe', ['-e', 'docker', ...args], {
+          encoding: 'utf8',
+          input: sql,
+          shell: false,
+        })
+      : spawnSync('docker', args, { encoding: 'utf8', input: sql, shell: false });
+  if (result.status !== 0) {
+    fail(`LOCAL_DATABASE_FIXTURE_FAILED:${result.stderr ?? ''}`);
+  }
+  return (result.stdout ?? '').trim();
+}
+
+function exactUuid(value, label) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(value)) {
+    fail(`${label}_INVALID`);
+  }
+  return value;
 }
 
 export async function ensureFunctions(config, options = {}) {
@@ -251,88 +300,76 @@ async function runStorageFlow(config, owner, outsider) {
   );
   if (quarantineRead.ok) fail('quarantine_object_became_directly_readable');
 
-  const clean = await expectOk(
-    await invoke(config, owner, 'scan-upload', { uploadId: ticket.uploadId }),
-    'scan_upload',
-  );
-  if (clean?.status !== 'clean' || !clean.storagePath) fail('clean_upload_contract_invalid');
-
-  const directCleanRead = await fetch(
-    `${config.apiUrl}/storage/v1/object/authenticated/request-media/${storagePath(clean.storagePath)}`,
-    { headers: headers(config.publishableKey, owner.token) },
-  );
-  if (directCleanRead.ok) fail('service_promoted_object_bypassed_signed_media');
-
-  const authorization = await expectOk(
-    await invoke(config, owner, 'media-access', {
-      uploadId: ticket.uploadId,
-      expiresInSeconds: 60,
-    }),
-    'signed_media_owner',
-  );
-  if (!authorization?.signedUrl || !authorization?.expiresAt) {
-    fail('signed_media_contract_invalid');
+  const operationId = crypto.randomUUID();
+  const start = { uploadId: ticket.uploadId, action: 'start', operationId };
+  const queued = await expectOk(await invoke(config, owner, 'scan-upload', start), 'scan_queue');
+  if (queued?.status !== 'queued' || queued.uploadId !== ticket.uploadId) {
+    fail('queued_scan_contract_invalid');
   }
-  const signedRead = await fetch(authorization.signedUrl);
-  if (!signedRead.ok || (await signedRead.arrayBuffer()).byteLength === 0) {
-    fail('signed_media_download_failed');
+  const replay = await expectOk(
+    await invoke(config, owner, 'scan-upload', start),
+    'scan_queue_response_loss_replay',
+  );
+  if (JSON.stringify(replay) !== JSON.stringify(queued)) fail('queued_scan_replay_changed');
+  const status = await expectOk(
+    await invoke(config, owner, 'scan-upload', { uploadId: ticket.uploadId, action: 'status' }),
+    'scan_status',
+  );
+  if (status?.status !== 'queued' || status.uploadId !== ticket.uploadId) {
+    fail('queued_scan_status_invalid');
   }
-  const outsiderRead = await invoke(config, outsider, 'media-access', {
+  const outsiderStatus = await invoke(config, outsider, 'scan-upload', {
     uploadId: ticket.uploadId,
-    expiresInSeconds: 60,
+    action: 'status',
   });
-  if (outsiderRead.ok) fail('unrelated_user_received_signed_media');
+  if (outsiderStatus.ok) fail('unrelated_user_received_scan_status');
 
   await expectOk(
-    await fetch(`${config.apiUrl}/storage/v1/object/request-media`, {
+    await fetch(`${config.apiUrl}/storage/v1/object/quarantine`, {
       method: 'DELETE',
       headers: headers(config.secretKey, config.secretKey, { 'content-type': 'application/json' }),
-      body: JSON.stringify({ prefixes: [clean.storagePath] }),
+      body: JSON.stringify({ prefixes: [ticket.path] }),
     }),
-    'clean_object_cleanup',
+    'quarantine_object_cleanup',
   );
 }
 
 async function createCleanCompletionProof(config, provider, jobId) {
-  const png = Uint8Array.from(
-    Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
-      'base64',
-    ),
-  );
+  const sizeBytes = 68;
   const ticket = await expectOk(
     await rpc(config, provider, 'create_resource_file_upload', {
       p_purpose: 'completion_proof',
       p_resource_id: jobId,
       p_filename: 'completion.png',
       p_declared_mime_type: 'image/png',
-      p_size_bytes: png.byteLength,
+      p_size_bytes: sizeBytes,
     }),
     'completion_proof_ticket',
   );
-  await expectOk(
-    await fetch(`${config.apiUrl}/storage/v1/object/quarantine/${storagePath(ticket.path)}`, {
-      method: 'POST',
-      headers: headers(config.publishableKey, provider.token, {
-        'content-type': 'image/png',
-        'x-upsert': 'false',
-      }),
-      body: png,
-    }),
-    'completion_proof_quarantine_upload',
-  );
-  const clean = await expectOk(
-    await invoke(config, provider, 'scan-upload', { uploadId: ticket.uploadId }),
-    'completion_proof_scan',
-  );
-  if (clean?.status !== 'clean' || !clean.storagePath) {
-    fail('completion_proof_scan_contract_invalid');
-  }
+  const uploadId = exactUuid(ticket?.uploadId, 'COMPLETION_PROOF_UPLOAD_ID');
+  const providerId = exactUuid(provider.id, 'COMPLETION_PROOF_PROVIDER_ID');
+  const resourceId = exactUuid(jobId, 'COMPLETION_PROOF_JOB_ID');
+  const updated = runLocalDatabaseFixture(`
+    update public.file_uploads
+       set status = 'clean',
+           final_path = target_path,
+           detected_mime_type = 'image/png',
+           sanitized = true,
+           scanner = 'local-marketplace-fixture',
+           scanned_at = now(),
+           content_sha256 = repeat('0', 64)
+     where id = '${uploadId}'::uuid
+       and user_id = '${providerId}'::uuid
+       and resource_id = '${resourceId}'::uuid
+       and purpose = 'completion_proof'
+       and status = 'created'
+    returning id;
+  `);
+  if (updated !== uploadId) fail('COMPLETION_PROOF_FIXTURE_NOT_CLEAN');
   return {
-    uploadId: ticket.uploadId,
-    storagePath: clean.storagePath,
+    uploadId,
     mimeType: 'image/png',
-    sizeBytes: png.byteLength,
+    sizeBytes,
     description: 'Concurrent completion rejection fixture proof',
   };
 }
@@ -760,11 +797,22 @@ export async function runLocalSupabaseFlows(config) {
 
 export async function runLocalSupabaseIntegration(options = {}) {
   const config = localEnvironment();
-  const functionServer = await ensureFunctions(config, options);
+  let generatedEnvironmentDirectory;
+  let functionServer;
   try {
+    let envFile = options.envFile;
+    if (!envFile) {
+      generatedEnvironmentDirectory = await mkdtemp(join(tmpdir(), 'sallah-local-functions-'));
+      envFile = join(generatedEnvironmentDirectory, '.env.test');
+      await writeFile(envFile, localTestFunctionEnvironment(), { mode: 0o600 });
+    }
+    functionServer = await ensureFunctions(config, { ...options, envFile });
     await runLocalSupabaseFlows(config);
   } finally {
     await stopFunctions(functionServer);
+    if (generatedEnvironmentDirectory) {
+      await rm(generatedEnvironmentDirectory, { recursive: true, force: true });
+    }
   }
 }
 

@@ -7,7 +7,7 @@
 | Format/lint/types | `pnpm format:check && pnpm lint && pnpm typecheck` | Static quality and generated-contract use                          |
 | Unit              | `pnpm test`                                        | Domain state, matching, money, env, storage, i18n, content         |
 | Integration       | `pnpm test:integration`                            | Cross-package contracts/fallback behavior                          |
-| Local Supabase    | `pnpm test:local-supabase`                         | Real quarantine scan, signed media, AI session and publication     |
+| Local Supabase    | `pnpm test:local-supabase`                         | Explicit test-mode queue/replay/auth plus AI and marketplace flows |
 | Media scanner     | `pnpm test:media-scanner:supabase`                 | Real V2 Storage/Edge/pull-worker/ClamD/remux/replay/cleanup flow   |
 | Edge memory       | `pnpm test:edge-memory`                            | Scanning-control static prohibition plus size-independent peak     |
 | Scanner container | `pnpm test:media-scanner`                          | Real EICAR, signatures, max policy, isolation, residue, and SBOM   |

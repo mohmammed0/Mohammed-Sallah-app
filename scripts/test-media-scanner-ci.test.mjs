@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
+import { localTestFunctionEnvironment } from './test-local-supabase.mjs';
 
 const repositoryRoot = new URL('../', import.meta.url);
 
@@ -12,6 +16,56 @@ function jobBlock(workflow, name, nextName) {
   const end = nextName ? `(?=\\n  ${nextName}:)` : '$';
   return new RegExp(`\\n  ${name}:\\n(?<job>[\\s\\S]*?)${end}`, 'u').exec(workflow)?.groups?.job;
 }
+
+function windowsToWslPath(value) {
+  const match = /^([A-Za-z]):\\(.*)$/u.exec(value);
+  if (!match?.[1] || match[2] === undefined) return value;
+  return `/mnt/${match[1].toLowerCase()}/${match[2].replaceAll('\\', '/')}`;
+}
+
+function linuxShell(command, cwd) {
+  return process.platform === 'win32'
+    ? spawnSync('wsl.exe', ['--cd', windowsToWslPath(cwd), '-e', 'sh', '-c', command], {
+        encoding: 'utf8',
+        shell: false,
+      })
+    : spawnSync('/bin/sh', ['-c', command], { cwd, encoding: 'utf8', shell: false });
+}
+
+test('workspace Vitest exclusions survive Linux shell tokenization and preserve scanner discovery', async () => {
+  const temp = await mkdtemp(join(tmpdir(), 'sallah-vitest-argv-'));
+  try {
+    await mkdir(join(temp, 'dist'), { recursive: true });
+    await writeFile(join(temp, 'dist', 'compiled.test.js'), 'throw new Error("must not run");\n');
+    await writeFile(join(temp, 'dist', 'helper.js'), 'export {};\n');
+
+    for (const packagePath of [
+      'services/media-scanner/package.json',
+      'packages/config/package.json',
+      'packages/domain/package.json',
+      'packages/i18n/package.json',
+    ]) {
+      const packageJson = JSON.parse(await source(packagePath));
+      const command = String(packageJson.scripts?.test ?? '');
+      assert.doesNotMatch(command, /passWithNoTests/u, packagePath);
+      const vitest = command.split('&&').at(-1)?.trim() ?? '';
+      assert.match(vitest, /^vitest run --exclude "dist\/\*\*"$/u, packagePath);
+      const argvProbe = vitest.replace(/^vitest run\s+/u, 'set -- ') + '; printf \'%s\\n\' "$@"';
+      const result = linuxShell(argvProbe, temp);
+      assert.equal(result.status, 0, `${packagePath}: ${result.stderr}`);
+      assert.deepEqual(result.stdout.trim().split(/\r?\n/u), ['--exclude', 'dist/**'], packagePath);
+    }
+
+    const scannerTests = (
+      await readdir(new URL('../services/media-scanner/test/', import.meta.url), {
+        recursive: true,
+      })
+    ).filter((path) => path.endsWith('.test.ts'));
+    assert.ok(scannerTests.length > 0, 'scanner suite discovery unexpectedly found zero tests');
+  } finally {
+    await rm(temp, { recursive: true, force: true });
+  }
+});
 
 test('CI has a mandatory scanner job covering every repository/local gate', async () => {
   const workflow = await source('.github/workflows/ci.yml');
@@ -54,6 +108,56 @@ test('CI has a mandatory scanner job covering every repository/local gate', asyn
   assert.doesNotMatch(workflow, /uses:\s*[^\s]+@v\d/u);
   assert.doesNotMatch(workflow, /deno-version:\s*v?\d+\.x/u);
   assert.match(workflow, /deno-version:\s*2\.9\.5/u);
+});
+
+test('Supabase CI uses an explicit lightweight test scanner contract beside the real scanner job', async () => {
+  const workflow = await source('.github/workflows/ci.yml');
+  const supabase = jobBlock(workflow, 'supabase');
+  const scanner = jobBlock(workflow, 'media-scanner', 'mobile');
+  assert.ok(supabase, 'supabase job missing');
+  assert.ok(scanner, 'media-scanner job missing');
+  assert.match(supabase, /^    env:\n(?:^      .*\n)*?^      APP_ENV: test$/mu);
+  assert.match(supabase, /^      UPLOAD_SCANNER_MODE: deterministic$/mu);
+  assert.doesNotMatch(
+    supabase,
+    /UPLOAD_SCANNER_(?:CONTROL|ATTESTATION)_SECRET|SALLAH_MEDIA_SCANNER_SIGNATURE_MODE/u,
+  );
+  assert.match(scanner, /^      UPLOAD_SCANNER_MODE: external$/mu);
+  assert.match(scanner, /^\s*- run: pnpm test:media-scanner:supabase$/mu);
+
+  const harness = await source('scripts/test-local-supabase.mjs');
+  assert.match(harness, /localTestFunctionEnvironment/u);
+  assert.match(harness, /action: 'start'/u);
+  assert.match(harness, /action: 'status'/u);
+  assert.match(harness, /status !== 'queued'/u);
+  assert.doesNotMatch(harness, /clean\?\.storagePath|clean_upload_contract_invalid/u);
+  assert.match(harness, /completion_rejection_fixture_submission/u);
+  assert.match(harness, /concurrent_completion_rejection_did_not_replay_authoritative_dispute/u);
+  assert.match(harness, /completion_rejection_idempotency_conflict_not_enforced/u);
+  assert.match(harness, /finally\s*\{[\s\S]*stopFunctions/u);
+});
+
+test('local Supabase scanner environment is explicit, test-only, and contains no credential', () => {
+  const valid = {
+    APP_ENV: 'test',
+    UPLOAD_SCANNER_MODE: 'deterministic',
+    AI_PROVIDER: 'deterministic',
+  };
+  assert.equal(
+    localTestFunctionEnvironment(valid),
+    'APP_ENV=test\nUPLOAD_SCANNER_MODE=deterministic\nAI_PROVIDER=deterministic\n',
+  );
+  for (const invalid of [
+    {},
+    { ...valid, APP_ENV: 'production' },
+    { ...valid, APP_ENV: 'preview' },
+    { ...valid, APP_ENV: 'tset' },
+    { ...valid, UPLOAD_SCANNER_MODE: 'external' },
+    { ...valid, UPLOAD_SCANNER_MODE: 'unknown' },
+    { ...valid, AI_PROVIDER: 'openai' },
+  ]) {
+    assert.throws(() => localTestFunctionEnvironment(invalid), /LOCAL_SUPABASE_TEST_ENV_INVALID/u);
+  }
 });
 
 test('release readiness forwards every scanner production contract variable', async () => {

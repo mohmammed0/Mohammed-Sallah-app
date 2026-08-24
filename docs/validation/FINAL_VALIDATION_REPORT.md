@@ -211,20 +211,21 @@ unpublished, and subject to repeat M2C review.
 
 ### M2R focused-remediation evidence
 
-| Command or suite                                    | Result | Evidence                                                                                             |
-| --------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------- |
-| `pnpm test:media-scanner:gates`                     | PASS   | 4/4 CI/release tests: immutable pins, cleanup, memory, remux, and real integrations                  |
-| `pnpm test:edge-memory`                             | PASS   | 2/2; 10 MiB 66,727,936 B, 20 MiB 67,006,464 B; below 128 MiB and size-independent                    |
-| Full Edge Deno tests                                | PASS   | **87/87** HMAC/capability/nonce/metadata-only scanner control and M1 protected-media regressions     |
-| `pnpm test:media-scanner:supabase`                  | PASS   | 28 labels; real Storage/DB/Edge/worker/ClamD/remux/replay/cleanup; exact zero residue drift          |
-| D1-to-M2 upgrade/fresh pgTAP                        | PASS   | Upgrade 3 files/143; fresh full **28 files/1,035 assertions**; public/private lint zero              |
-| `supabase/tests/database/media_scan_concurrency.sh` | PASS   | Real claim/reclaim/prepare/finalize/cleanup/signature/nonce races with one-winner assertions         |
-| Scanner package                                     | PASS   | **15 files/99 tests**; strict build/type/lint and malformed/bomb/protocol/timeout/redaction coverage |
-| `pnpm test:media-scanner`                           | PASS   | Official EICAR/freshness, max images, sequential native isolation, cleanup, cgroup proof, SBOM       |
-| `pnpm test:media-scanner:remux`                     | PASS   | 6 labels: real M4A/audio-MP4/video-MP4 remux, metadata strip, reopen, timeout kill, trailing denial  |
-| `pnpm validate`                                     | PASS   | Format, docs, i18n, inventories, scanner gates, lint, strict types, tests, web build, Android export |
-| License, audit, and secret checks                   | PASS   | Policy checks; no known high-severity vulnerability or repository secret                             |
-| Repository and container SBOM                       | PASS   | CycloneDX **790** repository components and **336** exact-image container components                 |
+| Command or suite                                    | Result | Evidence                                                                                              |
+| --------------------------------------------------- | ------ | ----------------------------------------------------------------------------------------------------- |
+| `pnpm test:media-scanner:gates`                     | PASS   | 7/7 CI/release tests: cross-platform discovery, explicit test config, pins, cleanup, and integrations |
+| `pnpm test:edge-memory`                             | PASS   | 2/2; 10 MiB 65,544,192 B, 20 MiB 66,105,344 B; below 128 MiB and size-independent                     |
+| Full Edge Deno tests                                | PASS   | **93/93** HMAC/capability/nonce/metadata-only scanner control and M1 protected-media regressions      |
+| `pnpm test:local-supabase`                          | PASS   | Explicit `test`/deterministic queue, replay and authorization contract; no scanner credential         |
+| `pnpm test:media-scanner:supabase`                  | PASS   | 28 labels; real Storage/DB/Edge/worker/ClamD/remux/replay/cleanup; exact zero residue drift           |
+| D1-to-M2 upgrade/fresh pgTAP                        | PASS   | Upgrade 3 files/143; fresh full **28 files/1,035 assertions**; public/private lint zero               |
+| `supabase/tests/database/media_scan_concurrency.sh` | PASS   | Real claim/reclaim/prepare/finalize/cleanup/signature/nonce races with one-winner assertions          |
+| Scanner package                                     | PASS   | **15 files/100 tests**; strict build/type/lint and malformed/bomb/protocol/timeout/redaction coverage |
+| `pnpm test:media-scanner`                           | PASS   | Official EICAR/freshness, max images, sequential native isolation, cleanup, cgroup proof, SBOM        |
+| `pnpm test:media-scanner:remux`                     | PASS   | 6 labels: real M4A/audio-MP4/video-MP4 remux, metadata strip, reopen, timeout kill, trailing denial   |
+| `pnpm validate`                                     | PASS   | Format, docs, i18n, inventories, scanner gates, lint, strict types, tests, web build, Android export  |
+| License, audit, and secret checks                   | PASS   | Policy checks; no known high-severity vulnerability or repository secret                              |
+| Repository and container SBOM                       | PASS   | CycloneDX **808** repository components and **336** exact-image container components                  |
 
 The V2 integration proves queued, active, clean, and terminal replay; completion and output-response
 loss; distinct retry artifacts and old-orphan cleanup; stale-worker denial; one-winner completion;
@@ -236,6 +237,12 @@ cleanup for all four 25-hour artifact states; and protected-media owner
 allow/outsider denial. Edge transports bounded metadata only. It performs no media body download,
 full buffer/Base64/hash/sanitize/upload path; promotion is a server-side Storage copy after current
 attempt, manifest, signature, and exact object-metadata checks.
+
+The lightweight `test:local-supabase` boundary deliberately supplies `APP_ENV=test`,
+`UPLOAD_SCANNER_MODE=deterministic`, and `AI_PROVIDER=deterministic` explicitly. It proves quarantine
+authorization plus asynchronous queue/status/response-loss replay without a scanner secret; it is not
+malware or sanitization evidence. The separate mandatory `media-scanner` job owns the real pull worker,
+ClamAV, sanitization/remux, promotion, replay, concurrency, and cleanup lifecycle.
 
 The harness resets local Supabase before and after the run, stops the function server and exact
 ClamD container, removes temporary signatures/media, and compares counts for Auth users, uploads,
@@ -249,15 +256,15 @@ real DB concurrency, freshness/memory/remux gates, licenses, audit/security, and
 SBOM. Third-party Actions and Deno are pinned exactly; final cleanup uses `if: always()` without
 converting the original job result. Hosted Actions execution remains **NOT RUN**.
 
-The final standalone container accepted a 19,368,173-byte PNG in 2,678 ms and separately exercised
+The final standalone container accepted a 19,368,173-byte PNG in 2,644 ms and separately exercised
 8,192 x 4,882 (39,993,344-pixel) JPEG, PNG, and WebP through both ClamAV scans and
-decode/re-encode/reopen. Their cgroup peaks were 413,458,432, 537,337,856, and 432,095,232 bytes.
-Three sequential high-entropy WebP jobs used distinct child PIDs, completed in 5,874/5,133/5,104 ms,
-left no child or temp residue, and peaked at 689,344,512 bytes under a 1,073,741,824-byte no-swap
+decode/re-encode/reopen. Their cgroup peaks were 415,330,304, 537,280,512, and 432,246,784 bytes.
+Three sequential high-entropy WebP jobs used distinct child PIDs, completed in 6,003/5,346/5,459 ms,
+left no child or temp residue, and peaked at 688,717,824 bytes under a 1,073,741,824-byte no-swap
 worker limit; ClamD retained its separate 4 GiB budget. The final worker image ID is
-`sha256:ca622597031f57ebec1c75248427d7fc12f9a98721d55235492673e3334dee2a`. The repository SBOM
-SHA-256 is `1803a1a85025c268d78e8a0bc81ed52095b6963eb117f085966771ebea92927e`; the exact-image container
-SBOM SHA-256 is `76189006cf1746097ae12d7cbc3ad68b2b40fe76721144f7e66cfeb9f8117dba`.
+`sha256:381923e7bd1612cdd9e1c6079dcaa66bbda3c6e816803852279d70137e7d592f`. The repository SBOM
+SHA-256 is `390856a1d77687aa6b92d7f0f51eb99b0332ed6136f71549280b47782d3e8b7d`; the exact-image container
+SBOM SHA-256 is `23e6b11dde394d7a6d73c3bc96c00f07727897e574856457bb3added896b3961`.
 
 Configuration requires explicit `APP_ENV` and external mode outside local/test. The scanner uses
 dedicated control and attestation HMAC secrets, never database/S3/Supabase service-role/publishable/user
