@@ -3,6 +3,9 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { verifyExternalContainerIdentity } from './container-image-identity.mjs';
+import { inspectSavedImageArchive } from './container-image-archive.mjs';
+
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const workerImage = 'sallah-media-scanner-worker:m2v-node24.19.0-image1.13.0';
 const clamavImage =
@@ -68,6 +71,15 @@ function inspectImage(reference) {
   return image;
 }
 
+async function inspectSavedImage(reference, manifestDigest) {
+  const command = dockerCommand(['image', 'save', reference]);
+  return await inspectSavedImageArchive({
+    command: command.command,
+    args: command.args,
+    manifestDigest,
+  });
+}
+
 function license(value) {
   return /^[A-Za-z0-9.+-]+$/u.test(value)
     ? [{ license: { id: value } }]
@@ -93,6 +105,14 @@ function baseComponent(entry) {
       property('sallah:runtime-use', entry.use),
       ...(entry.status ? [property('sallah:release-status', entry.status)] : []),
       ...(entry.integrity ? [property('sallah:package-integrity', entry.integrity)] : []),
+      ...(entry.digestType ? [property('sallah:digest-type', entry.digestType)] : []),
+      ...(entry.platform ? [property('sallah:platform', entry.platform)] : []),
+      ...(entry.configDigest
+        ? [property('sallah:source-manifest-config-digest', entry.configDigest)]
+        : []),
+      ...(entry.configDigestType
+        ? [property('sallah:config-digest-type', entry.configDigestType)]
+        : []),
     ],
   };
 }
@@ -202,15 +222,21 @@ function applicationComponents(output) {
 const inventory = JSON.parse(await readFile(resolve(root, 'oss-inventory.json'), 'utf8'));
 const workerInspection = inspectImage(workerImage);
 const clamavInspection = inspectImage(clamavImage);
-const expectedClamavDigest = inventory.containerComponents.find(
+const clamavInventoryEntry = inventory.containerComponents.find(
   (entry) => entry.component === 'clamav/clamav',
-)?.digest;
-if (
-  !expectedClamavDigest ||
-  clamavInspection.Id !== expectedClamavDigest ||
-  !clamavInspection.RepoDigests?.some((entry) => entry.endsWith(`@${expectedClamavDigest}`))
-) {
-  throw new Error('CONTAINER_SBOM_CLAMAV_DIGEST_MISMATCH');
+);
+let clamavIdentity;
+try {
+  const savedImageEvidence = await inspectSavedImage(clamavImage, clamavInventoryEntry?.digest);
+  clamavIdentity = verifyExternalContainerIdentity({
+    reference: clamavImage,
+    inventoryEntry: clamavInventoryEntry,
+    inspection: clamavInspection,
+    savedImageEvidence,
+  });
+} catch (error) {
+  const reason = error instanceof Error ? error.message : 'CONTAINER_IMAGE_IDENTITY_INVALID';
+  throw new Error(`CONTAINER_SBOM_CLAMAV_DIGEST_MISMATCH:${reason}`);
 }
 
 const debian = dockerOutput([
@@ -282,7 +308,12 @@ const sbom = {
       properties: [
         property('sallah:worker-image-id', workerInspection.Id),
         property('sallah:worker-image-tag', workerImage),
-        property('sallah:clamav-image-id', clamavInspection.Id),
+        property('sallah:clamav-source-reference', clamavImage),
+        property('sallah:clamav-source-manifest-digest', clamavIdentity.sourceManifestDigest),
+        property('sallah:clamav-resolved-config-digest', clamavIdentity.resolvedConfigDigest),
+        property('sallah:clamav-local-image-id', clamavIdentity.localImageId),
+        property('sallah:clamav-repository-digest', clamavIdentity.repositoryDigest),
+        property('sallah:clamav-platform', clamavIdentity.platform),
         property('sallah:inventory-coverage', JSON.stringify(counts)),
       ],
     },

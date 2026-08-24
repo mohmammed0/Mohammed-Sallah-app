@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
+import { inspectSavedImageArchive } from './container-image-archive.mjs';
+import { verifyExternalContainerIdentity } from './container-image-identity.mjs';
 import { CleanupStack, resolveComposeCommand } from './test-media-scanner.mjs';
 
 const repositoryRoot = new URL('../', import.meta.url);
@@ -50,6 +52,180 @@ test('falls back to docker-compose and fails closed when neither portable form e
     },
   );
   assert.throws(() => resolveComposeCommand(() => false), /DOCKER_COMPOSE_REQUIRED/u);
+});
+
+test('container identity verification compares immutable manifest, platform config, and local ID like-for-like', () => {
+  const manifestDigest = 'sha256:e6444f72de025a3d57e2820dd1ad9f8734d1d4d6ab0e3336cdeb09fa2ba2f122';
+  const configDigest = 'sha256:d2f8e8115d74100224c2e836298f49791a671a844dc71b5c8c268c98e5eff005';
+  const reference = `clamav/clamav:1.4.6@${manifestDigest}`;
+  const inventoryEntry = {
+    component: 'clamav/clamav',
+    digest: manifestDigest,
+    digestType: 'oci-image-manifest',
+    platform: 'linux/amd64',
+    configDigest,
+    configDigestType: 'oci-manifest-config-descriptor',
+  };
+  const baseInspection = {
+    RepoDigests: [`clamav/clamav@${manifestDigest}`],
+    Os: 'linux',
+    Architecture: 'amd64',
+  };
+  const savedImageEvidence = {
+    manifestDigest,
+    manifestMediaType: 'application/vnd.oci.image.manifest.v1+json',
+    configDigest,
+  };
+
+  assert.deepEqual(
+    verifyExternalContainerIdentity({
+      reference,
+      inventoryEntry,
+      inspection: { ...baseInspection, Id: configDigest },
+      savedImageEvidence,
+    }),
+    {
+      sourceManifestDigest: manifestDigest,
+      resolvedConfigDigest: configDigest,
+      localImageId: configDigest,
+      repositoryDigest: `docker.io/clamav/clamav@${manifestDigest}`,
+      platform: 'linux/amd64',
+    },
+  );
+  assert.equal(
+    verifyExternalContainerIdentity({
+      reference: reference.toUpperCase(),
+      inventoryEntry: { ...inventoryEntry, digest: manifestDigest.toUpperCase() },
+      inspection: { ...baseInspection, Id: manifestDigest },
+      savedImageEvidence,
+    }).sourceManifestDigest,
+    manifestDigest,
+  );
+});
+
+test('container identity verification rejects downgrade, substitution, malformed, and platform-confused evidence', () => {
+  const manifestDigest = 'sha256:e6444f72de025a3d57e2820dd1ad9f8734d1d4d6ab0e3336cdeb09fa2ba2f122';
+  const configDigest = 'sha256:d2f8e8115d74100224c2e836298f49791a671a844dc71b5c8c268c98e5eff005';
+  const reference = `clamav/clamav:1.4.6@${manifestDigest}`;
+  const inventoryEntry = {
+    component: 'clamav/clamav',
+    digest: manifestDigest,
+    digestType: 'oci-image-manifest',
+    platform: 'linux/amd64',
+    configDigest,
+    configDigestType: 'oci-manifest-config-descriptor',
+  };
+  const inspection = {
+    Id: configDigest,
+    RepoDigests: [`clamav/clamav@${manifestDigest}`],
+    Os: 'linux',
+    Architecture: 'amd64',
+  };
+  const savedImageEvidence = {
+    manifestDigest,
+    manifestMediaType: 'application/vnd.oci.image.manifest.v1+json',
+    configDigest,
+  };
+  const verify = (overrides = {}) =>
+    verifyExternalContainerIdentity({
+      reference,
+      inventoryEntry,
+      inspection,
+      savedImageEvidence,
+      ...overrides,
+    });
+
+  assert.throws(
+    () => verify({ reference: 'clamav/clamav:1.4.6' }),
+    /CONTAINER_IMAGE_REFERENCE_IMMUTABLE_REQUIRED/u,
+  );
+  assert.throws(
+    () => verify({ reference: 'clamav/clamav:1.4.6@sha256:not-a-digest' }),
+    /CONTAINER_IMAGE_REFERENCE_INVALID/u,
+  );
+  assert.throws(
+    () => verify({ inventoryEntry: { ...inventoryEntry, digest: undefined } }),
+    /CONTAINER_IMAGE_INVENTORY_DIGEST_INVALID/u,
+  );
+  assert.throws(
+    () => verify({ inventoryEntry: { ...inventoryEntry, configDigestType: 'local-image-id' } }),
+    /CONTAINER_IMAGE_CONFIG_DIGEST_TYPE_INVALID/u,
+  );
+  assert.throws(
+    () => verify({ inventoryEntry: { ...inventoryEntry, digest: `sha256:${'0'.repeat(64)}` } }),
+    /CONTAINER_IMAGE_SOURCE_DIGEST_MISMATCH/u,
+  );
+  assert.throws(
+    () => verify({ inventoryEntry: { ...inventoryEntry, component: 'evil/clamav' } }),
+    /CONTAINER_IMAGE_REPOSITORY_MISMATCH/u,
+  );
+  assert.throws(
+    () => verify({ inspection: { ...inspection, Architecture: 'arm64' } }),
+    /CONTAINER_IMAGE_PLATFORM_MISMATCH/u,
+  );
+  assert.throws(
+    () => verify({ inspection: { ...inspection, RepoDigests: [] } }),
+    /CONTAINER_IMAGE_REPOSITORY_DIGEST_MISSING/u,
+  );
+  assert.throws(
+    () => verify({ savedImageEvidence: undefined }),
+    /CONTAINER_IMAGE_SAVED_EVIDENCE_INVALID/u,
+  );
+  assert.throws(
+    () =>
+      verify({
+        savedImageEvidence: {
+          ...savedImageEvidence,
+          configDigest: `sha256:${'0'.repeat(64)}`,
+        },
+      }),
+    /CONTAINER_IMAGE_CONFIG_DIGEST_MISMATCH/u,
+  );
+  assert.throws(
+    () =>
+      verify({
+        inspection: {
+          ...inspection,
+          Id: manifestDigest,
+          RepoDigests: [],
+        },
+      }),
+    /CONTAINER_IMAGE_REPOSITORY_DIGEST_MISSING/u,
+  );
+  assert.throws(
+    () => verify({ inspection: { ...inspection, Id: `sha256:${'1'.repeat(64)}` } }),
+    /CONTAINER_IMAGE_LOCAL_ID_MISMATCH/u,
+  );
+});
+
+test('saved-image inspection bounds hung children and cleans malformed archive producers', async () => {
+  const manifestDigest = `sha256:${'a'.repeat(64)}`;
+  const startedAt = Date.now();
+  await assert.rejects(
+    inspectSavedImageArchive({
+      command: process.execPath,
+      args: ['-e', 'setInterval(() => undefined, 1_000)'],
+      manifestDigest,
+      timeoutMs: 100,
+    }),
+    /CONTAINER_SBOM_IMAGE_ARCHIVE_TIMEOUT/u,
+  );
+  assert.ok(Date.now() - startedAt < 2_000, 'hung archive child exceeded bounded cleanup');
+
+  const malformedAt = Date.now();
+  await assert.rejects(
+    inspectSavedImageArchive({
+      command: process.execPath,
+      args: [
+        '-e',
+        "const h=Buffer.alloc(512);h.write('manifest.json');h.write('not-octal',124);process.stdout.write(h);setInterval(()=>undefined,1000)",
+      ],
+      manifestDigest,
+      timeoutMs: 2_000,
+    }),
+    /CONTAINER_SBOM_IMAGE_ARCHIVE_INVALID/u,
+  );
+  assert.ok(Date.now() - malformedAt < 2_000, 'malformed archive child was not cleaned');
 });
 
 test('Compose runs a pull worker with no inbound or host media port', async () => {
@@ -209,23 +385,46 @@ test('machine-readable OSS inventory includes exact image, native, and SBOM evid
   const containers = inventory.containerComponents;
   assert.ok(Array.isArray(containers), 'containerComponents missing');
   assert.deepEqual(
-    containers.map(({ component, version, digest, license }) => ({
-      component,
-      version,
-      digest,
-      license,
-    })),
+    containers.map(
+      ({
+        component,
+        version,
+        digest,
+        digestType,
+        platform,
+        configDigest,
+        configDigestType,
+        license,
+      }) => ({
+        component,
+        version,
+        digest,
+        digestType,
+        platform,
+        configDigest,
+        configDigestType,
+        license,
+      }),
+    ),
     [
       {
         component: 'clamav/clamav',
         version: '1.4.6',
         digest: 'sha256:e6444f72de025a3d57e2820dd1ad9f8734d1d4d6ab0e3336cdeb09fa2ba2f122',
+        digestType: 'oci-image-manifest',
+        platform: 'linux/amd64',
+        configDigest: 'sha256:d2f8e8115d74100224c2e836298f49791a671a844dc71b5c8c268c98e5eff005',
+        configDigestType: 'oci-manifest-config-descriptor',
         license: 'GPL-2.0-only',
       },
       {
         component: 'library/node',
         version: '24.19.0-bookworm-slim',
         digest: 'sha256:65932751ed4073ed02f5c04e494e4b2572a891b7dbea0568a863dc80341bf848',
+        digestType: 'oci-image-manifest',
+        platform: 'linux/amd64',
+        configDigest: 'sha256:9da0264deb61958d09c073001c1bd3a110ae3874be3375e92e0c0f16683986dd',
+        configDigestType: 'oci-manifest-config-descriptor',
         license: 'MIT',
       },
     ],
@@ -239,6 +438,8 @@ test('machine-readable OSS inventory includes exact image, native, and SBOM evid
   assert.match(generator, /dpkg-query/u);
   assert.match(generator, /\/lib\/apk\/db\/installed/u);
   assert.match(generator, /sallah:worker-image-id/u);
+  assert.match(generator, /sallah:clamav-source-manifest-digest/u);
+  assert.match(generator, /sallah:clamav-resolved-config-digest/u);
   assert.match(generator, /sallah:image-scope/u);
   for (const document of [humanInventory, evaluation, notices]) {
     assert.match(document, /ClamAV 1\.4\.6/u);
