@@ -7,7 +7,7 @@
   "scripts": {
     "build": "node scripts/clean-dist.mjs && tsc -p tsconfig.build.json",
     "lint": "eslint src test",
-    "test": "pnpm run build && vitest run --exclude dist/**",
+    "test": "pnpm run build && vitest run --exclude \"dist/**\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

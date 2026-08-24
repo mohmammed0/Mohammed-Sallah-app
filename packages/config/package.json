@@ -12,7 +12,7 @@
     "build": "tsc -p tsconfig.json",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --exclude dist/**"
+    "test": "vitest run --exclude \"dist/**\""
   },
   "dependencies": {
     "zod": "4.4.3"
