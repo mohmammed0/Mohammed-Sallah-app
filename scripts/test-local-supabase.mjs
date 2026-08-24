@@ -1,29 +1,41 @@
 import { spawn } from 'node:child_process';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { resolveTool, spawnTool } from './resolve-tool.mjs';
 
 function fail(message) {
   throw new Error(message);
 }
 
-function localEnvironment() {
+export function localEnvironment() {
   const result = spawnTool('supabase', ['status', '-o', 'env'], { encoding: 'utf8' });
   if (result.status !== 0) fail('LOCAL_SUPABASE_REQUIRED');
   const values = {};
   for (const line of (result.stdout ?? '').split(/\r?\n/u)) {
-    const match = /^([A-Z_]+)="([^"]*)"$/u.exec(line.trim());
+    const match = /^([A-Z0-9_]+)="([^"]*)"$/u.exec(line.trim());
     if (match?.[1] && match[2]) values[match[1]] = match[2];
   }
-  if (!values.API_URL || !values.PUBLISHABLE_KEY || !values.SECRET_KEY) {
+  if (
+    !values.API_URL ||
+    !values.PUBLISHABLE_KEY ||
+    !values.SECRET_KEY ||
+    !values.S3_PROTOCOL_ACCESS_KEY_ID ||
+    !values.S3_PROTOCOL_ACCESS_KEY_SECRET ||
+    !values.S3_PROTOCOL_REGION
+  ) {
     fail('LOCAL_SUPABASE_ENV_INVALID');
   }
   return {
     apiUrl: values.API_URL,
     publishableKey: values.PUBLISHABLE_KEY,
     secretKey: values.SECRET_KEY,
+    s3AccessKeyId: values.S3_PROTOCOL_ACCESS_KEY_ID,
+    s3SecretAccessKey: values.S3_PROTOCOL_ACCESS_KEY_SECRET,
+    s3Region: values.S3_PROTOCOL_REGION,
   };
 }
 
-async function readBody(response) {
+export async function readBody(response) {
   const text = await response.text();
   if (!text) return null;
   try {
@@ -33,13 +45,13 @@ async function readBody(response) {
   }
 }
 
-async function expectOk(response, label) {
+export async function expectOk(response, label) {
   const body = await readBody(response);
   if (!response.ok) fail(`${label}:${response.status}:${JSON.stringify(body)}`);
   return body;
 }
 
-function headers(key, token = key, extra = {}) {
+export function headers(key, token = key, extra = {}) {
   return {
     apikey: key,
     authorization: `Bearer ${token}`,
@@ -47,11 +59,17 @@ function headers(key, token = key, extra = {}) {
   };
 }
 
-function storagePath(path) {
+export function storagePath(path) {
   return path.split('/').map(encodeURIComponent).join('/');
 }
 
-async function ensureFunctions(config) {
+function windowsToWslPath(value) {
+  const match = /^([A-Za-z]):\\(.*)$/u.exec(value);
+  if (!match?.[1] || match[2] === undefined) return value;
+  return `/mnt/${match[1].toLowerCase()}/${match[2].replaceAll('\\', '/')}`;
+}
+
+export async function ensureFunctions(config, options = {}) {
   const ready = async () => {
     try {
       const response = await fetch(`${config.apiUrl}/functions/v1/scan-upload`, {
@@ -62,7 +80,11 @@ async function ensureFunctions(config) {
       return false;
     }
   };
-  const resolved = resolveTool('supabase', ['functions', 'serve']);
+  const serveArgs = ['functions', 'serve'];
+  if (options.envFile) {
+    serveArgs.push('--env-file', windowsToWslPath(resolve(options.envFile)));
+  }
+  const resolved = resolveTool('supabase', serveArgs);
   const child = spawn(resolved.command, resolved.args, {
     cwd: process.cwd(),
     detached: process.platform !== 'win32',
@@ -111,7 +133,7 @@ function signalFunctionServer(child, signal) {
   child.kill(signal);
 }
 
-async function stopFunctions(child) {
+export async function stopFunctions(child) {
   if (!child || child.exitCode !== null || child.signalCode !== null) return;
   signalFunctionServer(child, 'SIGTERM');
   if (!(await waitForExit(child, 5_000))) {
@@ -122,7 +144,7 @@ async function stopFunctions(child) {
   child.stderr?.destroy();
 }
 
-async function createUser(config, prefix) {
+export async function createUser(config, prefix) {
   const nonce = crypto.randomUUID();
   const email = `${prefix}-${nonce}@test.invalid`;
   const password = `Local-${nonce}-A9!`;
@@ -163,7 +185,7 @@ async function signInUser(config, email, password) {
   return { id: session.user.id, token: session.access_token };
 }
 
-async function rpc(config, user, name, body) {
+export async function rpc(config, user, name, body) {
   return await fetch(`${config.apiUrl}/rest/v1/rpc/${name}`, {
     method: 'POST',
     headers: headers(config.publishableKey, user.token, {
@@ -173,7 +195,7 @@ async function rpc(config, user, name, body) {
   });
 }
 
-async function invoke(config, user, name, body) {
+export async function invoke(config, user, name, body) {
   return await fetch(`${config.apiUrl}/functions/v1/${name}`, {
     method: 'POST',
     headers: headers(config.publishableKey, user.token, {
@@ -183,7 +205,7 @@ async function invoke(config, user, name, body) {
   });
 }
 
-async function userRequest(config, user, path, init = {}) {
+export async function userRequest(config, user, path, init = {}) {
   return await fetch(`${config.apiUrl}/rest/v1/${path}`, {
     ...init,
     headers: headers(config.publishableKey, user.token, {
@@ -719,9 +741,7 @@ async function runSavedLocationDefaultFlow(config, owner) {
   }
 }
 
-const config = localEnvironment();
-const functionServer = await ensureFunctions(config);
-try {
+export async function runLocalSupabaseFlows(config) {
   const owner = await createUser(config, 'local-owner');
   const outsider = await createUser(config, 'local-outsider');
   const provider = await signInUser(
@@ -736,6 +756,17 @@ try {
   console.log(
     'Local Supabase integration: PASS (location authority + storage + AI + true concurrent idempotency)',
   );
-} finally {
-  await stopFunctions(functionServer);
 }
+
+export async function runLocalSupabaseIntegration(options = {}) {
+  const config = localEnvironment();
+  const functionServer = await ensureFunctions(config, options);
+  try {
+    await runLocalSupabaseFlows(config);
+  } finally {
+    await stopFunctions(functionServer);
+  }
+}
+
+const invokedPath = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : '';
+if (invokedPath === import.meta.url) await runLocalSupabaseIntegration();

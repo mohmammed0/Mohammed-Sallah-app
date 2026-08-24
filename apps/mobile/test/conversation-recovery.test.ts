@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   aiIntakeSnapshotSchema,
   appendTemporaryFallback,
+  cleanUploadSchema,
   enqueuePendingTurn,
   reconcileAuthoritativeTurn,
   replayPendingTurns,
@@ -109,6 +110,25 @@ describe('AI intake recovery', () => {
     expect(snapshot.sessionId).toMatch(/^2222/);
     expect(snapshot.pendingTurns[0]?.mediaUploadIds).toEqual(first.mediaUploadIds);
     expect(snapshot.conversation.map((message) => message.role)).toEqual(['user', 'assistant']);
+    expect(snapshot.draft.imageUpload).not.toHaveProperty('storagePath');
+    expect(snapshot.draft.imageUpload).not.toHaveProperty('contentHash');
+  });
+
+  it('restores the V2 safe clean-upload projection without private path or fingerprint', () => {
+    const upload = cleanUploadSchema.parse({
+      uploadId: '33333333-3333-4333-8333-333333333333',
+      status: 'clean',
+      sanitized: true,
+      mimeType: 'image/png',
+      sizeBytes: 100,
+    });
+    expect(upload).toEqual({
+      uploadId: '33333333-3333-4333-8333-333333333333',
+      status: 'clean',
+      sanitized: true,
+      mimeType: 'image/png',
+      sizeBytes: 100,
+    });
   });
 
   it('restores a selected image before upload without converting the turn to text-only', () => {

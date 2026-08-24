@@ -975,10 +975,9 @@ describe('trust screen insertion', () => {
       .mockResolvedValueOnce({
         uploadId: ids.upload,
         status: 'clean',
-        storagePath: 'retry-upload.jpg',
+        sanitized: true,
         mimeType: 'image/jpeg',
         sizeBytes: 3,
-        contentHash: 'a'.repeat(64),
       });
     const { default: Messages } = await import('../app/messages');
     let renderer: ReturnType<typeof create> | undefined;
@@ -1087,10 +1086,9 @@ describe('trust screen insertion', () => {
       | ((value: {
           uploadId: string;
           status: 'clean';
-          storagePath: string;
+          sanitized: true;
           mimeType: string;
           sizeBytes: number;
-          contentHash: string;
         }) => void)
       | undefined;
     uploadAttachment.mockImplementationOnce(
@@ -1129,10 +1127,9 @@ describe('trust screen insertion', () => {
       resolveUpload?.({
         uploadId: ids.upload,
         status: 'clean',
-        storagePath: 'overlap-success.jpg',
+        sanitized: true,
         mimeType: 'image/jpeg',
         sizeBytes: 3,
-        contentHash: 'a'.repeat(64),
       });
       await Promise.resolve();
       await Promise.resolve();
@@ -2071,10 +2068,9 @@ describe('trust screen insertion', () => {
     uploadAttachment.mockResolvedValue({
       uploadId: ids.upload,
       status: 'clean',
-      storagePath: 'old-conversation.jpg',
+      sanitized: true,
       mimeType: 'image/jpeg',
       sizeBytes: 3,
-      contentHash: 'a'.repeat(64),
     });
     const { default: Messages } = await import('../app/messages');
     let renderer: ReturnType<typeof create> | undefined;
@@ -2234,10 +2230,9 @@ describe('trust screen insertion', () => {
         | ((value: {
             uploadId: string;
             status: 'clean';
-            storagePath: string;
+            sanitized: true;
             mimeType: string;
             sizeBytes: number;
-            contentHash: string;
           }) => void)
         | undefined;
       uploadAttachment.mockImplementation(
@@ -2286,10 +2281,9 @@ describe('trust screen insertion', () => {
         resolveUpload?.({
           uploadId: ids.upload,
           status: 'clean',
-          storagePath: 'pending-upload.jpg',
+          sanitized: true,
           mimeType: 'image/jpeg',
           sizeBytes: 3,
-          contentHash: 'a'.repeat(64),
         });
         await Promise.resolve();
         await Promise.resolve();

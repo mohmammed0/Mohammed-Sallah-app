@@ -4,6 +4,8 @@ import {
   streamPrivateStorageObject,
 } from './index.ts';
 
+Deno.env.set('APP_ENV', 'test');
+
 function assertContract(condition: boolean, message: string) {
   if (!condition) throw new Error(message);
 }
@@ -12,7 +14,7 @@ function wait(milliseconds: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 }
 
-Deno.test('media-access alone opts into custom token verification', async () => {
+Deno.test('only server-auth functions opt out of gateway JWT verification', async () => {
   const config = await Deno.readTextFile(new URL('../../config.toml', import.meta.url));
   const functionSettings = new Map(
     [...config.matchAll(/\[functions\.([^\]]+)\]\s*\nverify_jwt\s*=\s*(true|false)/g)].map(
@@ -26,6 +28,10 @@ Deno.test('media-access alone opts into custom token verification', async () => 
   assertContract(functionSettings.get('ai-diagnostic') === true, 'ai-diagnostic JWT changed');
   assertContract(functionSettings.get('transcribe') === true, 'transcribe JWT changed');
   assertContract(functionSettings.get('scan-upload') === true, 'scan-upload JWT changed');
+  assertContract(
+    functionSettings.get('scanner-control') === false,
+    'scanner-control custom auth changed',
+  );
   assertContract(
     functionSettings.get('translate-provider-brief') === true,
     'translate-provider-brief JWT changed',

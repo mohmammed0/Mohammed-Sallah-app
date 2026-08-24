@@ -19,8 +19,9 @@ select ok(pg_get_functiondef('private.apply_dispute_job_outcome(uuid,uuid,text,t
 select ok(pg_get_functiondef('private.apply_dispute_job_outcome(uuid,uuid,text,text)'::regprocedure) like '%else null end;%INVALID_DISPUTE_RESUME_STATE%','completed and other invalid pre-states reject ordinary resume');
 
 select ok('privacy_reviewer'=any(enum_range(null::public.user_role)::text[]),'database role contract includes privacy reviewer');
-select ok(pg_get_functiondef('public.upsert_provider_onboarding(jsonb)'::regprocedure)
-  like '%provider_service_removed%','onboarding final diff scopes service-removal invalidation');
+select ok(to_regprocedure('private.upsert_provider_onboarding_trusted_legacy(jsonb)') is not null
+  and pg_get_functiondef(to_regprocedure('private.upsert_provider_onboarding_trusted_legacy(jsonb)'))
+    like '%provider_service_removed%','private onboarding authority preserves scoped service-removal invalidation');
 
 select * from finish();
 rollback;
