@@ -4,9 +4,48 @@ export const appEnvironmentSchema = z.enum(['local', 'test', 'preview', 'product
 
 const booleanString = z.enum(['true', 'false']).transform((value) => value === 'true');
 const url = z.url();
+const scannerSecret = (name: string) =>
+  z.string().superRefine((value, context) => {
+    const bytes = new TextEncoder().encode(value).byteLength;
+    if (bytes < 32 || bytes > 256) {
+      context.addIssue({
+        code: 'custom',
+        message: `${name} must contain 32-256 UTF-8 bytes`,
+      });
+    }
+  });
+
+function validateScannerOrigin(value: string, name: string, allowLocalHttp: boolean): void {
+  let origin: URL;
+  try {
+    origin = new URL(value);
+  } catch {
+    throw new Error(`${name} must be an exact scanner origin`);
+  }
+  const hostname = origin.hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/gu, '')
+    .replace(/\.$/u, '');
+  const protocolAllowed =
+    origin.protocol === 'https:' || (allowLocalHttp && origin.protocol === 'http:');
+  if (
+    !protocolAllowed ||
+    origin.username !== '' ||
+    origin.password !== '' ||
+    origin.pathname !== '/' ||
+    origin.search !== '' ||
+    origin.hash !== '' ||
+    (!allowLocalHttp && origin.port !== '') ||
+    (!allowLocalHttp && (/^\d{1,3}(?:\.\d{1,3}){3}$/u.test(hostname) || hostname.includes(':')))
+  ) {
+    throw new Error(
+      `${name} must be an exact HTTPS default-port DNS origin without credentials, path, query, fragment, or IP literal`,
+    );
+  }
+}
 
 export const publicEnvironmentSchema = z.object({
-  APP_ENV: appEnvironmentSchema.default('local'),
+  APP_ENV: appEnvironmentSchema,
   SUPABASE_URL: url,
   SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
 });
@@ -25,9 +64,35 @@ export const serverEnvironmentSchema = publicEnvironmentSchema.extend({
   PUSH_ENABLED: booleanString.default(false),
   EXPO_ACCESS_TOKEN: z.string().optional(),
   ADMIN_BOOTSTRAP_EMAIL: z.email().optional(),
-  UPLOAD_SCANNER_MODE: z.enum(['deterministic', 'external']).default('deterministic'),
-  UPLOAD_SCANNER_URL: url.optional(),
-  UPLOAD_SCANNER_SECRET: z.string().min(24).optional(),
+  UPLOAD_SCANNER_MODE: z.enum(['deterministic', 'external']),
+  UPLOAD_SCANNER_CONTROL_ORIGIN: z.string().min(1).optional(),
+  UPLOAD_SCANNER_STORAGE_ORIGIN: z.string().min(1).optional(),
+  UPLOAD_SCANNER_STORAGE_S3_ACCESS_KEY_ID: z
+    .string()
+    .min(16)
+    .max(256)
+    .regex(/^[A-Za-z0-9_-]+$/u)
+    .optional(),
+  UPLOAD_SCANNER_STORAGE_S3_SECRET_ACCESS_KEY: z.string().min(32).max(512).optional(),
+  UPLOAD_SCANNER_STORAGE_S3_REGION: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[a-z0-9-]+$/u)
+    .optional(),
+  UPLOAD_SCANNER_CONTROL_SECRET: scannerSecret('UPLOAD_SCANNER_CONTROL_SECRET').optional(),
+  UPLOAD_SCANNER_ATTESTATION_SECRET: scannerSecret('UPLOAD_SCANNER_ATTESTATION_SECRET').optional(),
+  UPLOAD_SCANNER_NETWORK_POLICY: z.literal('private-only').optional(),
+  UPLOAD_SCANNER_SIGNATURE_MAX_AGE_HOURS: z.coerce.number().int().min(1).max(168).optional(),
+  UPLOAD_SCANNER_MAX_CONCURRENT_JOBS: z.coerce.number().int().min(1).max(1).optional(),
+  UPLOAD_SCANNER_JOB_DEADLINE_SECONDS: z.coerce.number().int().min(120).max(120).optional(),
+  UPLOAD_SCANNER_CONTROL_TIMEOUT_MS: z.coerce.number().int().min(5_000).max(5_000).optional(),
+  UPLOAD_SCANNER_WORKER_ID: z
+    .string()
+    .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{2,119}$/u)
+    .optional(),
+  UPLOAD_SCANNER_IDLE_DELAY_MS: z.coerce.number().int().min(100).max(10_000).optional(),
+  UPLOAD_SCANNER_ALERTS_ENABLED: booleanString.optional(),
   SALLAH_PUBLIC_URL: url,
   SALLAH_SUPPORT_EMAIL: z.email(),
 });
@@ -43,6 +108,51 @@ export function validateServerEnvironment(
     throw new Error(`Invalid environment: ${z.prettifyError(parsed.error)}`);
   }
   const env = parsed.data;
+  const localOrTest = env.APP_ENV === 'local' || env.APP_ENV === 'test';
+  if (!localOrTest && env.UPLOAD_SCANNER_MODE !== 'external') {
+    throw new Error(
+      `Deterministic upload scanning is test/local-only; external scanning is required in ${env.APP_ENV}`,
+    );
+  }
+  if (env.UPLOAD_SCANNER_MODE === 'external') {
+    const required = [
+      'UPLOAD_SCANNER_CONTROL_ORIGIN',
+      'UPLOAD_SCANNER_STORAGE_ORIGIN',
+      'UPLOAD_SCANNER_STORAGE_S3_ACCESS_KEY_ID',
+      'UPLOAD_SCANNER_STORAGE_S3_SECRET_ACCESS_KEY',
+      'UPLOAD_SCANNER_STORAGE_S3_REGION',
+      'UPLOAD_SCANNER_CONTROL_SECRET',
+      'UPLOAD_SCANNER_ATTESTATION_SECRET',
+      'UPLOAD_SCANNER_NETWORK_POLICY',
+      'UPLOAD_SCANNER_SIGNATURE_MAX_AGE_HOURS',
+      'UPLOAD_SCANNER_MAX_CONCURRENT_JOBS',
+      'UPLOAD_SCANNER_JOB_DEADLINE_SECONDS',
+      'UPLOAD_SCANNER_CONTROL_TIMEOUT_MS',
+      'UPLOAD_SCANNER_WORKER_ID',
+      'UPLOAD_SCANNER_IDLE_DELAY_MS',
+      'UPLOAD_SCANNER_ALERTS_ENABLED',
+    ] as const;
+    const missing = required.filter((name) => env[name] === undefined);
+    if (missing.length > 0) {
+      throw new Error(`Missing scanner variables: ${missing.join(', ')}`);
+    }
+    validateScannerOrigin(
+      env.UPLOAD_SCANNER_CONTROL_ORIGIN!,
+      'UPLOAD_SCANNER_CONTROL_ORIGIN',
+      localOrTest,
+    );
+    validateScannerOrigin(
+      env.UPLOAD_SCANNER_STORAGE_ORIGIN!,
+      'UPLOAD_SCANNER_STORAGE_ORIGIN',
+      localOrTest,
+    );
+    if (env.UPLOAD_SCANNER_CONTROL_SECRET === env.UPLOAD_SCANNER_ATTESTATION_SECRET) {
+      throw new Error('Scanner control and attestation secrets must differ');
+    }
+    if (!localOrTest && env.UPLOAD_SCANNER_ALERTS_ENABLED !== true) {
+      throw new Error('UPLOAD_SCANNER_ALERTS_ENABLED must be true outside local/test');
+    }
+  }
   if (env.APP_ENV === 'production') {
     const missing: string[] = [];
     if (!env.SUPABASE_SECRET_KEY) missing.push('SUPABASE_SECRET_KEY');
@@ -56,13 +166,6 @@ export function validateServerEnvironment(
         'Deterministic AI is test/local-only; use a real provider or disable AI in production',
       );
     }
-    if (env.UPLOAD_SCANNER_MODE !== 'external') {
-      throw new Error(
-        'Deterministic upload scanning is test/local-only; external scanning is required in production',
-      );
-    }
-    if (!env.UPLOAD_SCANNER_URL) missing.push('UPLOAD_SCANNER_URL');
-    if (!env.UPLOAD_SCANNER_SECRET) missing.push('UPLOAD_SCANNER_SECRET');
     if (env.PUSH_ENABLED && !env.EXPO_ACCESS_TOKEN) missing.push('EXPO_ACCESS_TOKEN');
     if (missing.length > 0) throw new Error(`Missing production variables: ${missing.join(', ')}`);
   }

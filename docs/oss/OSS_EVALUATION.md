@@ -1,31 +1,43 @@
 # OSS evaluation
 
-Research date: 2026-08-17. Versions are exact resolved package versions; maintenance was checked through official repositories/releases and security policies. No application repository was cloned or vendored.
+Research date: 2026-08-21. Versions are exact resolved package versions; maintenance was checked through official repositories/releases and security policies. No application repository was cloned or vendored.
 
-| Candidate                        | License          | Decision               | Rationale                                                                                                               |
-| -------------------------------- | ---------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Expo / Expo Router               | MIT              | Adopted 57.0.15        | Stable SDK 57, native modules, EAS integration; Expo Doctor 21/21                                                       |
-| React Native                     | MIT              | Adopted 0.86.2         | Expo-required version including Hermes regression fix                                                                   |
-| Supabase platform/CLI/JS         | Apache-2.0/MIT   | Adopted                | Auth, Postgres/PostGIS/RLS, Storage, Realtime and Edge Functions in one operational boundary                            |
-| Next.js                          | MIT              | Adopted 16.3.1         | App Router, static public site, server-authorized admin and security headers                                            |
-| Turborepo                        | MIT              | Adopted 2.10.10        | Small pnpm task graph without extra services                                                                            |
-| TanStack Query                   | MIT              | Adopted 5.101.4        | Bounded caching/retry/invalidation for mobile server state                                                              |
-| React Hook Form                  | MIT              | Adopted 7.85.0         | Small React Native-compatible form state, paired with Zod                                                               |
-| Zod                              | MIT              | Adopted 4.4.3          | Runtime validation for RPC, AI, env and query boundaries                                                                |
-| i18next                          | MIT              | Adopted 26.3.6         | Shared locale resources and RTL direction                                                                               |
-| Vitest / Playwright              | MIT / Apache-2.0 | Adopted                | Fast package tests and browser E2E/artifacts                                                                            |
-| React Native Testing Library     | MIT              | Adopted 14.0.1         | Component-test foundation compatible with React Native                                                                  |
-| Maestro                          | Apache-2.0       | External tool          | YAML mobile flows; requires emulator/device, no vendored binary                                                         |
-| k6                               | AGPL-3.0         | Rejected as dependency | The repo contains only an original test script runnable by an external operator-installed tool; no k6 code/binary ships |
-| shadcn/ui                        | MIT              | Reference only         | Custom lightweight visual system avoided copied trade dress and unnecessary generator output                            |
-| Refine                           | MIT              | Rejected               | Admin needs were smaller than framework cost; server components/RPCs enforce authorization directly                     |
-| Reanimated/gesture-handler       | MIT              | Deferred               | No v1 motion/gesture requirement; lower native risk and size                                                            |
-| Sentry / OpenTelemetry exporters | permissive       | Deferred               | No production endpoint/credentials; structured contracts exist without fake active monitoring                           |
-| MSW                              | MIT              | Deferred               | Deterministic domain/DB tests cover current boundaries; no extra mock runtime needed                                    |
-| Full marketplace templates       | variable         | Rejected               | Branding, domain, RLS and UI were implemented originally; no third-party app copied                                     |
+| Candidate                        | License          | Decision               | Rationale                                                                                                                 |
+| -------------------------------- | ---------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Expo / Expo Router               | MIT              | Adopted 57.0.15        | Stable SDK 57, native modules, EAS integration; Expo Doctor 21/21                                                         |
+| React Native                     | MIT              | Adopted 0.86.2         | Expo-required version including Hermes regression fix                                                                     |
+| Supabase platform/CLI/JS         | Apache-2.0/MIT   | Adopted                | Auth, Postgres/PostGIS/RLS, Storage, Realtime and Edge Functions in one operational boundary                              |
+| Next.js                          | MIT              | Adopted 16.3.1         | App Router, static public site, server-authorized admin and security headers                                              |
+| Turborepo                        | MIT              | Adopted 2.10.10        | Small pnpm task graph without extra services                                                                              |
+| TanStack Query                   | MIT              | Adopted 5.101.4        | Bounded caching/retry/invalidation for mobile server state                                                                |
+| React Hook Form                  | MIT              | Adopted 7.85.0         | Small React Native-compatible form state, paired with Zod                                                                 |
+| Zod                              | MIT              | Adopted 4.4.3          | Runtime validation for RPC, AI, env and query boundaries                                                                  |
+| @napi-rs/image                   | MIT              | Adopted 1.13.0         | Scanner-side JPEG/PNG/WebP decode and metadata-stripping same-format re-encode without FFmpeg or libvips                  |
+| ClamAV container                 | GPL-2.0-only     | Local repository 1.4.6 | Digest-pinned private ClamD plus one-shot signature refresh; separate process, not linked into Sallah; deployment blocked |
+| Node.js container                | MIT              | Adopted 24.19.0        | Digest-pinned Bookworm-slim build/runtime for the no-ingress pull worker                                                  |
+| FFmpeg                           | GPL-2.0-or-later | Local repository 5.1.9 | Exact Debian snapshot package; fixed-path M4A/MP4 and completion-MP4 stream-copy remux; hosted activation blocked         |
+| i18next                          | MIT              | Adopted 26.3.6         | Shared locale resources and RTL direction                                                                                 |
+| Vitest / Playwright              | MIT / Apache-2.0 | Adopted                | Fast package tests and browser E2E/artifacts                                                                              |
+| React Native Testing Library     | MIT              | Adopted 14.0.1         | Component-test foundation compatible with React Native                                                                    |
+| Maestro                          | Apache-2.0       | External tool          | YAML mobile flows; requires emulator/device, no vendored binary                                                           |
+| k6                               | AGPL-3.0         | Rejected as dependency | The repo contains only an original test script runnable by an external operator-installed tool; no k6 code/binary ships   |
+| shadcn/ui                        | MIT              | Reference only         | Custom lightweight visual system avoided copied trade dress and unnecessary generator output                              |
+| Refine                           | MIT              | Rejected               | Admin needs were smaller than framework cost; server components/RPCs enforce authorization directly                       |
+| Reanimated/gesture-handler       | MIT              | Deferred               | No v1 motion/gesture requirement; lower native risk and size                                                              |
+| Sentry / OpenTelemetry exporters | permissive       | Deferred               | No production endpoint/credentials; structured contracts exist without fake active monitoring                             |
+| MSW                              | MIT              | Deferred               | Deterministic domain/DB tests cover current boundaries; no extra mock runtime needed                                      |
+| Full marketplace templates       | variable         | Rejected               | Branding, domain, RLS and UI were implemented originally; no third-party app copied                                       |
 
 ## Compatibility and supply chain
 
 Expo versions are aligned with `expo install --check` and Expo Doctor. TypeScript 6.0.3 is the newest installed line accepted by the selected ESLint/Expo toolchain; TypeScript 7 was rejected after incompatibility was observed. pnpm exact versions and frozen lockfile are mandatory. Native build scripts are allowlisted (`esbuild`, `libxmljs2`, `supabase`) and newly published Expo packages are explicit minimum-age exceptions only because official SDK 57 compatibility required those exact releases.
 
 `lightningcss` (MPL) is a package-scoped Next build exception. Sharp/libvips (Apache/LGPL) is not accepted: the application does not use Next image optimization, `images.unoptimized` makes that decision explicit, and pnpm skips the optional `sharp`/`@img/sharp-*` graph. CC-BY exceptions are data packages only. Any new license fails CI until reviewed.
+
+`@napi-rs/image` 1.13.0 was published on 2026-06-22 and met the repository's minimum-release-age gate before adoption. The exact MIT package and its 13 MIT optional native/WASI platform packages resolve only from `registry.npmjs.org` with SHA-512 integrity. The optional WASI fallback adds only MIT `@emnapi/*`, `@napi-rs/wasm-runtime`, and `@tybys/wasm-util` packages. Neither the root image package nor its platform binaries declares an install, preinstall, or postinstall lifecycle script, so no new pnpm build approval is required. Windows x64 is the only platform binary installed in this review workspace; Linux glibc/musl, Linux ARM, macOS, Windows ARM/IA32, Android ARM64, FreeBSD, and WASI artifacts remain optional lockfile entries for explicit target-platform installation.
+
+The reviewed worker target is Linux amd64 glibc and installs `@napi-rs/image-linux-x64-gnu` 1.13.0 from the lockfile's exact SHA-512 integrity. The separate ClamAV 1.4.6 image and Node.js 24.19.0 Bookworm-slim base are digest pinned; `pnpm sbom:container` records them and the native image component machine-readably. Image distribution packages retain their own licenses and notices in their package metadata. ClamAV is a separate GPL-2.0-only daemon boundary; no ClamAV code is copied or linked into the Sallah application.
+
+ClamAV hosted activation and image distribution are **NOT RUN** in M2V. They require separate legal and operator approval, including confirmation of any applicable GPL source-offer and notice obligations. This repository/local evidence does not classify ClamAV as permissive or production-approved.
+
+FFmpeg 5.1.9-0+deb12u1 comes from the immutable Debian snapshot dated 2026-08-23. The reviewed build is GPL-2.0-or-later and is used only as fixed-path subprocess tooling for actual bounded stream-copy remux and ffprobe reopen. FFmpeg hosted activation and worker-image distribution are **NOT RUN**; they require separate legal/operator approval and applicable GPL source/notice compliance. This is an explicit repository/local exception, not a permissive dependency claim.

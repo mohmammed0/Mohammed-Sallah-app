@@ -24,7 +24,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version-file: .nvmrc }
       - run: corepack enable && corepack prepare pnpm@11.19.0 --activate
       - run: pnpm install --frozen-lockfile
@@ -41,15 +41,77 @@ jobs:
         run: if pnpm config:validate:production; then echo 'validator unexpectedly passed' && exit 1; else echo 'fail-closed behavior verified'; fi
       - run: pnpm security:scan
       - run: pnpm run sbom:generate
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with: { name: sbom, path: artifacts/sbom.cdx.json, if-no-files-found: error }
+
+  media-scanner:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      APP_ENV: test
+      UPLOAD_SCANNER_MODE: external
+      UPLOAD_SCANNER_CONTROL_ORIGIN: http://127.0.0.1:54321
+      UPLOAD_SCANNER_STORAGE_ORIGIN: http://127.0.0.1:54321
+      UPLOAD_SCANNER_CONTROL_SECRET: ci-control-secret-00000000000000000000000000000001
+      UPLOAD_SCANNER_ATTESTATION_SECRET: ci-attestation-secret-0000000000000000000000000002
+      UPLOAD_SCANNER_NETWORK_POLICY: private-only
+      UPLOAD_SCANNER_SIGNATURE_MAX_AGE_HOURS: '168'
+      UPLOAD_SCANNER_MAX_CONCURRENT_JOBS: '1'
+      UPLOAD_SCANNER_JOB_DEADLINE_SECONDS: '120'
+      UPLOAD_SCANNER_CONTROL_TIMEOUT_MS: '5000'
+      UPLOAD_SCANNER_WORKER_ID: ci-scanner-worker-1
+      UPLOAD_SCANNER_IDLE_DELAY_MS: '1000'
+      UPLOAD_SCANNER_ALERTS_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version-file: .nvmrc }
+      - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
+        with: { version: 2.114.0 }
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with: { deno-version: 2.9.5 }
+      - run: corepack enable && corepack prepare pnpm@11.19.0 --activate
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:media-scanner:gates
+      - run: pnpm --filter @sallah/media-scanner lint
+      - run: pnpm --filter @sallah/media-scanner typecheck
+      - run: pnpm --filter @sallah/media-scanner test
+      - run: pnpm --filter @sallah/media-scanner build
+      - run: pnpm test:media-scanner:unit
+      - run: pnpm test:edge-memory
+      - run: pnpm test:media-scanner
+        env:
+          SALLAH_MEDIA_SCANNER_SIGNATURE_MODE: deterministic
+      - run: docker build --pull --file infra/media-scanner/worker.Dockerfile --tag sallah-media-scanner-worker:m2v-node24.19.0-image1.13.0 .
+      - run: pnpm test:media-scanner:remux
+      - run: supabase start
+      - run: supabase db reset
+      - run: bash supabase/tests/database/media_scan_concurrency.sh
+      - run: deno test --config supabase/functions/deno.json --allow-env --allow-read supabase/functions/_shared/scanner-control.test.ts supabase/functions/scanner-control/index.test.ts
+      - run: deno test --config supabase/functions/deno.json --allow-env --allow-read supabase/functions/scan-upload/index.test.ts supabase/functions/privacy-worker/index.test.ts supabase/functions/media-access/index.test.ts
+      - run: pnpm test:media-scanner:supabase
+      - run: pnpm licenses:check
+      - run: pnpm audit --audit-level high
+      - run: pnpm security:scan
+      - run: pnpm sbom:generate
+      - run: pnpm sbom:container
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: media-scanner-sboms
+          path: |
+            artifacts/sbom.cdx.json
+            artifacts/container-sbom.cdx.json
+          if-no-files-found: error
+      - name: Remove local scanner and Supabase resources
+        if: always()
+        run: node scripts/cleanup-media-scanner-ci.mjs
 
   mobile:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version-file: .nvmrc }
       - run: corepack enable && corepack prepare pnpm@11.19.0 --activate
       - run: pnpm install --frozen-lockfile
@@ -67,9 +129,9 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version-file: .nvmrc }
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
         with: { version: 2.114.0 }
       - run: corepack enable && corepack prepare pnpm@11.19.0 --activate
       - run: pnpm install --frozen-lockfile
@@ -90,7 +152,7 @@ jobs:
         env:
           SALLAH_E2E_DATABASE_PREPARED: 'true'
       - if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: playwright-report
           path: |
@@ -103,12 +165,12 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version-file: .nvmrc }
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
         with: { version: 2.114.0 }
-      - uses: denoland/setup-deno@v2
-        with: { deno-version: v2.x }
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with: { deno-version: 2.9.5 }
       - run: corepack enable && corepack prepare pnpm@11.19.0 --activate
       - run: pnpm install --frozen-lockfile
       - run: supabase start
@@ -121,5 +183,5 @@ jobs:
         run: supabase gen types typescript --local --schema public > /tmp/database.types.ts && pnpm exec prettier --config .prettierrc.json --write /tmp/database.types.ts && diff -u packages/database/src/database.types.ts /tmp/database.types.ts
       - run: deno fmt --check --config supabase/functions/deno.json supabase/functions
       - run: deno lint --config supabase/functions/deno.json supabase/functions
-      - run: deno check --config supabase/functions/deno.json supabase/functions/ai-diagnostic/index.ts supabase/functions/media-access/index.ts supabase/functions/notification-worker/index.ts supabase/functions/privacy-worker/index.ts supabase/functions/reauthenticate/index.ts supabase/functions/scan-upload/index.ts supabase/functions/transcribe/index.ts supabase/functions/translate-provider-brief/index.ts
+      - run: deno check --config supabase/functions/deno.json supabase/functions/ai-diagnostic/index.ts supabase/functions/media-access/index.ts supabase/functions/notification-worker/index.ts supabase/functions/privacy-worker/index.ts supabase/functions/reauthenticate/index.ts supabase/functions/scan-upload/index.ts supabase/functions/scanner-control/index.ts supabase/functions/transcribe/index.ts supabase/functions/translate-provider-brief/index.ts
       - run: deno test --config supabase/functions/deno.json --allow-env --allow-read supabase/functions

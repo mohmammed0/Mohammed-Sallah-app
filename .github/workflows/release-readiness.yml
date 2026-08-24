@@ -13,12 +13,15 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version-file: .nvmrc }
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with: { deno-version: 2.9.5 }
       - run: corepack enable && corepack prepare pnpm@11.19.0 --activate
       - run: pnpm install --frozen-lockfile
       - run: pnpm config:validate:production
         env:
+          APP_ENV: production
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
@@ -30,7 +33,36 @@ jobs:
           EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
           SALLAH_IOS_BUNDLE_ID: ${{ vars.SALLAH_IOS_BUNDLE_ID }}
           SALLAH_ANDROID_PACKAGE: ${{ vars.SALLAH_ANDROID_PACKAGE }}
+          SALLAH_ANDROID_GOOGLE_MAPS_API_KEY: ${{ secrets.SALLAH_ANDROID_GOOGLE_MAPS_API_KEY }}
+          UPLOAD_SCANNER_MODE: external
+          UPLOAD_SCANNER_CONTROL_ORIGIN: ${{ vars.UPLOAD_SCANNER_CONTROL_ORIGIN }}
+          UPLOAD_SCANNER_STORAGE_ORIGIN: ${{ vars.UPLOAD_SCANNER_STORAGE_ORIGIN }}
+          UPLOAD_SCANNER_STORAGE_S3_ACCESS_KEY_ID: ${{ secrets.UPLOAD_SCANNER_STORAGE_S3_ACCESS_KEY_ID }}
+          UPLOAD_SCANNER_STORAGE_S3_SECRET_ACCESS_KEY: ${{ secrets.UPLOAD_SCANNER_STORAGE_S3_SECRET_ACCESS_KEY }}
+          UPLOAD_SCANNER_STORAGE_S3_REGION: ${{ vars.UPLOAD_SCANNER_STORAGE_S3_REGION }}
+          UPLOAD_SCANNER_CONTROL_SECRET: ${{ secrets.UPLOAD_SCANNER_CONTROL_SECRET }}
+          UPLOAD_SCANNER_ATTESTATION_SECRET: ${{ secrets.UPLOAD_SCANNER_ATTESTATION_SECRET }}
+          UPLOAD_SCANNER_NETWORK_POLICY: ${{ vars.UPLOAD_SCANNER_NETWORK_POLICY }}
+          UPLOAD_SCANNER_SIGNATURE_MAX_AGE_HOURS: ${{ vars.UPLOAD_SCANNER_SIGNATURE_MAX_AGE_HOURS }}
+          UPLOAD_SCANNER_MAX_CONCURRENT_JOBS: ${{ vars.UPLOAD_SCANNER_MAX_CONCURRENT_JOBS }}
+          UPLOAD_SCANNER_JOB_DEADLINE_SECONDS: ${{ vars.UPLOAD_SCANNER_JOB_DEADLINE_SECONDS }}
+          UPLOAD_SCANNER_CONTROL_TIMEOUT_MS: ${{ vars.UPLOAD_SCANNER_CONTROL_TIMEOUT_MS }}
+          UPLOAD_SCANNER_WORKER_ID: ${{ vars.UPLOAD_SCANNER_WORKER_ID }}
+          UPLOAD_SCANNER_IDLE_DELAY_MS: ${{ vars.UPLOAD_SCANNER_IDLE_DELAY_MS }}
+          UPLOAD_SCANNER_ALERTS_ENABLED: ${{ vars.UPLOAD_SCANNER_ALERTS_ENABLED }}
           AI_PROVIDER: openai
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           PAYMENT_PROVIDER: offline
+      - run: pnpm test:edge-memory
       - run: pnpm build
+        env:
+          NEXT_PUBLIC_APP_ENV: production
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          EXPO_PUBLIC_APP_ENV: production
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
+          SALLAH_IOS_BUNDLE_ID: ${{ vars.SALLAH_IOS_BUNDLE_ID }}
+          SALLAH_ANDROID_PACKAGE: ${{ vars.SALLAH_ANDROID_PACKAGE }}
+          SALLAH_ANDROID_GOOGLE_MAPS_API_KEY: ${{ secrets.SALLAH_ANDROID_GOOGLE_MAPS_API_KEY }}

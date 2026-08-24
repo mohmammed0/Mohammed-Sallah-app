@@ -1,12 +1,17 @@
 import type { ConfigContext, ExpoConfig } from 'expo/config';
 import { branding } from '@sallah/config/branding';
+import { appEnvironmentSchema } from '@sallah/config/env';
 import { translate } from '@sallah/i18n';
 
 const defaultEasOwner = 'binmuhayas-team';
 const defaultEasProjectId = 'f098f941-ae73-4007-b582-ba6fb1b8aa7a';
 
 export default ({ config }: ConfigContext): ExpoConfig => {
-  const environment = process.env.EXPO_PUBLIC_APP_ENV ?? 'local';
+  const parsedEnvironment = appEnvironmentSchema.safeParse(process.env.EXPO_PUBLIC_APP_ENV);
+  if (!parsedEnvironment.success) {
+    throw new Error('EXPO_PUBLIC_APP_ENV must explicitly be local, test, preview, or production');
+  }
+  const environment = parsedEnvironment.data;
   const production = environment === 'production';
   // Build-time only. This key is restricted in Google Cloud to the Android
   // package name and signing certificate; it is never exposed through EXPO_PUBLIC_*.

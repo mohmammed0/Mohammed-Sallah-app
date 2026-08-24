@@ -1,6 +1,76 @@
 {
   "generatedAt": "2026-08-21",
   "policy": "Exact versions from pnpm lock; ship permissive dependencies. Package-scoped build/data exceptions are documented.",
+  "containerSbom": {
+    "artifact": "artifacts/container-sbom.cdx.json",
+    "generator": "pnpm sbom:container",
+    "format": "CycloneDX 1.6 JSON",
+    "scope": "Reviewed pinned base images plus the scanner native runtime component"
+  },
+  "containerComponents": [
+    {
+      "kind": "container-image",
+      "component": "clamav/clamav",
+      "version": "1.4.6",
+      "digest": "sha256:e6444f72de025a3d57e2820dd1ad9f8734d1d4d6ab0e3336cdeb09fa2ba2f122",
+      "license": "GPL-2.0-only",
+      "source": "https://github.com/Cisco-Talos/clamav-docker",
+      "use": "Private ClamD malware detection and one-shot signature refresh; distribution package licenses remain represented by image package metadata",
+      "status": "Repository/local integration only; hosted activation and image distribution are NOT RUN and require separate legal/operator approval plus applicable GPL source-offer compliance"
+    },
+    {
+      "kind": "container-image",
+      "component": "library/node",
+      "version": "24.19.0-bookworm-slim",
+      "digest": "sha256:65932751ed4073ed02f5c04e494e4b2572a891b7dbea0568a863dc80341bf848",
+      "license": "MIT",
+      "source": "https://github.com/nodejs/docker-node",
+      "use": "Pinned build and runtime base for the pull worker; Debian package licenses remain represented by image package metadata"
+    }
+  ],
+  "nativeComponents": [
+    {
+      "kind": "native-binary",
+      "component": "@napi-rs/image-linux-x64-gnu",
+      "version": "1.13.0",
+      "license": "MIT",
+      "integrity": "sha512-rgPDeh2Xr7cGHQjxpWn8eFiM6Ksmtby1045DJ9JyN56JZQL9eSXzF/v3tuqg6nE84R83R4LaV7PTG1kMKw956A==",
+      "source": "https://registry.npmjs.org/@napi-rs/image-linux-x64-gnu/-/image-linux-x64-gnu-1.13.0.tgz",
+      "use": "Linux amd64 glibc decode/re-encode binary installed in the reviewed worker image"
+    }
+  ],
+  "optionalNativeComponents": {
+    "version": "1.13.0",
+    "license": "MIT",
+    "integritySource": "pnpm-lock.yaml",
+    "status": "Optional platform resolution only; not all targets are shipped in the Linux amd64 worker image",
+    "packages": [
+      "@napi-rs/image-android-arm64",
+      "@napi-rs/image-darwin-arm64",
+      "@napi-rs/image-darwin-x64",
+      "@napi-rs/image-freebsd-x64",
+      "@napi-rs/image-linux-arm-gnueabihf",
+      "@napi-rs/image-linux-arm64-gnu",
+      "@napi-rs/image-linux-arm64-musl",
+      "@napi-rs/image-linux-x64-gnu",
+      "@napi-rs/image-linux-x64-musl",
+      "@napi-rs/image-wasm32-wasi",
+      "@napi-rs/image-win32-arm64-msvc",
+      "@napi-rs/image-win32-ia32-msvc",
+      "@napi-rs/image-win32-x64-msvc"
+    ]
+  },
+  "adoptedRuntimeComponents": [
+    {
+      "component": "FFmpeg",
+      "version": "5.1.9-0+deb12u1",
+      "license": "GPL-2.0-or-later (Debian build; transitive codec libraries retain their package licenses)",
+      "source": "http://snapshot.debian.org/archive/debian/20260823T000000Z",
+      "integrity": "Debian signed Release and Packages indexes from the immutable 20260823T000000Z snapshot; exact package version enforced by worker.Dockerfile",
+      "use": "Fixed-path ffmpeg/ffprobe stream-copy remux and independent reopen for approved M4A/MP4 audio and completion MP4 video",
+      "status": "Repository/local integration only; hosted activation and image distribution are NOT RUN and require separate legal/operator approval plus applicable GPL source/notice compliance"
+    }
+  ],
   "adopted": [
     {
       "project": "expo/expo",
@@ -112,6 +182,14 @@
       "version": "4.4.3",
       "license": "MIT",
       "use": "trust-boundary schemas",
+      "security": "GitHub advisories"
+    },
+    {
+      "project": "Brooooooklyn/Image",
+      "package": "@napi-rs/image",
+      "version": "1.13.0",
+      "license": "MIT",
+      "use": "server-side media scanner image decode and metadata-stripping re-encode",
       "security": "GitHub advisories"
     },
     {
