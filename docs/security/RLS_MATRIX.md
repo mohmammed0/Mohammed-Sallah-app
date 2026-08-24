@@ -162,9 +162,65 @@ The authoritative runtime role list is exported by `@sallah/domain` and includes
 the same contract. Staff-only roles never imply customer/provider navigation. An unknown future role
 produces a controlled restricted mobile state instead of an endless initialization state.
 
+## Media-scanner control plane
+
+`private.media_scan_jobs`, `media_scan_attempts`, `media_scan_artifacts`,
+`media_scan_attestations`, `media_scan_events`, and `media_scanner_nonces` are RLS-enabled with no
+allow policy and no direct table grant, including to `service_role`. Authenticated clients have only
+`start_or_get_media_scan(uuid, uuid)` and `get_my_file_upload_status(uuid)`; the queue mutation
+requires a caller-created operation UUID with exact replay/mismatch semantics, while the latter is
+read-only and returns the exact safe owner projection with no operational evidence. Scanner-control
+uses narrowly granted, fixed-search-path
+service RPCs for claim, heartbeat, output preparation, readback authorization, attestation,
+finalization, rejection/failure, nonce consumption, and one-artifact-at-a-time cleanup.
+
+Scanner-request authentication nonces are strictly one-shot: the first valid consumer wins and every
+duplicate fails with `SCANNER_NONCE_REPLAY`, including an identical nonce-operation replay and a
+duplicate after stored expiry. Response-loss recovery uses a fresh nonce and fresh nonce-operation
+UUID while retaining the separate domain operation UUID used for idempotent business-state replay.
+The scanner-control timestamp window remains plus or minus 30 seconds, and nonce consumption never
+returns a prior accepted receipt.
+
+Every attempt has one immutable 120-second processing deadline. A timely attestation receives a
+fixed 15-second metadata-only finalization margin, and retries create distinct opaque input, output,
+and final-candidate paths. Exact operation UUID/fingerprint replay reconstructs the saved receipt;
+altered replay and every stale-attempt prepare, readback, attest, finalize, fail, or reject operation
+fail closed. Owner and scanner state transitions use a consistent job-before-upload/attempt lock
+order. Scanner signature freshness and eligibility are rechecked against a post-lock clock, and a
+future ClamAV signature timestamps fail closed with no positive skew at both the pre-lock and
+post-lock checks. The separate scanner-request authentication window does not relax antivirus
+signature freshness. A timely attested attempt remains authoritative through its complete
+finalization margin. The bounded
+attestation matches the database-owned purpose, detected input/output MIME,
+deadline, paths, sizes, hashes, sanitizer evidence, clean scans, readback hash, and fresh ClamAV
+signature evidence. Completion retains only the winning candidate as `file_uploads.final_path`;
+cleanup leases one non-retained artifact at a time and rechecks it before recording deletion.
+The service-only attempt-status RPC returns a fixed 28-key reconciliation receipt containing the
+authoritative attempt/job states, deadlines, declared/detected media policy, bounded sizes and
+hashes, sanitizer identity, manifest fingerprint, and input/output/final artifact states and paths.
+It remains unavailable to authenticated owners, and trusted Edge must strip source/final/private
+metadata from every scanner-worker response.
+
+Provider onboarding preserves its public `upsert_provider_onboarding(jsonb)` signature but now
+accepts each client document only as exact `{uploadId, documentType}`. The empty-search-path wrapper
+locks and validates the actor-owned clean `provider_document` upload, derives final path, content
+SHA-256, detected MIME, and size internally, then delegates to a revoked private legacy authority.
+Cross-owner, wrong-purpose, non-clean, duplicate, and legacy path/hash inputs fail closed. Direct
+authenticated provider-document inserts and path/hash column reads are revoked; safe review metadata
+remains readable under the existing owner/staff RLS policy.
+
+Raw authenticated reads of `file_uploads` and `upload_security_events` are revoked. Storage policies
+use narrow private authorization helpers instead, while preserving the M1 protected-message broker:
+the `message-attachments`, quarantine, `scan-input`, and `scan-output` buckets never gain a broad
+authenticated clean-object path. Storage objects continue to be mutated through Storage APIs, not by
+direct writes to the `storage` schema.
+
 Automated evidence includes the focused Task 1 active-job/location, trust, and moderation-pagination
 suites with 370 cross-role assertions, an eight-file scoped surface with 541 assertions, and the
-complete 27-file pgTAP suite with 915 assertions, including
+complete 28-file pgTAP suite with 1019 assertions. The focused media-scan database gate adds 105
+assertions plus a real multi-session claim/reclaim, preparation, finalization, cleanup, and nonce
+race harness. A five-file onboarding/media contract gate adds 155 assertions, including the exact
+safe upload-reference boundary and existing eligibility/review behavior. The complete suite includes
 `scoped_support_authorization.test.sql`, `cross_role.test.sql`, `rls.test.sql`,
 `pii_admin_scope.test.sql`, `customer_location_authority.test.sql`, `schema.test.sql`, and
 `launch_readiness_p0.test.sql`. They cover direct

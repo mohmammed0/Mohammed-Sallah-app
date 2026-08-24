@@ -96,13 +96,19 @@ status, and audience.
 
 ## OSS والتصميم والأدلة | OSS, design, and evidence
 
-| المستند                                                                                     | الوصف العربي                           | الحالة                      | الجمهور          |
-| ------------------------------------------------------------------------------------------- | -------------------------------------- | --------------------------- | ---------------- |
-| [OSS evaluation](oss/OSS_EVALUATION.md)                                                     | قرارات قبول ورفض المصادر المفتوحة      | CURRENT SUPPORTING DOCUMENT | الهندسة والقانون |
-| [OSS inventory](oss/OSS_INVENTORY.md)                                                       | طريقة قراءة السجل المولد               | CURRENT SUPPORTING DOCUMENT | الهندسة والقانون |
-| [M1 design](superpowers/specs/2026-08-20-marketplace-trust-ugc-safety-design.md)            | تصميم الثقة وسلامة المحتوى المعتمد     | CURRENT SUPPORTING DOCUMENT | الأمن والهندسة   |
-| [M1 implementation plan](superpowers/plans/2026-08-20-marketplace-trust-ugc-safety.md)      | خطة تنفيذ M1 وأدلة المهام              | CURRENT SUPPORTING DOCUMENT | الأمن والهندسة   |
-| [R1 implementation plan](superpowers/plans/2026-08-21-repository-bilingual-organization.md) | خطة هذا التنظيم وحدود عدم تغيير المنتج | CURRENT SUPPORTING DOCUMENT | المراجعون        |
+| المستند                                                                                            | الوصف العربي                           | الحالة                      | الجمهور          |
+| -------------------------------------------------------------------------------------------------- | -------------------------------------- | --------------------------- | ---------------- |
+| [OSS evaluation](oss/OSS_EVALUATION.md)                                                            | قرارات قبول ورفض المصادر المفتوحة      | CURRENT SUPPORTING DOCUMENT | الهندسة والقانون |
+| [OSS inventory](oss/OSS_INVENTORY.md)                                                              | طريقة قراءة السجل المولد               | CURRENT SUPPORTING DOCUMENT | الهندسة والقانون |
+| [M1 design](superpowers/specs/2026-08-20-marketplace-trust-ugc-safety-design.md)                   | تصميم الثقة وسلامة المحتوى المعتمد     | CURRENT SUPPORTING DOCUMENT | الأمن والهندسة   |
+| [M1 implementation plan](superpowers/plans/2026-08-20-marketplace-trust-ugc-safety.md)             | خطة تنفيذ M1 وأدلة المهام              | CURRENT SUPPORTING DOCUMENT | الأمن والهندسة   |
+| [R1 implementation plan](superpowers/plans/2026-08-21-repository-bilingual-organization.md)        | خطة هذا التنظيم وحدود عدم تغيير المنتج | CURRENT SUPPORTING DOCUMENT | المراجعون        |
+| [M2V architecture design](superpowers/specs/2026-08-21-media-scanning-v2-architecture-design.md)   | تصميم بنية الفحص غير المتزامنة المعتمد | CURRENT SOURCE OF TRUTH     | الأمن والهندسة   |
+| [M2V remediation plan](superpowers/plans/2026-08-21-media-scanning-v2-remediation.md)              | خطة تنفيذ M2V والتحقق المحلي           | CURRENT SUPPORTING DOCUMENT | الأمن والهندسة   |
+| [M2R focused remediation plan](superpowers/plans/2026-08-24-media-scanning-focused-remediation.md) | خطة معالجة نتائج M2C-R2 المحددة        | CURRENT SUPPORTING DOCUMENT | الأمن والهندسة   |
+| [Media-scanner boundary map](security/MEDIA_SCANNER_TEST_BOUNDARY_MAP.md)                          | ربط حدود M2B القديمة باختبارات M2R     | CURRENT SUPPORTING DOCUMENT | الأمن والمراجعون |
+| [Superseded M2B design](superpowers/specs/2026-08-21-media-scanning-beta-design.md)                | دليل تاريخي للبنية المستبدلة؛ لا يُنفذ | SUPERSEDED DESIGN EVIDENCE  | المراجعون        |
+| [Superseded M2B plan](superpowers/plans/2026-08-21-media-scanning-beta.md)                         | خطة مستبدلة محفوظة للتتبع              | SUPERSEDED PLAN EVIDENCE    | المراجعون        |
 
 ## أدلة تاريخية | Historical evidence
 

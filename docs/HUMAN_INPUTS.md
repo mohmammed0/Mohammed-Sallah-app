@@ -4,32 +4,49 @@
 
 These values cannot be safely invented. Development placeholders deliberately make production validation fail.
 
-| Input                                                                                                 | Owner                   | Required before               | Safe fallback                                                       |
-| ----------------------------------------------------------------------------------------------------- | ----------------------- | ----------------------------- | ------------------------------------------------------------------- |
-| Final public brand and Arabic/English spelling                                                        | Business                | Store metadata/domain         | `SALLAH` codename                                                   |
-| Legal entity name and Saudi registration details                                                      | Legal                   | Production/legal text         | `REQUIRES_LEGAL_ENTITY`                                             |
-| Production iOS bundle ID and Android package                                                          | Mobile owner            | EAS production build          | `sa.example.sallah` rejected in production                          |
-| Apple team, App Store Connect app ID, Google Play account/service account                             | Release owner           | Signing/submission            | Submit disabled/placeholders                                        |
-| EAS project ID and Expo access token                                                                  | Release owner           | EAS build/push                | Local export only                                                   |
-| Public domain, support email, support URL, privacy URL, terms URL                                     | Business/legal          | Public launch/store review    | `.invalid` values rejected                                          |
-| Final privacy policy, terms, retention schedule, consent wording                                      | Saudi-qualified counsel | Production/store review       | Engineering drafts only                                             |
-| Supabase production project and secrets                                                               | Platform owner          | Deployment                    | Local Supabase                                                      |
-| OpenAI credentials, explicit vision-capable model selection, and data terms for diagnostic intake     | AI owner/legal          | Live multimodal diagnostic AI | Deterministic local fallback; private media is never exposed by URL |
-| Translation processor, payload/DPA/region/retention approval                                          | AI owner/legal/privacy  | Multilingual live briefs      | Original text plus explicit unavailable status                      |
-| SMS sender/provider credentials and templates                                                         | Operations              | Phone OTP/SMS                 | Email auth; SMS disabled                                            |
-| Payment merchant/gateway credentials and commercial rules                                             | Finance/legal           | Online payment                | Offline/post-service ledger mode                                    |
-| Android Google Maps SDK key, billing, and allowed app restrictions                                    | Mobile/platform         | Android production maps       | Production validator/build remains blocked                          |
-| Push credentials (APNs/FCM/Expo)                                                                      | Mobile owner            | Push delivery                 | In-app outbox; push disabled                                        |
-| Production monitoring/alert provider credentials                                                      | SRE                     | Production on-call            | Structured logs only                                                |
-| Malware scanner endpoint, authentication secret, and processing region                                | Security/platform       | Production uploads            | Quarantine remains fail-closed                                      |
-| Publicly reachable Supabase URL used in signed media responses                                        | Platform owner          | Deployed private media        | Local broker rewrites only the local Docker URL                     |
-| Reviewer customer/provider accounts and approved seeded journey                                       | Release/operations      | Store review                  | No fabricated accounts                                              |
-| Named production privacy, finance, support, and operations reviewers with least-privilege assignments | Security/operations     | Admin production enablement   | Local role-scoped demo accounts only                                |
-| Arabic/English/Urdu/Hindi professional copy review                                                    | Localization owner      | Public launch                 | Engineering translations                                            |
-| Provider verification policy and regulated-category evidence list                                     | Operations/legal        | Provider approval             | Manual review, no auto-verify                                       |
-| Backup retention/RPO/RTO approval                                                                     | Platform/legal          | Production                    | Proposed values in runbook                                          |
+| Input                                                                                                                         | Owner                   | Required before               | Safe fallback                                                       |
+| ----------------------------------------------------------------------------------------------------------------------------- | ----------------------- | ----------------------------- | ------------------------------------------------------------------- |
+| Final public brand and Arabic/English spelling                                                                                | Business                | Store metadata/domain         | `SALLAH` codename                                                   |
+| Legal entity name and Saudi registration details                                                                              | Legal                   | Production/legal text         | `REQUIRES_LEGAL_ENTITY`                                             |
+| Production iOS bundle ID and Android package                                                                                  | Mobile owner            | EAS production build          | `sa.example.sallah` rejected in production                          |
+| Apple team, App Store Connect app ID, Google Play account/service account                                                     | Release owner           | Signing/submission            | Submit disabled/placeholders                                        |
+| EAS project ID and Expo access token                                                                                          | Release owner           | EAS build/push                | Local export only                                                   |
+| Public domain, support email, support URL, privacy URL, terms URL                                                             | Business/legal          | Public launch/store review    | `.invalid` values rejected                                          |
+| Final privacy policy, terms, retention schedule, consent wording                                                              | Saudi-qualified counsel | Production/store review       | Engineering drafts only                                             |
+| Supabase production project and secrets                                                                                       | Platform owner          | Deployment                    | Local Supabase                                                      |
+| OpenAI credentials, explicit vision-capable model selection, and data terms for diagnostic intake                             | AI owner/legal          | Live multimodal diagnostic AI | Deterministic local fallback; private media is never exposed by URL |
+| Translation processor, payload/DPA/region/retention approval                                                                  | AI owner/legal/privacy  | Multilingual live briefs      | Original text plus explicit unavailable status                      |
+| SMS sender/provider credentials and templates                                                                                 | Operations              | Phone OTP/SMS                 | Email auth; SMS disabled                                            |
+| Payment merchant/gateway credentials and commercial rules                                                                     | Finance/legal           | Online payment                | Offline/post-service ledger mode                                    |
+| Android Google Maps SDK key, billing, and allowed app restrictions                                                            | Mobile/platform         | Android production maps       | Production validator/build remains blocked                          |
+| Push credentials (APNs/FCM/Expo)                                                                                              | Mobile owner            | Push delivery                 | In-app outbox; push disabled                                        |
+| Production monitoring/alert provider credentials                                                                              | SRE                     | Production on-call            | Structured logs only                                                |
+| Private HTTPS scanner-control and Storage origins, two HMAC secrets, DNS/routes/firewalls/TLS identity, and processing region | Security/platform       | Production uploads            | Quarantine remains fail-closed                                      |
+| ClamAV signature-update owner, freshness SLO (maximum 24 hours), monitoring, and stale-signature response                     | Security/SRE            | Production uploads            | Production scanner gate remains blocked                             |
+| Scanner worker capacity, one-job concurrency, ClamD/native memory, readiness, and alert thresholds                            | Platform/SRE            | Production uploads            | Repository bounds are not production capacity evidence              |
+| Scanner deny-by-default egress policy and permitted signature-update destinations                                             | Security/platform       | Production uploads            | Local Docker bridge is not production egress evidence               |
+| Scanner runtime-image minimization/allowlist, GPL distribution review, and incident runbooks                                  | Security/legal/SRE      | Production scanner image      | Local image remains development evidence only                       |
+| Vault-backed privacy-worker URL/secret and ownership of the 15-minute media-cleanup schedule                                  | Platform/SRE            | Hosted M2 activation          | Hosted scheduler fails closed; local integration only               |
+| Publicly reachable Supabase URL used in signed media responses                                                                | Platform owner          | Deployed private media        | Local broker rewrites only the local Docker URL                     |
+| Reviewer customer/provider accounts and approved seeded journey                                                               | Release/operations      | Store review                  | No fabricated accounts                                              |
+| Named production privacy, finance, support, and operations reviewers with least-privilege assignments                         | Security/operations     | Admin production enablement   | Local role-scoped demo accounts only                                |
+| Arabic/English/Urdu/Hindi professional copy review                                                                            | Localization owner      | Public launch                 | Engineering translations                                            |
+| Provider verification policy and regulated-category evidence list                                                             | Operations/legal        | Provider approval             | Manual review, no auto-verify                                       |
+| Backup retention/RPO/RTO approval                                                                                             | Platform/legal          | Production                    | Proposed values in runbook                                          |
 
 Production enablement requires `pnpm config:validate:production` to pass with non-placeholder values and documented approval.
+
+The production scanner approval must record exact external control and Storage origins, separate
+control/attestation HMAC rotation owners, `private-only` network policy, signature maximum age, one-job
+worker capacity, the fixed deadline, metadata timeout, alerts, continuous ClamD readiness, outbound
+update policy, and regional data-processing decision.
+Configuration validation can reject public IP literals but cannot prove that a DNS name resolves only
+inside the approved private network. That evidence belongs to network tests and operator review.
+
+ClamAV detects malware; it is not content disarm and reconstruction (CDR). Static JPEG/PNG/WebP are
+decoded and re-encoded. Approved M4A/MP4 audio and completion MP4 video use bounded, metadata-stripping
+FFmpeg remux with FFprobe reopen validation. WebM and PDF remain fail-closed. Deterministic local/test
+mode is not equivalent to production controls.
 
 Repository automation can validate structure, local authorization, and fail-closed behavior, but cannot approve provider contracts, create production accounts, choose legal retention outcomes, supply store signing identities, or claim a physical-device/iOS result. Those items remain external gates rather than software passes.
 

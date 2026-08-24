@@ -18,6 +18,14 @@ Use the local publishable key printed by `supabase status`; never copy its local
 
 After migrations, run `supabase db reset`, `supabase test db`, regenerate the application contract with `supabase gen types typescript --local --schema public`, and verify no diff remains. Stop with `supabase stop` when desired. Windows/WSL path issues are avoided by running all repository commands from one shell/runtime consistently.
 
+For M2V scanner verification, run `pnpm test:media-scanner:gates` and then
+`pnpm test:media-scanner:supabase`. The latter owns an exact local ClamD container and temporary
+unsigned EICAR-only signature database for the cross-system flow, exercises the real pull worker and
+FFmpeg remux against local Storage/Edge, resets local
+Supabase before and after, and removes its temporary files/container. It does not deploy or provision a
+hosted scanner. `pnpm test:media-scanner` separately requires the official pinned EICAR signature.
+Do not reuse generated HMAC values outside their process.
+
 ## Local demo accounts
 
 `supabase db reset` loads deterministic data from `supabase/seed.demo.sql`; that file is local-only and must never be applied to production. Seeded accounts use the `.invalid` domain. All passwords are non-recoverable random values except the operations admin, which has the explicitly local-only Playwright password `LocalE2E-Only!2026`. Never reuse that fixture outside the local reset database. For other interactive local sign-in, issue a local email OTP or set a temporary password through Supabase Studio:

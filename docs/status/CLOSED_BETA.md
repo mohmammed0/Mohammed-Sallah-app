@@ -3,27 +3,31 @@
 [العربية](../ar/CLOSED_BETA.md) · [Documentation map](../README.md)
 
 **التصنيف | Classification:** CURRENT SOURCE OF TRUTH
-**آخر تحقق مرجعي | Reference date:** 2026-08-21
+**آخر تحقق مرجعي | Reference date:** 2026-08-22
 
 ## الحالة المختصرة | Summary
 
 - **M1 — Marketplace Trust and UGC Safety:** مكتمل ومجمّد عند
   `46e8c8cd5bc85dcbd24efad50ab0d22cd39eb31b` عبر
   [Draft PR #17](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/17).
-- **M2 — Production-quality media scanning:** اختيرت البنية ونطاق القبول، لكن التنفيذ لم يبدأ.
-  المرجع هو [Issue #20](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/20).
-- التنظيم الثنائي اللغة R1 لا يغير سلوك المنتج أو قاعدة البيانات ولا يبدأ M2.
+- **R1 / D1:** تنظيم المستودع الثنائي اللغة في Draft PR #24 ومحاذاة Expo SDK 57 في Draft PR #25
+  منشوران كفروع أبناء دون دمج.
+- **M2 — Production-quality media scanning:** تنفيذ المستودع المحلي لبنية V2 غير المتزامنة جارٍ
+  في فرع معزول وغير ملتزم أو منشور. الاستضافة والتفعيل **NOT RUN**. المرجع هو
+  [Issue #20](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/20).
 
-M1 Marketplace Trust and UGC Safety is complete and frozen at the approved PR #17 head. M2
-production-quality media scanning has a selected architecture and documented acceptance scope, but
-implementation has not started. R1 changes documentation organization only; it does not alter
-product/database behavior or start M2.
+M1 Marketplace Trust and UGC Safety remains frozen at PR #17. R1 (#24) and the green D1 Expo patch
+alignment (#25) are published as unmerged child Draft PRs. M2V repository/local implementation is
+in progress in an isolated, uncommitted worktree. No hosted scanner, Supabase deployment, secret,
+EAS action, or production activation has occurred.
 
 ## المراجع الرسمية | Authoritative links
 
 - [Master Tracker #23](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/23)
 - [Parent RC Draft PR #7](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/7)
 - [Frozen M1 Draft PR #17](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/17)
+- [R1 bilingual repository Draft PR #24](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/24)
+- [Green D1 Expo alignment Draft PR #25](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/25)
 
 ## معنى الحالات | Status vocabulary
 
@@ -39,7 +43,7 @@ product/database behavior or start M2.
 | المرحلة                                 | الحالة                                             | المرجع                                                              |
 | --------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------- |
 | M1 — الثقة وسلامة المحتوى               | **PASS / FROZEN**                                  | [PR #17](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/17) |
-| M2 — فحص الوسائط                        | **NOT STARTED**؛ البنية مختارة                     | [#20](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/20)  |
+| M2 — فحص الوسائط                        | **IN PROGRESS** محلياً فقط؛ الاستضافة **NOT RUN**  | [#20](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/20)  |
 | M3 — AI/التفريغ/الترجمة الحقيقية        | **HUMAN INPUT REQUIRED** قبل التكامل الحقيقي       | [#18](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/18)  |
 | M4 — الإشعارات الفعلية                  | **NOT RUN** على جهاز فعلي                          | [#19](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/19)  |
 | M5 — تجربة مقدم الخدمة وإتاحة beta      | **NOT STARTED**                                    | [#16](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/16)  |
@@ -57,13 +61,13 @@ product/database behavior or start M2.
   تقارير التنفيذ وخططها ولا تتحول تلقائياً إلى دليل جهاز أو إنتاج.
 - اختبار Android/iOS الفعلي، حسابات المتاجر، الهوية القانونية، عناوين الدعم العامة، اتفاقيات
   مزودي الخدمات، ومفاتيح الإنتاج هي **HUMAN INPUT REQUIRED**.
-- الإنتاج والنشر والمتاجر والخدمات المدفوعة ليست أعمالاً مصرحاً بها في R1.
+- الإنتاج والنشر والمتاجر والخدمات المدفوعة ليست أعمالاً مصرحاً بها في M2V.
 - السجلات السابقة محفوظة في [الأرشيف](../archive/README.md) و
   [تقارير التحقق](../validation/FINAL_VALIDATION_REPORT.md)، لكنها ليست حالة اليوم.
 
 Repository-local checks prove only the command, head, and environment recorded. Physical-device
 tests, store identities, legal approvals, public support identity, vendor agreements, and
-production credentials remain separate human gates. R1 does not authorize production, stores,
+production credentials remain separate human gates. M2V does not authorize production, stores,
 paid services, or deployment.
 
 ## سياسة الفروع | Branch policy

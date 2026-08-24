@@ -44,5 +44,9 @@ pnpm dev
 - المزود الحتمي للذكاء الاصطناعي أداة اختبار وليس دليلاً على تكامل إنتاجي.
 - شغل أوامر المستودع من runtime واحد في Windows/WSL لتفادي اختلاف المسارات.
 - أوقف البيئة عند الانتهاء باستخدام `supabase stop`.
+- للتحقق من M2V شغل `pnpm test:media-scanner:gates` ثم
+  `pnpm test:media-scanner:supabase`. ينشئ الاختبار مفاتيح HMAC وقاعدة توقيع EICAR محلية غير
+  موقعة لمسار التكامل، ويختبر FFmpeg Remux، ثم يعيد ضبط Supabase وينظف حاويته وملفاته؛ لا ينشر
+  خدمة مستضافة. الأمر `pnpm test:media-scanner` المنفصل يتطلب توقيع EICAR الرسمي المثبت.
 
 للمتغيرات والحدود راجع [Environment contract](../ENVIRONMENT.md).

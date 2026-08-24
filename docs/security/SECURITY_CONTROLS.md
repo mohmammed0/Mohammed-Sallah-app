@@ -123,11 +123,50 @@ Corrective: global sign-out, token deletion, account suspension/deletion state, 
   `marketplace_offer_block_concurrency.sh` covers both lock orders independently for offer
   submission and offer selection.
 
-Uploads enter a private quarantine bucket through a server-issued ticket with purpose-specific MIME, extension, and byte limits. The scanner verifies signatures, rejects active PDF content and the EICAR fixture, decodes/re-encodes supported images to strip metadata, and promotes only clean objects. RLS and database triggers prevent quarantined or unscanned objects from being referenced or served. The deterministic scanner is test/local-only; production validation requires an external scanner contract and fails closed without it. Failed and rejected objects enter a retryable physical-cleanup queue with an immutable audit trail.
+Uploads enter a private quarantine bucket through a server-issued ticket with purpose-specific MIME,
+extension, and byte limits. `scan-upload` is a start/status/replay endpoint and never transports media
+bytes. A one-job pull worker authenticates to `scanner-control` using a dedicated timestamped HMAC,
+one-shot nonce, exact action and attempt identity; it receives only exact short-lived signed Storage
+capabilities. It has no database, S3, Supabase service-role, publishable, or user credential. The
+worker validates capability origin/path, denies redirects, scans with ClamAV before and after either
+full static-image decode/re-encode/reopen or approved bounded M4A/MP4 audio and completion-video remux,
+uploads directly to opaque `scan-output`, and hashes an exact
+signed readback before signing its bounded manifest.
+
+Edge validates only bounded metadata: current attempt/deadline, canonical attestation HMAC,
+nonce/replay, authoritative opaque paths, MIME/size/hash policy, fresh signature evidence, and exact
+Storage metadata. It performs a server-side non-overwrite copy and transactional completion; it never
+downloads, buffers, Base64-converts, hashes, sanitizes, or uploads media. RLS and database triggers
+prevent quarantined or unscanned objects from being referenced or served. Static JPEG/PNG/WebP are
+decoded and re-encoded. Approved M4A/MP4 audio and completion MP4 video are metadata-stripped and
+remuxed with fixed executable paths and reopened with FFprobe. WebM/PDF/archive/Office/script/
+executable/unknown input fails closed. ClamAV is malware detection, not CDR.
+
+Production configuration fails closed without explicit `APP_ENV=preview|production`, external mode,
+exact HTTPS control and Storage origins, distinct 32-256-byte HMAC secrets, private-only network
+policy, signature freshness, one job, the fixed 120-second deadline, bounded metadata timeout, and
+alerts. Public and loopback IP literals are rejected, but DNS-name privateness requires operator proof
+of resolution, routing, firewalling, TLS, and egress. Every attempt uses distinct opaque artifacts;
+stale workers cannot prepare, upload-authorize, attest, or finalize. Cleanup is attempt-bound, excludes
+active and retained-final artifacts, and removes late/stale staging orphans without poisoning retries.
+The scheduled cleanup boundary ages eligible private artifacts at 24 hours without scanner activity,
+uses reclaimable leases, dead-letters exhausted rows, and continues after an individual deletion error.
+Attempt capabilities are clipped to the remaining deadline minus a 15-second finalization margin, and
+private attestation nonces are transactionally single-use across independently signed submissions.
+
+This metadata-only invariant is scoped to the scanning control plane. `media-access` remains the M1
+live-authorized streaming broker and does not materialize the upstream object before returning it.
+`ai-diagnostic` and `transcribe` retain their existing clean-authorized provider transports; their
+provider/media memory review is an explicit M3 activation gate, not an M2V completion claim.
 
 Privacy requests use service-role-only queue claims, bounded exponential retry/dead letters, owner-scoped export paths, one-hour signed links by default, automatic object expiry, session/Auth soft deletion, push-token and storage cleanup, transactional anonymization, retention snapshots, and owner/admin status timelines. Final legal retention periods remain a required human approval.
 
-Production actions still required: operator MFA/SSO, WAF/rate-limit tuning, centralized alerting, external malware-scanner deployment, penetration test, backup restore drill, AI red-team/evals, and Saudi legal/privacy review.
+Production actions still required: operator MFA/SSO, WAF/rate-limit tuning, centralized alerting,
+external media-scanner deployment, continuous ClamD readiness/signature freshness monitoring,
+deny-by-default egress, alerts, capacity proof, minimized runtime image, ClamAV GPL distribution/source
+offer approval, penetration test, backup restore drill, AI red-team/evals, and Saudi legal/privacy
+review. The local Docker network, worker image, and deterministic EICAR database are repository evidence
+only, not hosted readiness proof.
 
 - Edge Functions receive narrowly enumerated service-role grants for request-translation reads/writes, AI/transcription usage inserts, and notification outbox processing. They receive no blanket public-schema DML and no profile deletion privilege. Handlers authenticate first, authorize the target resource explicitly, validate inputs, and write status/usage records.
 

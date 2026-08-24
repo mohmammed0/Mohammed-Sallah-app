@@ -10,6 +10,11 @@
 | التنسيق والأنواع والوحدات والبناء | `pnpm validate`                            |
 | التكامل بين الحزم                 | `pnpm test:integration`                    |
 | Supabase المحلي                   | `pnpm test:local-supabase`                 |
+| فحص الوسائط V2 المحلي             | `pnpm test:media-scanner:supabase`         |
+| ذاكرة Edge لمسار التحكم           | `pnpm test:edge-memory`                    |
+| الحاوية وClamAV والحدود           | `pnpm test:media-scanner`                  |
+| Remux الحقيقي للصوت والفيديو      | `pnpm test:media-scanner:remux`            |
+| بوابات CI لفحص الوسائط            | `pnpm test:media-scanner:gates`            |
 | قاعدة البيانات وRLS               | `pnpm test:db`                             |
 | Edge Functions                    | `pnpm test:functions`                      |
 | الأمن                             | `pnpm test:security && pnpm security:scan` |
@@ -23,6 +28,10 @@
 - غياب Docker أو المتصفح أو المحاكي أو الجهاز أو الاعتماد يعني NOT RUN.
 - تصدير Android لا يساوي اختبار جهاز فعلي.
 - الاختبار المحلي أو المزود الحتمي لا يساوي خدمة إنتاجية.
+- اختبار فحص الوسائط يستخدم Supabase وStorage وEdge وClamD محلياً فقط؛ لا يثبت استضافة أو
+  تفعيلاً إنتاجياً.
+- شرط metadata-only يخص مسار تحكم الفحص فقط. يبقى `media-access` وسيط بث يعيد التحقق من الصلاحية،
+  أما نقل الوسائط إلى مزودي AI والتفريغ فهو بوابة M3 منفصلة.
 - تغيير RLS أو RPC يتطلب حالة مسموحة وحالات منع متقاطعة.
 
 ## قبل تسليم تغيير

@@ -201,3 +201,83 @@ These are automated rendered/test captures, not emulator or physical-device scre
 - Production deployment, migrations, secrets, paid services, and store submission: **NOT
   PERFORMED**.
 - Draft PR #14 must remain open, draft, unmerged, and separate from production release gates.
+
+## M2V repository/local media-scanning implementation
+
+Date: 2026-08-24. Source: green D1 SHA
+`bc8afd939a532021dd5a6a975894b2cee4842a87`. Execution boundary: the isolated local M2 worktree,
+local Supabase/Docker, the repository pull worker, and ClamD. Changes remain uncommitted, unstaged,
+unpublished, and subject to repeat M2C review.
+
+### M2R focused-remediation evidence
+
+| Command or suite                                    | Result | Evidence                                                                                             |
+| --------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------- |
+| `pnpm test:media-scanner:gates`                     | PASS   | 4/4 CI/release tests: immutable pins, cleanup, memory, remux, and real integrations                  |
+| `pnpm test:edge-memory`                             | PASS   | 2/2; 10 MiB 66,727,936 B, 20 MiB 67,006,464 B; below 128 MiB and size-independent                    |
+| Full Edge Deno tests                                | PASS   | **87/87** HMAC/capability/nonce/metadata-only scanner control and M1 protected-media regressions     |
+| `pnpm test:media-scanner:supabase`                  | PASS   | 28 labels; real Storage/DB/Edge/worker/ClamD/remux/replay/cleanup; exact zero residue drift          |
+| D1-to-M2 upgrade/fresh pgTAP                        | PASS   | Upgrade 3 files/143; fresh full **28 files/1,035 assertions**; public/private lint zero              |
+| `supabase/tests/database/media_scan_concurrency.sh` | PASS   | Real claim/reclaim/prepare/finalize/cleanup/signature/nonce races with one-winner assertions         |
+| Scanner package                                     | PASS   | **15 files/99 tests**; strict build/type/lint and malformed/bomb/protocol/timeout/redaction coverage |
+| `pnpm test:media-scanner`                           | PASS   | Official EICAR/freshness, max images, sequential native isolation, cleanup, cgroup proof, SBOM       |
+| `pnpm test:media-scanner:remux`                     | PASS   | 6 labels: real M4A/audio-MP4/video-MP4 remux, metadata strip, reopen, timeout kill, trailing denial  |
+| `pnpm validate`                                     | PASS   | Format, docs, i18n, inventories, scanner gates, lint, strict types, tests, web build, Android export |
+| License, audit, and secret checks                   | PASS   | Policy checks; no known high-severity vulnerability or repository secret                             |
+| Repository and container SBOM                       | PASS   | CycloneDX **790** repository components and **336** exact-image container components                 |
+
+The V2 integration proves queued, active, clean, and terminal replay; completion and output-response
+loss; distinct retry artifacts and old-orphan cleanup; stale-worker denial; one-winner completion;
+cleanup versus an active attempt; one-shot HMAC nonce replay; exact signed input, output, and readback;
+real EICAR detection; fresh/stale signature decisions; a 19,368,173-byte static image beneath the
+120-second job deadline; clean M4A, audio-MP4, and completion-video MP4 after actual bounded remux;
+fail-closed malformed/unsupported audio/video, WebM, PDF, and polyglot input; autonomous real-Storage
+cleanup for all four 25-hour artifact states; and protected-media owner
+allow/outsider denial. Edge transports bounded metadata only. It performs no media body download,
+full buffer/Base64/hash/sanitize/upload path; promotion is a server-side Storage copy after current
+attempt, manifest, signature, and exact object-metadata checks.
+
+The harness resets local Supabase before and after the run, stops the function server and exact
+ClamD container, removes temporary signatures/media, and compares counts for Auth users, uploads,
+private jobs/attempts/artifacts/attestations/events/nonces, and Storage objects. Failure cleanup also
+resets the database; setup or primary test errors are not hidden. The final run preserved the exact
+baseline counts: 9 Auth users, 1 seeded upload, and zero jobs, attempts, artifacts, attestations,
+events, nonces, or Storage objects. The mandatory CI scanner job is not path-filtered and runs scanner
+lint/typecheck/test/build, container hardening/build, real
+ClamAV/EICAR, image/polyglot and unsupported-format policy, local Supabase/Storage/Edge integration,
+real DB concurrency, freshness/memory/remux gates, licenses, audit/security, and repository/container
+SBOM. Third-party Actions and Deno are pinned exactly; final cleanup uses `if: always()` without
+converting the original job result. Hosted Actions execution remains **NOT RUN**.
+
+The final standalone container accepted a 19,368,173-byte PNG in 2,678 ms and separately exercised
+8,192 x 4,882 (39,993,344-pixel) JPEG, PNG, and WebP through both ClamAV scans and
+decode/re-encode/reopen. Their cgroup peaks were 413,458,432, 537,337,856, and 432,095,232 bytes.
+Three sequential high-entropy WebP jobs used distinct child PIDs, completed in 5,874/5,133/5,104 ms,
+left no child or temp residue, and peaked at 689,344,512 bytes under a 1,073,741,824-byte no-swap
+worker limit; ClamD retained its separate 4 GiB budget. The final worker image ID is
+`sha256:ca622597031f57ebec1c75248427d7fc12f9a98721d55235492673e3334dee2a`. The repository SBOM
+SHA-256 is `1803a1a85025c268d78e8a0bc81ed52095b6963eb117f085966771ebea92927e`; the exact-image container
+SBOM SHA-256 is `76189006cf1746097ae12d7cbc3ad68b2b40fe76721144f7e66cfeb9f8117dba`.
+
+Configuration requires explicit `APP_ENV` and external mode outside local/test. The scanner uses
+dedicated control and attestation HMAC secrets, never database/S3/Supabase service-role/publishable/user
+credentials. Exact HTTPS control and Storage origins, strict signed-query allowlists, no redirects,
+one active job, a fixed 120-second
+deadline, bounded metadata timeouts, fresh signatures, private-network policy, and alerts are
+release-gated. Syntax cannot prove DNS privateness; operators must prove routing, firewall, TLS, and
+egress behavior.
+
+### Remaining external gates
+
+- Hosted scanner provisioning, Supabase/Edge deployment, production secrets, and private-network/TLS
+  configuration: **NOT RUN**.
+- Continuous signature updates/ClamD readiness, alerts, hosted load/capacity, deny-by-default egress,
+  and production runtime-image hardening: **NOT RUN**.
+- ClamAV GPL-2.0-only production legal/operator approval and source-offer obligations: **NOT RUN**;
+  the pinned ClamAV container remains repository/local evidence only.
+- Hosted Actions, EAS, emulator, and physical-device validation: **NOT RUN**.
+- ClamAV is malware detection, not CDR. Static JPEG/PNG/WebP use decode/re-encode/reopen. Approved
+  M4A/MP4 audio and completion MP4 video use bounded FFmpeg remux and FFprobe reopen. WebM, PDFs,
+  archives, Office files, scripts, executables, and unknown formats fail closed; no PDF CDR is claimed.
+- The hosted 15-minute cleanup scheduler requires human-provisioned Vault URL/secret inputs and is
+  **NOT RUN**; local pg_cron contract, database aging, and real Storage deletion are repository evidence.
