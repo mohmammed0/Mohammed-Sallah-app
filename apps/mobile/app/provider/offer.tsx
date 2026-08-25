@@ -148,10 +148,16 @@ export default function ProviderOffer() {
           )}
         />
         {formState.errors.root?.message && (
-          <Text style={styles.error}>{formState.errors.root.message}</Text>
+          <Text accessibilityRole="alert" style={styles.error}>
+            {formState.errors.root.message}
+          </Text>
         )}
-        {done && <Text>{t('offerSubmitted')}</Text>}
-        <Button label={t('submitOfferAction')} onPress={() => void handleSubmit(submit)()} />
+        {done && <Text accessibilityLiveRegion="polite">{t('offerSubmitted')}</Text>}
+        <Button
+          disabled={formState.isSubmitting || done}
+          label={formState.isSubmitting ? t('loading') : t('submitOfferAction')}
+          onPress={() => void handleSubmit(submit)()}
+        />
       </Screen>
     </ScrollView>
   );

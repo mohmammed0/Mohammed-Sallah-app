@@ -7,6 +7,7 @@ import { formatStatusLabel } from '@sallah/i18n';
 import { Button, Card, LoadingSkeleton, Screen, styles } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/providers/locale-provider';
+import { loadProviderBriefs } from '@/features/provider/provider-feed-resilience';
 
 const feedSchema = z.object({
   id: z.uuid(),
@@ -109,20 +110,26 @@ export default function ProviderFeed() {
         .order('score', { ascending: false });
       if (error) throw error;
       const matches = z.array(feedSchema).parse(data ?? []);
-      return await Promise.all(
-        matches.map(async (match) => {
+      const loaded = await loadProviderBriefs(
+        matches.map((match) => ({ match, requestId: match.service_requests.id })),
+        async (requestId) => {
           const response = await (
             supabase.rpc as unknown as (
               name: string,
               args: Record<string, unknown>,
             ) => Promise<{ data: unknown; error: unknown }>
           )('get_provider_request_brief', {
-            p_request_id: match.service_requests.id,
+            p_request_id: requestId,
           });
           if (response.error) throw new Error('PROVIDER_BRIEF_ACCESS_DENIED');
-          return { ...match, brief: briefSchema.parse(response.data) };
-        }),
+          return briefSchema.parse(response.data);
+        },
       );
+      return loaded.map(({ match: envelope, brief, briefState }) => ({
+        ...envelope.match,
+        brief,
+        briefState,
+      }));
     },
   });
   async function loadMedia(uploadId: string) {
@@ -162,166 +169,187 @@ export default function ProviderFeed() {
         <Text style={styles.title}>{t('eligibleRequests')}</Text>
         <Text style={styles.lead}>{t('eligibleFeedPrivacyNotice')}</Text>
         {query.isPending && <LoadingSkeleton label={t('loadingSummaries')} />}
-        {query.isError && <Text style={styles.error}>{t('providerFeedLoadFailed')}</Text>}
-        {query.data?.map((match) => (
-          <Card key={match.id}>
-            <Text style={styles.badge}>{match.service_requests.urgency}</Text>
-            <Text>{match.service_requests.title}</Text>
-            <Text style={styles.lead}>{match.brief.description}</Text>
-            <Text style={styles.badge}>
-              {t('originalTextLabel', { locale: match.service_requests.original_locale })}
+        {query.isError && (
+          <Card>
+            <Text accessibilityRole="alert" style={styles.error}>
+              {t('providerFeedLoadFailed')}
             </Text>
-            <Text style={styles.lead}>{match.service_requests.original_text}</Text>
-            <Card>
+            <Button kind="secondary" label={t('retry')} onPress={() => void query.refetch()} />
+          </Card>
+        )}
+        {query.data?.map((match) => {
+          if (!match.brief) {
+            return (
+              <Card key={match.id}>
+                <Text style={styles.badge}>{match.service_requests.urgency}</Text>
+                <Text>{match.service_requests.title}</Text>
+                <Text accessibilityRole="alert" style={styles.error}>
+                  {t('providerFeedLoadFailed')}
+                </Text>
+                <Button kind="secondary" label={t('retry')} onPress={() => void query.refetch()} />
+              </Card>
+            );
+          }
+          return (
+            <Card key={match.id}>
+              <Text style={styles.badge}>{match.service_requests.urgency}</Text>
+              <Text>{match.service_requests.title}</Text>
+              <Text style={styles.lead}>{match.brief.description}</Text>
               <Text style={styles.badge}>
-                {match.brief.category.slug} · {match.brief.area.city}
-                {match.brief.area.district ? ` · ${match.brief.area.district}` : ''}
+                {t('originalTextLabel', { locale: match.service_requests.original_locale })}
               </Text>
-              <Text style={styles.lead}>
-                {t('providerBriefSchedule', {
-                  start:
-                    match.brief.schedule.mode === 'flexible'
-                      ? t('timingFlexible')
-                      : (match.brief.schedule.start ?? t('timingAsap')),
-                })}
-              </Text>
-              <Text style={styles.lead}>
-                {t('providerBriefMediaCount', { count: match.brief.media.length })}
-              </Text>
-              <Text style={styles.lead}>
-                {t('providerBriefApproximateLocation', {
-                  latitude: match.brief.approximateLocation.latitude,
-                  longitude: match.brief.approximateLocation.longitude,
-                })}
-              </Text>
-              {match.brief.requiredCapabilities.map((capability) => (
-                <Text key={capability} style={styles.lead}>
-                  {t('requiredCapability')}: {capability}
-                </Text>
-              ))}
-              <Text style={styles.lead}>
-                {t('providerBriefCapability', {
-                  status: match.brief.providerCapabilities.qualified
-                    ? t('qualified')
-                    : t('notQualified'),
-                })}
-              </Text>
-              {match.brief.ai.uncertain && (
-                <Text style={styles.error}>{t('aiBriefUncertain')}</Text>
-              )}
-              {match.brief.safety.map((flag) => (
-                <Text key={`${flag.type}-${flag.severity}`} style={styles.error}>
-                  {flag.type} · {flag.severity}
-                </Text>
-              ))}
-              {match.brief.answers.map((answer) => (
-                <Text key={answer.questionKey} style={styles.lead}>
-                  {answer.questionKey}:{' '}
-                  {answer.answerText ??
-                    answer.answerNumber ??
-                    answer.answerBoolean?.toString() ??
-                    answer.answerOptions?.join(', ') ??
-                    '—'}
-                </Text>
-              ))}
-              {match.brief.media
-                .filter((media) => media.uploadId)
-                .map((media) => (
-                  <Card key={media.id}>
-                    {media.uploadId && mediaUrls[media.uploadId] ? (
-                      <Image
-                        source={{ uri: mediaUrls[media.uploadId] }}
-                        accessibilityLabel={t('requestMediaA11y')}
-                        style={{ width: '100%', height: 180, borderRadius: 12 }}
-                      />
-                    ) : (
-                      <Button
-                        kind="secondary"
-                        label={
-                          media.uploadId && mediaErrors[media.uploadId]
-                            ? t('retryMedia')
-                            : t('loadAttachment')
-                        }
-                        onPress={() => media.uploadId && void loadMedia(media.uploadId)}
-                      />
-                    )}
-                  </Card>
-                ))}
-              <Text style={styles.lead}>
-                {t('translationStatusLabel')}:{' '}
-                {formatStatusLabel(
-                  typeof match.brief.translation.status === 'string'
-                    ? match.brief.translation.status
-                    : 'not_requested',
-                  locale,
-                )}
-              </Text>
-            </Card>
-            {translations[match.service_requests.id]?.translated && (
+              <Text style={styles.lead}>{match.service_requests.original_text}</Text>
               <Card>
                 <Text style={styles.badge}>
-                  {t('translatedSummaryLabel', {
-                    locale: translations[match.service_requests.id]?.targetLocale ?? '',
+                  {match.brief.category.slug} · {match.brief.area.city}
+                  {match.brief.area.district ? ` · ${match.brief.area.district}` : ''}
+                </Text>
+                <Text style={styles.lead}>
+                  {t('providerBriefSchedule', {
+                    start:
+                      match.brief.schedule.mode === 'flexible'
+                        ? t('timingFlexible')
+                        : (match.brief.schedule.start ?? t('timingAsap')),
                   })}
                 </Text>
-                <Text>{translations[match.service_requests.id]?.translated?.title}</Text>
                 <Text style={styles.lead}>
-                  {translations[match.service_requests.id]?.translated?.problemSummary}
+                  {t('providerBriefMediaCount', { count: match.brief.media.length })}
                 </Text>
                 <Text style={styles.lead}>
-                  {translations[match.service_requests.id]?.metadata.provider}
-                  {translations[match.service_requests.id]?.metadata.testProvider
-                    ? ` · ${t('localTestProvider')}`
-                    : ''}
-                  {translations[match.service_requests.id]?.metadata.cached
-                    ? ` · ${t('cachedTranslation')}`
-                    : ''}
+                  {t('providerBriefApproximateLocation', {
+                    latitude: match.brief.approximateLocation.latitude,
+                    longitude: match.brief.approximateLocation.longitude,
+                  })}
+                </Text>
+                {match.brief.requiredCapabilities.map((capability) => (
+                  <Text key={capability} style={styles.lead}>
+                    {t('requiredCapability')}: {capability}
+                  </Text>
+                ))}
+                <Text style={styles.lead}>
+                  {t('providerBriefCapability', {
+                    status: match.brief.providerCapabilities.qualified
+                      ? t('qualified')
+                      : t('notQualified'),
+                  })}
+                </Text>
+                {match.brief.ai.uncertain && (
+                  <Text style={styles.error}>{t('aiBriefUncertain')}</Text>
+                )}
+                {match.brief.safety.map((flag) => (
+                  <Text key={`${flag.type}-${flag.severity}`} style={styles.error}>
+                    {flag.type} · {flag.severity}
+                  </Text>
+                ))}
+                {match.brief.answers.map((answer) => (
+                  <Text key={answer.questionKey} style={styles.lead}>
+                    {answer.questionKey}:{' '}
+                    {answer.answerText ??
+                      answer.answerNumber ??
+                      answer.answerBoolean?.toString() ??
+                      answer.answerOptions?.join(', ') ??
+                      '—'}
+                  </Text>
+                ))}
+                {match.brief.media
+                  .filter((media) => media.uploadId)
+                  .map((media) => (
+                    <Card key={media.id}>
+                      {media.uploadId && mediaUrls[media.uploadId] ? (
+                        <Image
+                          source={{ uri: mediaUrls[media.uploadId] }}
+                          accessibilityLabel={t('requestMediaA11y')}
+                          style={{ width: '100%', height: 180, borderRadius: 12 }}
+                        />
+                      ) : (
+                        <Button
+                          kind="secondary"
+                          label={
+                            media.uploadId && mediaErrors[media.uploadId]
+                              ? t('retryMedia')
+                              : t('loadAttachment')
+                          }
+                          onPress={() => media.uploadId && void loadMedia(media.uploadId)}
+                        />
+                      )}
+                    </Card>
+                  ))}
+                <Text style={styles.lead}>
+                  {t('translationStatusLabel')}:{' '}
+                  {formatStatusLabel(
+                    typeof match.brief.translation.status === 'string'
+                      ? match.brief.translation.status
+                      : 'not_requested',
+                    locale,
+                  )}
                 </Text>
               </Card>
-            )}
-            {(translationError[match.service_requests.id] ||
-              translations[match.service_requests.id]?.status === 'failed') && (
-              <Text style={styles.error}>
-                {translationError[match.service_requests.id] ||
-                  t('noProductionTranslationProvider')}
-              </Text>
-            )}
-            <Button
-              kind="secondary"
-              disabled={translating === match.service_requests.id}
-              label={
-                translating === match.service_requests.id
-                  ? t('checkingSummary')
-                  : translations[match.service_requests.id]
-                    ? t('retryTranslation')
-                    : t('showTranslationStatus')
-              }
-              onPress={() =>
-                void translateBrief(
-                  match.service_requests.id,
-                  Boolean(translations[match.service_requests.id]),
-                )
-              }
-            />
-            <Text style={styles.lead}>
-              {t('matchScore', { score: Math.round(match.score * 100) })}
-            </Text>
-            <Link
-              href={{
-                pathname: '/provider/offer',
-                params: {
-                  requestId: match.service_requests.id,
-                  requestVersion: String(match.service_requests.version),
-                },
-              }}
-              asChild
-            >
+              {translations[match.service_requests.id]?.translated && (
+                <Card>
+                  <Text style={styles.badge}>
+                    {t('translatedSummaryLabel', {
+                      locale: translations[match.service_requests.id]?.targetLocale ?? '',
+                    })}
+                  </Text>
+                  <Text>{translations[match.service_requests.id]?.translated?.title}</Text>
+                  <Text style={styles.lead}>
+                    {translations[match.service_requests.id]?.translated?.problemSummary}
+                  </Text>
+                  <Text style={styles.lead}>
+                    {translations[match.service_requests.id]?.metadata.provider}
+                    {translations[match.service_requests.id]?.metadata.testProvider
+                      ? ` · ${t('localTestProvider')}`
+                      : ''}
+                    {translations[match.service_requests.id]?.metadata.cached
+                      ? ` · ${t('cachedTranslation')}`
+                      : ''}
+                  </Text>
+                </Card>
+              )}
+              {(translationError[match.service_requests.id] ||
+                translations[match.service_requests.id]?.status === 'failed') && (
+                <Text style={styles.error}>
+                  {translationError[match.service_requests.id] ||
+                    t('noProductionTranslationProvider')}
+                </Text>
+              )}
               <Button
-                label={match.status === 'offered' ? t('editOffer') : t('submitSealedOffer')}
+                kind="secondary"
+                disabled={translating === match.service_requests.id}
+                label={
+                  translating === match.service_requests.id
+                    ? t('checkingSummary')
+                    : translations[match.service_requests.id]
+                      ? t('retryTranslation')
+                      : t('showTranslationStatus')
+                }
+                onPress={() =>
+                  void translateBrief(
+                    match.service_requests.id,
+                    Boolean(translations[match.service_requests.id]),
+                  )
+                }
               />
-            </Link>
-          </Card>
-        ))}
+              <Text style={styles.lead}>
+                {t('matchScore', { score: Math.round(match.score * 100) })}
+              </Text>
+              <Link
+                href={{
+                  pathname: '/provider/offer',
+                  params: {
+                    requestId: match.service_requests.id,
+                    requestVersion: String(match.service_requests.version),
+                  },
+                }}
+                asChild
+              >
+                <Button
+                  label={match.status === 'offered' ? t('editOffer') : t('submitSealedOffer')}
+                />
+              </Link>
+            </Card>
+          );
+        })}
         {!query.isPending && query.data?.length === 0 && (
           <Card>
             <Text style={styles.lead}>{t('noEligibleInvites')}</Text>

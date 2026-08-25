@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { ScrollView, Text } from 'react-native';
 import { z } from 'zod';
-import { Card, LoadingSkeleton, Screen, styles } from '@/components/ui';
+import { Button, Card, LoadingSkeleton, Screen, styles } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { formatSar, formatStatusLabel } from '@sallah/i18n';
 import { useLocale } from '@/providers/locale-provider';
@@ -53,7 +53,14 @@ export default function Earnings() {
             </Text>
           </Card>
         ))}
-        {query.isError && <Text style={styles.error}>{t('settlementsLoadFailed')}</Text>}
+        {query.isError && (
+          <Card>
+            <Text accessibilityRole="alert" style={styles.error}>
+              {t('settlementsLoadFailed')}
+            </Text>
+            <Button kind="secondary" label={t('retry')} onPress={() => void query.refetch()} />
+          </Card>
+        )}
         {!query.isPending && query.data?.length === 0 && (
           <Text style={styles.lead}>{t('noSettlements')}</Text>
         )}

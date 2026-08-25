@@ -655,7 +655,14 @@ export default function Jobs() {
           placeholder={t('actionReasonPlaceholder')}
         />
         {query.isPending && <LoadingSkeleton label={t('loadingJobs')} />}
-        {query.isError && <Text style={styles.error}>{t('signInToLoadJobs')}</Text>}
+        {query.isError && (
+          <Card>
+            <Text accessibilityRole="alert" style={styles.error}>
+              {t('signInToLoadJobs')}
+            </Text>
+            <Button kind="secondary" label={t('retry')} onPress={() => void query.refetch()} />
+          </Card>
+        )}
         {query.data?.jobs.map((job) => {
           const customer = job.customer_id === query.data?.userId;
           const openCancellation = job.cancellation_requests.find((item) =>
