@@ -3365,13 +3365,18 @@ export type Database = {
           created_at: string;
           deduplication_key: string;
           delivered_at: string | null;
+          delivery_stage: string;
           event_type: string;
           id: string;
           last_error_category: string | null;
+          lease_expires_at: string | null;
+          lease_token_hash: string | null;
           payload: Json;
+          receipt_checks: number;
           status: Database['public']['Enums']['notification_status'];
           template_id: string | null;
           user_id: string;
+          worker_id: string | null;
         };
         Insert: {
           attempts?: number;
@@ -3380,13 +3385,18 @@ export type Database = {
           created_at?: string;
           deduplication_key: string;
           delivered_at?: string | null;
+          delivery_stage?: string;
           event_type: string;
           id?: string;
           last_error_category?: string | null;
+          lease_expires_at?: string | null;
+          lease_token_hash?: string | null;
           payload: Json;
+          receipt_checks?: number;
           status?: Database['public']['Enums']['notification_status'];
           template_id?: string | null;
           user_id: string;
+          worker_id?: string | null;
         };
         Update: {
           attempts?: number;
@@ -3395,13 +3405,18 @@ export type Database = {
           created_at?: string;
           deduplication_key?: string;
           delivered_at?: string | null;
+          delivery_stage?: string;
           event_type?: string;
           id?: string;
           last_error_category?: string | null;
+          lease_expires_at?: string | null;
+          lease_token_hash?: string | null;
           payload?: Json;
+          receipt_checks?: number;
           status?: Database['public']['Enums']['notification_status'];
           template_id?: string | null;
           user_id?: string;
+          worker_id?: string | null;
         };
         Relationships: [
           {
@@ -4839,6 +4854,57 @@ export type Database = {
           },
         ];
       };
+      push_delivery_attempts: {
+        Row: {
+          attempt_number: number;
+          created_at: string;
+          error_category: string | null;
+          expo_ticket_id: string | null;
+          id: string;
+          outbox_id: string;
+          push_token_id: string;
+          receipt_checked_at: string | null;
+          status: string;
+        };
+        Insert: {
+          attempt_number: number;
+          created_at?: string;
+          error_category?: string | null;
+          expo_ticket_id?: string | null;
+          id?: string;
+          outbox_id: string;
+          push_token_id: string;
+          receipt_checked_at?: string | null;
+          status: string;
+        };
+        Update: {
+          attempt_number?: number;
+          created_at?: string;
+          error_category?: string | null;
+          expo_ticket_id?: string | null;
+          id?: string;
+          outbox_id?: string;
+          push_token_id?: string;
+          receipt_checked_at?: string | null;
+          status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'push_delivery_attempts_outbox_id_fkey';
+            columns: ['outbox_id'];
+            isOneToOne: false;
+            referencedRelation: 'notification_outbox';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'push_delivery_attempts_push_token_id_fkey';
+            columns: ['push_token_id'];
+            isOneToOne: false;
+            referencedRelation: 'push_tokens';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       push_tokens: {
         Row: {
           device_id: string | null;
@@ -4846,7 +4912,11 @@ export type Database = {
           id: string;
           last_result: string | null;
           provider: string;
+          registered_at: string;
+          revoked_at: string | null;
           token_ciphertext: string;
+          token_hash: string | null;
+          token_key_version: number | null;
           updated_at: string;
           user_id: string;
         };
@@ -4856,7 +4926,11 @@ export type Database = {
           id?: string;
           last_result?: string | null;
           provider?: string;
+          registered_at?: string;
+          revoked_at?: string | null;
           token_ciphertext: string;
+          token_hash?: string | null;
+          token_key_version?: number | null;
           updated_at?: string;
           user_id: string;
         };
@@ -4866,7 +4940,11 @@ export type Database = {
           id?: string;
           last_result?: string | null;
           provider?: string;
+          registered_at?: string;
+          revoked_at?: string | null;
           token_ciphertext?: string;
+          token_hash?: string | null;
+          token_key_version?: number | null;
           updated_at?: string;
           user_id?: string;
         };
@@ -7204,6 +7282,10 @@ export type Database = {
         };
         Returns: Json;
       };
+      claim_notification_delivery: {
+        Args: { p_lease_token_hash: string; p_worker_id: string };
+        Returns: Json;
+      };
       claim_privacy_job: { Args: { p_worker_id: string }; Returns: Json };
       claim_transcription_job: {
         Args: {
@@ -7256,6 +7338,24 @@ export type Database = {
           p_artifact_id: string;
           p_cleanup_token: string;
           p_operation_id: string;
+          p_worker_id: string;
+        };
+        Returns: Json;
+      };
+      complete_notification_delivery: {
+        Args: {
+          p_lease_token: string;
+          p_outbox_id: string;
+          p_result: Json;
+          p_worker_id: string;
+        };
+        Returns: Json;
+      };
+      complete_notification_receipts: {
+        Args: {
+          p_lease_token: string;
+          p_outbox_id: string;
+          p_result: Json;
           p_worker_id: string;
         };
         Returns: Json;
@@ -7401,6 +7501,15 @@ export type Database = {
         };
         Returns: Json;
       };
+      fail_notification_delivery: {
+        Args: {
+          p_error_category: string;
+          p_lease_token: string;
+          p_outbox_id: string;
+          p_worker_id: string;
+        };
+        Returns: Json;
+      };
       fail_privacy_job: {
         Args: {
           p_error_category: string;
@@ -7473,6 +7582,10 @@ export type Database = {
       };
       get_my_marketplace_reports: { Args: { p_limit?: number }; Returns: Json };
       get_privacy_retention_config: { Args: never; Returns: Json };
+      get_provider_document_manifest: {
+        Args: { p_provider_id: string };
+        Returns: Json;
+      };
       get_provider_request_brief: {
         Args: { p_request_id: string };
         Returns: Json;
@@ -7549,6 +7662,15 @@ export type Database = {
             };
             Returns: string;
           };
+      open_support_case: {
+        Args: {
+          p_body: string;
+          p_idempotency_key: string;
+          p_subject: string;
+          p_topic: string;
+        };
+        Returns: Json;
+      };
       prepare_media_scan_output: {
         Args: {
           p_attempt_id: string;
@@ -7592,6 +7714,18 @@ export type Database = {
           p_manifest: Json;
           p_manifest_fingerprint: string;
           p_operation_id: string;
+        };
+        Returns: Json;
+      };
+      register_push_device: {
+        Args: {
+          p_app_version: string;
+          p_installation_id: string;
+          p_platform: string;
+          p_token_ciphertext: string;
+          p_token_hash: string;
+          p_token_key_version: number;
+          p_user_id: string;
         };
         Returns: Json;
       };
@@ -7698,6 +7832,10 @@ export type Database = {
         };
         Returns: Json;
       };
+      revoke_push_devices: {
+        Args: { p_installation_id?: string; p_user_id: string };
+        Returns: Json;
+      };
       revoke_support_case_access: {
         Args: {
           p_grant_id: string;
@@ -7721,6 +7859,10 @@ export type Database = {
           p_conversation_id: string;
           p_upload_ids: string[];
         };
+        Returns: Json;
+      };
+      send_support_case_message: {
+        Args: { p_body: string; p_case_id: string; p_idempotency_key: string };
         Returns: Json;
       };
       set_active_role: {

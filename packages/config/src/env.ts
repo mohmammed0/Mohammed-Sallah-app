@@ -62,7 +62,12 @@ export const serverEnvironmentSchema = publicEnvironmentSchema.extend({
   AI_DAILY_BUDGET_MINOR: z.coerce.number().int().nonnegative().default(0),
   PAYMENT_PROVIDER: z.enum(['offline', 'fake', 'sandbox', 'gateway']).default('offline'),
   PUSH_ENABLED: booleanString.default(false),
-  EXPO_ACCESS_TOKEN: z.string().optional(),
+  EXPO_ACCESS_TOKEN: z.string().min(16).max(512).optional(),
+  PUSH_TOKEN_ENCRYPTION_KEY: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{43}$/u)
+    .optional(),
+  NOTIFICATION_WORKER_SECRET: scannerSecret('NOTIFICATION_WORKER_SECRET').optional(),
   ADMIN_BOOTSTRAP_EMAIL: z.email().optional(),
   UPLOAD_SCANNER_MODE: z.enum(['deterministic', 'external']),
   UPLOAD_SCANNER_CONTROL_ORIGIN: z.string().min(1).optional(),
@@ -153,6 +158,17 @@ export function validateServerEnvironment(
       throw new Error('UPLOAD_SCANNER_ALERTS_ENABLED must be true outside local/test');
     }
   }
+  if (env.PUSH_ENABLED) {
+    const required = [
+      'EXPO_ACCESS_TOKEN',
+      'PUSH_TOKEN_ENCRYPTION_KEY',
+      'NOTIFICATION_WORKER_SECRET',
+    ] as const;
+    const missing = required.filter((name) => env[name] === undefined);
+    if (missing.length > 0) {
+      throw new Error(`Missing push variables: ${missing.join(', ')}`);
+    }
+  }
   if (env.APP_ENV === 'production') {
     const missing: string[] = [];
     if (!env.SUPABASE_SECRET_KEY) missing.push('SUPABASE_SECRET_KEY');
@@ -166,7 +182,6 @@ export function validateServerEnvironment(
         'Deterministic AI is test/local-only; use a real provider or disable AI in production',
       );
     }
-    if (env.PUSH_ENABLED && !env.EXPO_ACCESS_TOKEN) missing.push('EXPO_ACCESS_TOKEN');
     if (missing.length > 0) throw new Error(`Missing production variables: ${missing.join(', ')}`);
   }
   return env;

@@ -13,6 +13,7 @@ import { StartupRecoveryScreen } from '@/features/auth/startup-recovery-screen';
 import { canEnterProductArea, productLandingRoute } from '@/features/auth/route-policy';
 import { CustomerLocationProvider } from '@/features/location/location-provider';
 import { SecureUploadRecoveryCoordinator } from '@/features/media/secure-upload-recovery';
+import { NotificationCoordinator } from '@/features/notifications/notification-coordinator';
 
 function LocalizedStack() {
   const { t } = useLocale();
@@ -73,6 +74,7 @@ function LocalizedStack() {
     <>
       <StatusBar style="dark" />
       <ConnectivityBanner />
+      <NotificationCoordinator />
       <SecureUploadRecoveryCoordinator ownerId={session?.user.id ?? null} />
       <Stack
         screenOptions={{

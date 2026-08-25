@@ -5,6 +5,7 @@ import { formatStatusLabel } from '@sallah/i18n';
 import { Button, Card, LoadingSkeleton, Screen, styles } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/providers/locale-provider';
+import { PushPermissionCard } from '@/features/notifications/push-permission-card';
 
 const notificationSchema = z.object({
   id: z.uuid(),
@@ -37,6 +38,7 @@ export default function Notifications() {
     >
       <Screen>
         <Text style={styles.title}>{t('notifications')}</Text>
+        <PushPermissionCard />
         {query.isLoading && <LoadingSkeleton label={t('loading')} />}
         {query.isError && (
           <Card>

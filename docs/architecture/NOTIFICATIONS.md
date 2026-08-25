@@ -1,6 +1,9 @@
 # Notifications
 
-Business transactions insert deduplicated rows into `notification_outbox`. A worker claims pending rows, applies preferences/quiet hours, dispatches configured channels, and appends attempts/delivery results. Missing push/email credentials disable the channel rather than fabricate success.
+Business transactions insert deduplicated rows into `notification_outbox`. The push worker claims
+leased rows, applies preferences, sends a fixed privacy-safe route envelope through Expo, verifies
+receipts, and records bounded attempts or dead letters. Missing credentials fail closed rather than
+fabricating delivery.
 
 ```mermaid
 flowchart LR
@@ -16,4 +19,9 @@ flowchart LR
   Result --> Retry["bounded retry / dead letter"]
 ```
 
-Provider match, new offer, selection, schedule/state, message, change order, completion, support, and dispute events use deterministic deduplication keys. Push tokens are private, revocable, and removed during deletion processing.
+Provider match, new offer, selection, schedule/state, message, change order, completion, support, and
+moderation events use deterministic deduplication keys. Payloads contain no message text, address,
+document, user identity, or arbitrary URL. Push tokens are AES-256-GCM encrypted, hash-indexed,
+limited to ten active installations, rotated atomically, revocable per device or account, and removed
+during deletion processing. Notification opens map only to fixed routes and are authorized again
+against the current session and role.

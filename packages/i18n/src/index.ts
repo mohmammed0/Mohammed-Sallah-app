@@ -417,6 +417,12 @@ const ar = {
   notificationPreferences: 'تفضيلات الإشعارات',
   notificationInApp: 'داخل التطبيق',
   notificationPush: 'إشعارات الجهاز',
+  pushPermissionTitle: 'تفعيل إشعارات الجهاز',
+  pushPermissionLead: 'اسمح بالإشعارات لتصلك تحديثات عامة وآمنة عن طلباتك وعملك.',
+  pushPermissionEnabled: 'تم تفعيل إشعارات هذا الجهاز.',
+  pushPermissionDenied: 'الإشعارات مرفوضة. يمكنك السماح بها من إعدادات الجهاز.',
+  pushPermissionUnavailable: 'تعذر تسجيل هذا الجهاز للإشعارات الآن. أعد المحاولة.',
+  enablePushNotifications: 'تفعيل الإشعارات',
   notificationEmail: 'البريد الإلكتروني',
   notificationMarketing: 'رسائل تسويقية اختيارية',
   signInToSaveNotifications: 'سجّل الدخول لحفظ تفضيلات الإشعارات.',
@@ -449,6 +455,7 @@ const ar = {
   openSupportCase: 'فتح حالة دعم',
   previousCases: 'الحالات السابقة',
   supportCasesLoadFailed: 'تعذر تحميل حالات الدعم.',
+  supportReplyFailed: 'تعذر إرسال الرد. تحقق من الاتصال وحالة الحالة ثم أعد المحاولة.',
   translationFailedOriginalPreserved: 'تعذرت الترجمة. بقي النص الأصلي متاحًا دون تغيير.',
   eligibleFeedPrivacyNotice:
     'لا يظهر العنوان الدقيق قبل اختيارك. المطابقة تراعي الخدمة والمنطقة والتحقق والحمل والأداء.',
@@ -1194,6 +1201,12 @@ const en: TranslationShape = {
   notificationPreferences: 'Notification preferences',
   notificationInApp: 'In app',
   notificationPush: 'Device notifications',
+  pushPermissionTitle: 'Enable device notifications',
+  pushPermissionLead: 'Allow notifications for generic, private-safe request and job updates.',
+  pushPermissionEnabled: 'Notifications are enabled for this device.',
+  pushPermissionDenied: 'Notifications are denied. You can allow them in device settings.',
+  pushPermissionUnavailable: 'This device could not register for notifications. Try again.',
+  enablePushNotifications: 'Enable notifications',
   notificationEmail: 'Email',
   notificationMarketing: 'Optional marketing messages',
   signInToSaveNotifications: 'Sign in to save notification preferences.',
@@ -1227,6 +1240,8 @@ const en: TranslationShape = {
   openSupportCase: 'Open support case',
   previousCases: 'Previous cases',
   supportCasesLoadFailed: 'Support cases could not be loaded.',
+  supportReplyFailed:
+    'The reply could not be sent. Check the connection and case status, then retry.',
   translationFailedOriginalPreserved:
     'Translation failed. The original text remains available unchanged.',
   eligibleFeedPrivacyNotice:
@@ -1611,6 +1626,12 @@ const ur: TranslationShape = {
     'ہم صرف اس اسکرین کے دوران سروس پن رکھنے کے لیے مقام استعمال کرتے ہیں۔ پس منظر کا مقام درکار نہیں۔',
   locationPermissionTitle: 'موجودہ مقام استعمال کریں',
   openDeviceSettings: 'ڈیوائس کی ترتیبات کھولیں',
+  pushPermissionTitle: 'ڈیوائس اطلاعات فعال کریں',
+  pushPermissionLead: 'درخواست اور کام کی عمومی اور محفوظ اپ ڈیٹس کے لیے اطلاعات کی اجازت دیں۔',
+  pushPermissionEnabled: 'اس ڈیوائس کے لیے اطلاعات فعال ہیں۔',
+  pushPermissionDenied: 'اطلاعات کی اجازت نہیں۔ آپ ڈیوائس ترتیبات سے اجازت دے سکتے ہیں۔',
+  pushPermissionUnavailable: 'یہ ڈیوائس ابھی اطلاعات کے لیے رجسٹر نہیں ہو سکا۔ دوبارہ کوشش کریں۔',
+  enablePushNotifications: 'اطلاعات فعال کریں',
   locationUsingRecentFix:
     'تازہ درست مقام دستیاب نہیں۔ حالیہ مقام دکھایا گیا ہے؛ تصدیق سے پہلے پن دیکھ لیں۔',
   addressRequired: 'جاری رکھنے سے پہلے پتے کی تفصیل مکمل کریں۔',
@@ -1826,6 +1847,8 @@ const ur: TranslationShape = {
   adminModerationCustomerEnforcementSuccess:
     'صارف اکاؤنٹ کی حالت اپ ڈیٹ ہوئی اور فیصلہ محفوظ ہو گیا۔',
   supportCases: 'مدد کے معاملات',
+  supportReplyFailed:
+    'جواب نہیں بھیجا جا سکا۔ رابطہ اور کیس کی حالت چیک کریں، پھر دوبارہ کوشش کریں۔',
   supportAgentId: 'سپورٹ ایجنٹ آئی ڈی',
   accessExpiry: 'رسائی کی میعاد ISO فارمیٹ میں',
   exactLocationAccess: 'درست مقام تک رسائی',
@@ -1978,6 +2001,13 @@ const hi: TranslationShape = {
     'हम केवल इस स्क्रीन पर सेवा पिन रखने के लिए फ़ोरग्राउंड स्थान उपयोग करते हैं। बैकग्राउंड स्थान नहीं माँगा जाता।',
   locationPermissionTitle: 'मौजूदा स्थान इस्तेमाल करें',
   openDeviceSettings: 'डिवाइस सेटिंग खोलें',
+  pushPermissionTitle: 'डिवाइस सूचनाएँ चालू करें',
+  pushPermissionLead:
+    'अनुरोध और काम के सामान्य, निजता-सुरक्षित अपडेट के लिए सूचनाओं की अनुमति दें।',
+  pushPermissionEnabled: 'इस डिवाइस के लिए सूचनाएँ चालू हैं।',
+  pushPermissionDenied: 'सूचनाओं की अनुमति नहीं है। आप डिवाइस सेटिंग से इन्हें चालू कर सकते हैं।',
+  pushPermissionUnavailable: 'यह डिवाइस अभी सूचनाओं के लिए पंजीकृत नहीं हो सका। फिर प्रयास करें।',
+  enablePushNotifications: 'सूचनाएँ चालू करें',
   locationUsingRecentFix:
     'नया सटीक स्थान उपलब्ध नहीं है। हाल का स्थान दिखाया गया है; पुष्टि से पहले पिन जाँचें।',
   addressRequired: 'आगे बढ़ने से पहले पते का विवरण पूरा करें।',
@@ -2195,6 +2225,8 @@ const hi: TranslationShape = {
   adminModerationCustomerEnforcementSuccess:
     'ग्राहक खाते की स्थिति अपडेट हुई और निर्णय दर्ज किया गया।',
   supportCases: 'सहायता मामले',
+  supportReplyFailed:
+    'जवाब नहीं भेजा जा सका। कनेक्शन और मामले की स्थिति जाँचें, फिर दोबारा प्रयास करें।',
   supportAgentId: 'सहायता एजेंट आईडी',
   accessExpiry: 'ISO प्रारूप में पहुँच समाप्ति',
   exactLocationAccess: 'सटीक स्थान पहुँच',

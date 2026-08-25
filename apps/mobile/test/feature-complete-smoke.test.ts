@@ -105,7 +105,7 @@ describe('feature-complete beta smoke contracts', () => {
       confirmedCategorySlug: 'plumbing',
       confirmedSubcategorySlug: 'tap-repair',
       summaryRequested: true,
-      messages: [{ role: 'user', text: 'صنبور المطبخ يتسرب منذ اليوم وأريد إصلاحه اليوم' }],
+      messages: [{ role: 'user', text: 'The kitchen tap started leaking today and needs repair.' }],
     });
     expect(diagnostic.metadata).toMatchObject({
       fallback: true,
@@ -123,7 +123,7 @@ describe('feature-complete beta smoke contracts', () => {
       isRequestReadyForReview({
         selectedCategorySlug: 'plumbing',
         categoryConfirmedByUser: true,
-        title: 'تسرب صنبور المطبخ',
+        title: 'Kitchen tap leak',
         summary: diagnostic.customerSummary ?? '',
         coordinates: { latitude: 24.7136, longitude: 46.6753 },
         cityCode: 'riyadh',
@@ -137,8 +137,8 @@ describe('feature-complete beta smoke contracts', () => {
       requestDraftSchema.parse({
         categoryId: '10000000-0000-4000-8000-000000000001',
         subcategoryId: '10000000-0000-4000-8000-000000000002',
-        title: 'تسرب صنبور المطبخ',
-        originalText: 'صنبور المطبخ يتسرب منذ اليوم وأريد إصلاحه اليوم',
+        title: 'Kitchen tap leak',
+        originalText: 'The kitchen tap started leaking today and needs repair.',
         structuredDescription: diagnostic.customerSummary,
         urgency: 'normal',
         requestedStart: null,
@@ -159,7 +159,7 @@ describe('feature-complete beta smoke contracts', () => {
       estimatedArrivalMinutes: 30,
       estimatedDurationMinutes: 60,
       warrantyDays: 30,
-      note: 'عرض اختبار عقدي بدون مزود خارجي',
+      note: 'Contract smoke offer without an external provider',
       expiresAt: '2026-08-26T12:00:00.000Z',
       expectedRequestVersion: 1,
       idempotencyKey: 'customer-smoke-offer-selection-001',

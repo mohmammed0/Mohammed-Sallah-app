@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/providers/locale-provider';
 import { useSessionContext } from '@/providers/session-provider';
 import { useCustomerLocation } from '@/features/location/location-provider';
+import { revokeExpoPushDevice } from '@/features/notifications/expo-push-runtime';
 
 interface NotificationPreferences {
   in_app: boolean;
@@ -112,6 +113,7 @@ export default function Account() {
     }
   }
   async function logout() {
+    await revokeExpoPushDevice('all', t('notificationPush'));
     await signOutAll();
     router.replace('/');
   }

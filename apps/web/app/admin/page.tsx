@@ -1,37 +1,24 @@
-import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth';
-const healthResult = z.object({
-  data: z.record(z.string(), z.number()).nullable(),
-  error: z.unknown().nullable(),
-});
+import { adminHealthCards, parseAdminHealthRpc } from '@/lib/admin-health';
+
 export default async function AdminPage() {
   const { client } = await requireAdmin(['dashboard.aggregate.read']);
   const raw: unknown = await client.rpc('admin_marketplace_health');
-  const parsed = healthResult.safeParse(raw);
-  const error = !parsed.success || parsed.data.error !== null;
-  const metrics = parsed.success ? (parsed.data.data ?? {}) : {};
-  const cards: ReadonlyArray<readonly [string, string]> = [
-    ['طلبات جديدة', 'new_requests'],
-    ['أعمال نشطة', 'active_jobs'],
-    ['دعم مفتوح', 'open_support_cases'],
-    ['نزاعات', 'open_disputes'],
-    ['تحقق معلق', 'pending_verifications'],
-    ['فشل إشعارات', 'notification_failures'],
-    ['حجوزات مالية', 'financial_holds'],
-  ];
+  const metrics = parseAdminHealthRpc(raw);
+
   return (
     <main id="main" className="shell section">
       <h1>لوحة العمليات</h1>
-      {error && (
+      {metrics === null && (
         <div className="notice">
           تعذر تحميل البيانات الحالية. لم تُعرض بيانات تجريبية بدلًا منها.
         </div>
       )}
       <div className="grid">
-        {cards.map(([label, key]) => (
-          <article className="card" key={key}>
+        {adminHealthCards.map(({ label, key }) => (
+          <article className="card" data-metric-key={key} key={key}>
             <span>{label}</span>
-            <div className="metric">{metrics[key] ?? 0}</div>
+            <div className="metric">{metrics === null ? 'غير متاح' : metrics[key]}</div>
           </article>
         ))}
       </div>

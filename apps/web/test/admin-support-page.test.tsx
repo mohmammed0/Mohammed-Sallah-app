@@ -35,6 +35,6 @@ describe('linked support-case page mode', () => {
     const { default: SupportPage } = await import('../app/admin/support/page');
     renderToStaticMarkup(await SupportPage({ searchParams: Promise.resolve({ caseId }) }));
 
-    expect(state.tables).toEqual(['support_cases']);
+    expect(state.tables).toEqual(['support_cases', 'support_case_messages']);
   });
 });

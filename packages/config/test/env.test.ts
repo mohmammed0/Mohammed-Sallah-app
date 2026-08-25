@@ -51,8 +51,16 @@ const productionBase = {
   OPENAI_API_KEY: 'test-key',
 };
 
+const pushContract = {
+  PUSH_ENABLED: 'true',
+  EXPO_ACCESS_TOKEN: 'expo-access-token-test-only-0000000000',
+  PUSH_TOKEN_ENCRYPTION_KEY: 'A'.repeat(43),
+  NOTIFICATION_WORKER_SECRET: 'notification-worker-secret-at-least-32-bytes',
+};
+
 const productionGateBase = {
   ...productionBase,
+  ...pushContract,
   SUPABASE_URL: 'https://project.supabase.co',
   SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test_only',
   SUPABASE_SECRET_KEY: 'test-service-secret-not-a-real-key',
@@ -212,6 +220,25 @@ describe('environment safety', () => {
     ).toThrow(/test\/local-only/);
   });
 
+  it('requires the complete encrypted push worker contract whenever push is enabled', () => {
+    for (const key of [
+      'EXPO_ACCESS_TOKEN',
+      'PUSH_TOKEN_ENCRYPTION_KEY',
+      'NOTIFICATION_WORKER_SECRET',
+    ] as const) {
+      expect(() =>
+        validateServerEnvironment({
+          ...productionBase,
+          ...pushContract,
+          [key]: undefined,
+        }),
+      ).toThrow(new RegExp(key));
+    }
+    expect(validateServerEnvironment({ ...productionBase, ...pushContract }).PUSH_ENABLED).toBe(
+      true,
+    );
+  });
+
   it('accepts the complete external production contract', () => {
     const result = validateServerEnvironment(productionBase);
     expect(result.UPLOAD_SCANNER_MODE).toBe('external');
@@ -235,6 +262,25 @@ describe('environment safety', () => {
     expect(rejected.status).not.toBe(0);
     const accepted = runProductionGate({});
     expect(accepted.status, `${accepted.stdout}${accepted.stderr}`).toBe(0);
+  });
+
+  it('makes the named production gate enforce the encrypted push worker contract', () => {
+    for (const key of [
+      'PUSH_ENABLED',
+      'EXPO_ACCESS_TOKEN',
+      'PUSH_TOKEN_ENCRYPTION_KEY',
+      'NOTIFICATION_WORKER_SECRET',
+    ] as const) {
+      const result = validateProductionConfiguration({
+        ...productionGateBase,
+        [key]: undefined,
+      });
+      expect(result.message, key).toMatch(/push|EXPO|NOTIFICATION/i);
+      expect(result.ok, key).toBe(false);
+    }
+    expect(
+      validateProductionConfiguration({ ...productionGateBase, PUSH_ENABLED: 'false' }).ok,
+    ).toBe(false);
   });
 
   it('blocks placeholder scanner origins and HMAC secrets in the named production gate', () => {

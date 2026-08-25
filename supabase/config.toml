@@ -67,6 +67,9 @@ verify_jwt = true
 [functions.notification-worker]
 verify_jwt = false
 
+[functions.push-devices]
+verify_jwt = true
+
 [functions.privacy-worker]
 verify_jwt = false
 

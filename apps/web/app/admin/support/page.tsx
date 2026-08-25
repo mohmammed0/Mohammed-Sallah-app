@@ -1,4 +1,5 @@
-import { translate } from '@sallah/i18n';
+import { formatStatusLabel, translate } from '@sallah/i18n';
+import { z } from 'zod';
 import { DurableCommandIntent } from '@/components/durable-command-intent';
 import { requireAnyAdmin } from '@/lib/auth';
 import { parseSupportCaseFilter } from '@/lib/moderation';
@@ -9,16 +10,32 @@ import {
   grantSupportAccess,
   resolveDispute,
   revokeSupportAccess,
+  sendSupportCaseMessage,
 } from '../actions';
 
 const t = (key: Parameters<typeof translate>[1]) => translate('ar', key);
 
 const invalidCaseId = '00000000-0000-4000-8000-000000000000';
+const supportMessageSchema = z
+  .object({
+    id: z.uuid(),
+    case_id: z.uuid(),
+    body: z.string().min(1).max(4000),
+    visible_to_user: z.literal(true),
+    created_at: z.string().datetime({ offset: true }),
+  })
+  .strict();
+const supportMessageListSchema = z.array(supportMessageSchema).max(50);
 
 export default async function SupportPage({
   searchParams,
 }: {
-  searchParams: Promise<{ caseId?: string }>;
+  searchParams: Promise<{
+    caseId?: string | string[];
+    notice?: string | string[];
+    error?: string | string[];
+    confirmedIntentId?: string | string[];
+  }>;
 }) {
   const { client, roles } = await requireAnyAdmin([
     'support.case.read',
@@ -27,6 +44,14 @@ export default async function SupportPage({
   const canFinance = roles.some((role) => role === 'finance_reviewer' || role === 'super_admin');
   const canOperate = roles.some((role) => role === 'operations_admin' || role === 'super_admin');
   const query = await searchParams;
+  const error = typeof query.error === 'string' ? query.error : null;
+  const notice = typeof query.notice === 'string' ? query.notice : null;
+  const replyError = error === 'validation' || error === 'unavailable';
+  const replySent = notice === 'message_sent';
+  const rawConfirmedIntentId =
+    typeof query.confirmedIntentId === 'string' ? query.confirmedIntentId : null;
+  const confirmedIntentId =
+    replySent && !replyError ? (z.uuid().safeParse(rawConfirmedIntentId).data ?? null) : null;
   let caseId: string | null;
   let invalidCaseFilter = false;
   try {
@@ -40,11 +65,19 @@ export default async function SupportPage({
     .select(
       'id,subject,topic,priority,status,opened_by,created_at,updated_at,support_case_assignments(id,assignee_id,assigned_at,expires_at,permissions,ended_at),support_case_access_grants(id,user_id,permissions,expires_at,revoked_at)',
     );
-  const [cases, cancellations, disputes] = await (caseId
+  const [cases, cancellations, disputes, messages] = await (caseId
     ? Promise.all([
         casesQuery.eq('id', caseId).order('updated_at', { ascending: false }).limit(1),
         Promise.resolve({ data: [], error: null }),
         Promise.resolve({ data: [], error: null }),
+        client
+          .from('support_case_messages')
+          .select('id,case_id,body,visible_to_user,created_at')
+          .eq('case_id', caseId)
+          .eq('visible_to_user', true)
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .limit(50),
       ])
     : Promise.all([
         casesQuery.order('updated_at', { ascending: false }).limit(100),
@@ -60,14 +93,44 @@ export default async function SupportPage({
           .not('status', 'in', '(resolved,closed)')
           .order('created_at', { ascending: true })
           .limit(100),
+        Promise.resolve({ data: [], error: null }),
       ]));
-  const hasError = invalidCaseFilter || cases.error || cancellations.error || disputes.error;
+  let visibleMessages: z.infer<typeof supportMessageListSchema> = [];
+  let messagesInvalid = false;
+  if (!messages.error) {
+    const parsed = supportMessageListSchema.safeParse(messages.data ?? []);
+    if (parsed.success && (!caseId || parsed.data.every((message) => message.case_id === caseId))) {
+      visibleMessages = parsed.data.slice().reverse();
+    } else {
+      messagesInvalid = true;
+    }
+  }
+  const hasError =
+    invalidCaseFilter ||
+    cases.error ||
+    cancellations.error ||
+    disputes.error ||
+    messages.error ||
+    messagesInvalid;
+  const selectedCase = caseId ? cases.data?.[0] : null;
+  const selectedCaseIsFinal =
+    selectedCase?.status === 'resolved' || selectedCase?.status === 'closed';
 
   return (
     <main id="main" className="shell section">
       <h1>{t('adminSupportTitle')}</h1>
       <div className="notice">{t('humanDecisionNotice')}</div>
       {hasError && <p className="error">{t('adminQueueLoadFailed')}</p>}
+      {replyError && (
+        <p role="alert" className="error">
+          {t('supportReplyFailed')}
+        </p>
+      )}
+      {replySent && !replyError && (
+        <p role="status" aria-live="polite" className="notice">
+          {formatStatusLabel('sent', 'ar')}
+        </p>
+      )}
 
       <h2>{t('supportCases')}</h2>
       <div className="table-wrap">
@@ -85,6 +148,7 @@ export default async function SupportPage({
               <tr key={item.id}>
                 <td>
                   <p>{item.subject}</p>
+                  {!caseId && <a href={`/admin/support?caseId=${item.id}`}>{t('messages')}</a>}
                   {item.support_case_assignments
                     .filter((assignment) => !assignment.ended_at)
                     .map((assignment) => (
@@ -197,6 +261,42 @@ export default async function SupportPage({
           </tbody>
         </table>
       </div>
+
+      {caseId && selectedCase && !messages.error && !messagesInvalid && (
+        <section aria-labelledby="support-conversation-title" className="section">
+          <h2 id="support-conversation-title">{t('messages')}</h2>
+          <div className="grid">
+            {visibleMessages.map((message) => (
+              <article className="card" key={message.id}>
+                <p>{message.body}</p>
+                <p className="muted">{new Date(message.created_at).toLocaleString('ar-SA')}</p>
+              </article>
+            ))}
+          </div>
+          {visibleMessages.length === 0 && <p className="muted">{t('noMessages')}</p>}
+          {!selectedCaseIsFinal && (
+            <form action={sendSupportCaseMessage} className="inline-form">
+              <DurableCommandIntent
+                intentKey={`support-message:${selectedCase.id}`}
+                initialIntentId={crypto.randomUUID()}
+                confirmedIntentId={confirmedIntentId}
+              />
+              <input type="hidden" name="caseId" value={selectedCase.id} />
+              <label>
+                {t('messagePlaceholder')}
+                <textarea
+                  name="body"
+                  minLength={1}
+                  maxLength={4000}
+                  required
+                  placeholder={t('messagePlaceholder')}
+                />
+              </label>
+              <button type="submit">{t('send')}</button>
+            </form>
+          )}
+        </section>
+      )}
 
       {!caseId && (
         <>

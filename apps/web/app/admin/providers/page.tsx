@@ -2,6 +2,12 @@ import { requireAdmin } from '@/lib/auth';
 import { DurableCommandIntent } from '@/components/durable-command-intent';
 import { z } from 'zod';
 import { reviewProvider, reviewProviderService } from '../actions';
+import {
+  parseProviderDocumentAccess,
+  parseProviderDocumentManifest,
+  type ProviderDocumentAccess,
+  type ProviderDocumentManifest,
+} from '@/lib/provider-document-manifest';
 
 export default async function ProvidersPage({
   searchParams,
@@ -29,10 +35,71 @@ export default async function ProvidersPage({
   const canReview = roles.some(
     (role) => role === 'verification_reviewer' || role === 'super_admin',
   );
+  let documentReview: Array<
+    ProviderDocumentManifest['documents'][number] & {
+      access: ProviderDocumentAccess | null;
+    }
+  > | null = null;
+  let documentReviewError = false;
+  if (parsedProviderId?.success && canReview) {
+    const manifestResult = await client.rpc('get_provider_document_manifest', {
+      p_provider_id: parsedProviderId.data,
+    });
+    try {
+      if (manifestResult.error) throw new Error('PROVIDER_DOCUMENT_MANIFEST_UNAVAILABLE');
+      const manifest = parseProviderDocumentManifest(manifestResult.data, parsedProviderId.data);
+      documentReview = await Promise.all(
+        manifest.documents.map(async (document) => {
+          const accessResult = await client.functions.invoke('media-access', {
+            body: { uploadId: document.uploadId, expiresInSeconds: 300 },
+          });
+          if (accessResult.error) return { ...document, access: null };
+          try {
+            return {
+              ...document,
+              access: parseProviderDocumentAccess(accessResult.data, document),
+            };
+          } catch {
+            return { ...document, access: null };
+          }
+        }),
+      );
+    } catch {
+      documentReviewError = true;
+    }
+  }
   return (
     <main id="main" className="shell section">
       <h1>مراجعة مقدمي الخدمة</h1>
       {error && <p className="error">تعذر تحميل الطابور.</p>}
+      {parsedProviderId?.success && canReview && (
+        <section className="card" aria-labelledby="provider-documents-title">
+          <h2 id="provider-documents-title">مستندات التحقق</h2>
+          {documentReviewError && <p className="error">تعذر تحميل مستندات التحقق بأمان.</p>}
+          {documentReview?.length === 0 && <p>لا توجد مستندات تحقق نظيفة متاحة.</p>}
+          {documentReview?.map((document) => (
+            <article className="card" key={document.id}>
+              <strong>{document.documentType}</strong>
+              <span className="badge">{document.status}</span>
+              <span>
+                {document.mimeType} · {document.sizeBytes} بايت
+              </span>
+              {document.access ? (
+                <a
+                  className="button"
+                  href={document.access.signedUrl}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  فتح المستند المصرح
+                </a>
+              ) : (
+                <p className="error">تعذر إصدار وصول مؤقت لهذا المستند.</p>
+              )}
+            </article>
+          ))}
+        </section>
+      )}
       <div className="table-wrap">
         <table className="table">
           <thead>

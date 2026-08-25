@@ -17,7 +17,9 @@ Environments are `local`, `test`, `preview`, and `production`. Copy `.env.exampl
 | `UPLOAD_SCANNER_WORKER_ID`, `*_IDLE_DELAY_MS`                    | Worker         | Opaque scanner identity and bounded 100-10,000ms idle pull interval                    |
 | `AI_PROVIDER`, model and provider keys                           | Edge/server    | Deterministic provider local/test only                                                 |
 | `PAYMENT_PROVIDER`                                               | Server         | `offline` default; fake/sandbox forbidden in production                                |
-| `EAS_PROJECT_ID`, `EXPO_ACCESS_TOKEN`, bundle/package IDs        | Mobile release | Human-owned production identifiers                                                     |
+| `PUSH_ENABLED`, `EXPO_ACCESS_TOKEN`                              | Edge/release   | Push must be explicit; the Expo token is server-only                                   |
+| `PUSH_TOKEN_ENCRYPTION_KEY`, `NOTIFICATION_WORKER_SECRET`        | Edge only      | Dedicated AES-256 token key and distinct worker secret; never exposed to clients       |
+| `EAS_PROJECT_ID`, bundle/package IDs                             | Mobile release | Human-owned production identifiers                                                     |
 | `SALLAH_ANDROID_GOOGLE_MAPS_API_KEY`                             | Build only     | Restricted Android Maps key; injected into native config, never Expo JS `extra`        |
 | Brand/legal/support/privacy/terms values                         | Build/runtime  | Placeholders rejected in production                                                    |
 
@@ -37,6 +39,6 @@ broad S3 credential. Hosted cleanup additionally requires the two Vault entries 
 [Required human inputs](HUMAN_INPUTS.md); they are not environment variables exposed to clients.
 
 Production is fail-closed: missing values, `.invalid`/`example`/placeholder content, deterministic AI,
-deterministic media scanning, incomplete scanner operations inputs, and fake/sandbox payment adapters
-cause a non-zero validator exit. Rotate a leaked key immediately, revoke affected sessions/tokens,
-review audit logs, and follow the incident runbook.
+deterministic media scanning, incomplete scanner operations inputs, incomplete encrypted push-worker
+configuration, and fake/sandbox payment adapters cause a non-zero validator exit. Rotate a leaked key
+immediately, revoke affected sessions/tokens, review audit logs, and follow the incident runbook.

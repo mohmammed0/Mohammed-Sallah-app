@@ -97,6 +97,12 @@ const supportGrantRevoke = z.object({
   grantId: z.uuid(),
   reason: z.string().trim().min(5).max(1000),
 });
+const supportMessageReply = z
+  .object({
+    caseId: z.uuid(),
+    body: z.string().trim().min(1).max(4000),
+  })
+  .strict();
 
 export async function reviewProvider(formData: FormData): Promise<void> {
   const input = providerDecision.parse({
@@ -403,6 +409,35 @@ export async function revokeSupportAccess(formData: FormData): Promise<void> {
   });
   if (error) throw new Error('SUPPORT_ACCESS_REVOKE_FAILED');
   revalidatePath('/admin/support');
+}
+
+export async function sendSupportCaseMessage(formData: FormData): Promise<void> {
+  const parsed = supportMessageReply.safeParse({
+    caseId: formData.get('caseId'),
+    body: formData.get('body'),
+  });
+  if (!parsed.success) redirect('/admin/support?error=validation');
+  const input = parsed.data;
+  let submittedIntentId: string;
+  try {
+    submittedIntentId = commandIntentId(formData);
+  } catch {
+    redirect(`/admin/support?caseId=${input.caseId}&error=validation`);
+  }
+  const { client } = await requireAnyAdmin(['support.case.read', 'operations.marketplace.read']);
+  const { error } = await client.rpc('send_support_case_message', {
+    p_case_id: input.caseId,
+    p_body: input.body,
+    p_idempotency_key: submittedIntentId,
+  });
+  if (error) redirect(`/admin/support?caseId=${input.caseId}&error=unavailable`);
+  revalidatePath('/admin/support');
+  const query = new URLSearchParams({
+    caseId: input.caseId,
+    notice: 'message_sent',
+    confirmedIntentId: submittedIntentId,
+  });
+  redirect(`/admin/support?${query.toString()}`);
 }
 
 function moderationCommandFromForm(

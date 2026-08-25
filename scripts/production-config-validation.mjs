@@ -14,6 +14,10 @@ export const productionRequiredKeys = [
   'SALLAH_IOS_BUNDLE_ID',
   'SALLAH_ANDROID_PACKAGE',
   'SALLAH_ANDROID_GOOGLE_MAPS_API_KEY',
+  'PUSH_ENABLED',
+  'EXPO_ACCESS_TOKEN',
+  'PUSH_TOKEN_ENCRYPTION_KEY',
+  'NOTIFICATION_WORKER_SECRET',
   'UPLOAD_SCANNER_MODE',
   'UPLOAD_SCANNER_CONTROL_ORIGIN',
   'UPLOAD_SCANNER_STORAGE_ORIGIN',
@@ -49,6 +53,7 @@ export function validateProductionConfiguration(environment) {
   if ((environment.TRANSLATION_PROVIDER ?? 'disabled') !== 'disabled') {
     missing.push('TRANSLATION_PROVIDER(unsupported until privacy approval)');
   }
+  if (environment.PUSH_ENABLED !== 'true') missing.push('PUSH_ENABLED(true)');
   if (['fake', 'sandbox'].includes(environment.PAYMENT_PROVIDER ?? '')) {
     return { ok: false, message: 'Unsafe production payment provider' };
   }
