@@ -15,6 +15,7 @@
     "@sallah/database": "workspace:*",
     "@sallah/domain": "workspace:*",
     "@sallah/i18n": "workspace:*",
+    "@sallah/observability": "workspace:*",
     "@supabase/ssr": "0.12.4",
     "@supabase/supabase-js": "2.112.3",
     "next": "16.3.1",

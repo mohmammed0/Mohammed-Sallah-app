@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Linking, StyleSheet, Switch, Text, View } from 'react-native';
 import MapView, { type Region } from 'react-native-maps';
 import * as Location from 'expo-location';
 import {
@@ -26,6 +26,7 @@ import {
   type ServiceLocationResolution,
 } from './location-model';
 import { createDebouncedResolver, initializeLocationEditor } from './location-editor-state';
+import { acquireForegroundLocation, locationRecoveryForResult } from './location-device';
 import {
   isCustomerMapConfigured,
   MAP_RENDER_TIMEOUT_MS,
@@ -63,6 +64,7 @@ export function LocationPicker({ onDone }: { onDone: () => void }) {
   const [message, setMessage] = useState('');
   const [mapReady, setMapReady] = useState(false);
   const [mapTimedOut, setMapTimedOut] = useState(false);
+  const [permissionRecovery, setPermissionRecovery] = useState<'retry' | 'settings' | null>(null);
   const canRenderMap = isCustomerMapConfigured();
   const directionStyle = dir === 'rtl' ? styles.rtl : styles.ltr;
 
@@ -143,6 +145,7 @@ export function LocationPicker({ onDone }: { onDone: () => void }) {
     setReverseGeocodeUnavailable(false);
     setMapReady(false);
     setMapTimedOut(false);
+    setPermissionRecovery(null);
     setMessage('');
     setEditorOpen(true);
   }
@@ -157,23 +160,32 @@ export function LocationPicker({ onDone }: { onDone: () => void }) {
   async function useCurrentLocation() {
     setBusy(true);
     setMessage('');
+    setPermissionRecovery(null);
     try {
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (!permission.granted) {
-        setMessage(t('locationPermissionDenied'));
-        return;
-      }
-      const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      const point = coordinatesSchema.parse({
-        latitude: current.coords.latitude,
-        longitude: current.coords.longitude,
+      const result = await acquireForegroundLocation(async ({ coordinates: point }) => {
+        mapRef.current?.animateToRegion(asRegion(point), 260);
+        await resolvePoint(point);
       });
-      mapRef.current?.animateToRegion(asRegion(point), 260);
-      await resolvePoint(point);
+      const recovery = locationRecoveryForResult(result);
+      setPermissionRecovery(recovery.action);
+      if (recovery.messageKey) setMessage(t(recovery.messageKey));
     } catch {
       setMessage(t('locationUnavailable'));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleLocationPermissionAction() {
+    if (permissionRecovery !== 'settings') {
+      await useCurrentLocation();
+      return;
+    }
+    try {
+      await Linking.openSettings();
+      setPermissionRecovery('retry');
+    } catch {
+      setMessage(t('locationUnavailable'));
     }
   }
 
@@ -331,9 +343,11 @@ export function LocationPicker({ onDone }: { onDone: () => void }) {
         title={editingAddressId ? t('editLocation') : t('addNewLocation')}
       />
       <LocationPermissionCard
-        actionLabel={t('useCurrentLocation')}
+        actionLabel={t(
+          permissionRecovery === 'settings' ? 'openDeviceSettings' : 'useCurrentLocation',
+        )}
         body={t('foregroundLocationReason')}
-        onAction={() => void useCurrentLocation()}
+        onAction={() => void handleLocationPermissionAction()}
         title={t('locationPermissionTitle')}
       />
 

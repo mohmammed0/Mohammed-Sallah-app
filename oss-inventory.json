@@ -185,6 +185,14 @@
       "security": "Expo GitHub security policy/advisories"
     },
     {
+      "project": "expo/expo",
+      "package": "expo-splash-screen",
+      "version": "57.0.8",
+      "license": "MIT",
+      "use": "native Preview and production launch-screen configuration",
+      "security": "Expo GitHub security policy/advisories"
+    },
+    {
       "project": "colinhacks/zod",
       "package": "zod",
       "version": "4.4.3",

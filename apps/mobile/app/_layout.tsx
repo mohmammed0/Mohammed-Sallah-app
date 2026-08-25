@@ -8,6 +8,7 @@ import { useLocale } from '@/providers/locale-provider';
 import { SessionProvider, useSessionContext } from '@/providers/session-provider';
 import { Screen, styles } from '@/components/ui';
 import { ConnectivityBanner } from '@/components/connectivity-banner';
+import { MobileAppErrorBoundary } from '@/components/app-error-boundary';
 import { StartupRecoveryScreen } from '@/features/auth/startup-recovery-screen';
 import { canEnterProductArea, productLandingRoute } from '@/features/auth/route-policy';
 import { CustomerLocationProvider } from '@/features/location/location-provider';
@@ -119,14 +120,16 @@ function LocalizedStack() {
 
 export default function RootLayout() {
   return (
-    <AppQueryProvider>
-      <LocaleProvider>
-        <SessionProvider>
-          <CustomerLocationProvider>
-            <LocalizedStack />
-          </CustomerLocationProvider>
-        </SessionProvider>
-      </LocaleProvider>
-    </AppQueryProvider>
+    <MobileAppErrorBoundary>
+      <AppQueryProvider>
+        <LocaleProvider>
+          <SessionProvider>
+            <CustomerLocationProvider>
+              <LocalizedStack />
+            </CustomerLocationProvider>
+          </SessionProvider>
+        </LocaleProvider>
+      </AppQueryProvider>
+    </MobileAppErrorBoundary>
   );
 }

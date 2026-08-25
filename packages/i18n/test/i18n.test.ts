@@ -175,4 +175,24 @@ describe('localization', () => {
       resources.en.translation.adminModerationTitle,
     );
   });
+
+  it('provides localized foreground-location recovery actions in every supported locale', () => {
+    const locationRecoveryKeys = ['openDeviceSettings', 'locationUsingRecentFix'] as const;
+    for (const locale of supportedLocales) {
+      const translation = resources[locale].translation as Readonly<Record<string, string>>;
+      for (const key of locationRecoveryKeys) {
+        expect(translation[key], `${locale}.${key}`).toBeTruthy();
+        expect(translation[key], `${locale}.${key}`).not.toBe(key);
+      }
+    }
+    expect(resources.ar.translation.openDeviceSettings).not.toBe(
+      resources.en.translation.openDeviceSettings,
+    );
+    expect(resources.ur.translation.locationUsingRecentFix).not.toBe(
+      resources.en.translation.locationUsingRecentFix,
+    );
+    expect(resources.hi.translation.locationUsingRecentFix).not.toBe(
+      resources.en.translation.locationUsingRecentFix,
+    );
+  });
 });

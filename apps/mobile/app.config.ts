@@ -13,9 +13,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   }
   const environment = parsedEnvironment.data;
   const production = environment === 'production';
+  const previewOrProduction = environment === 'preview' || production;
   // Build-time only. This key is restricted in Google Cloud to the Android
   // package name and signing certificate; it is never exposed through EXPO_PUBLIC_*.
   const androidMapsApiKey = process.env.SALLAH_ANDROID_GOOGLE_MAPS_API_KEY;
+  const configuredAndroidPackage = process.env.SALLAH_ANDROID_PACKAGE;
+  const configuredIosBundleIdentifier = process.env.SALLAH_IOS_BUNDLE_ID;
   const configuredProjectId = process.env.EAS_PROJECT_ID;
   const projectId = configuredProjectId ?? defaultEasProjectId;
   if (
@@ -28,25 +31,51 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       'Production mobile build requires EAS_PROJECT_ID and Supabase public configuration',
     );
   }
+  if (production && (!configuredAndroidPackage || !configuredIosBundleIdentifier)) {
+    throw new Error('Production mobile build requires final Android and iOS identifiers');
+  }
+  if (previewOrProduction && !androidMapsApiKey) {
+    throw new Error(
+      'Preview and production mobile builds require a restricted Android Maps API key',
+    );
+  }
+  if (environment === 'preview' && (!configuredAndroidPackage || !configuredIosBundleIdentifier)) {
+    throw new Error('Preview mobile build requires explicit Android and iOS identifiers');
+  }
   return {
     ...config,
     name: branding.displayName.ar,
     slug: branding.slug,
     owner: defaultEasOwner,
     version: '0.1.0',
+    icon: './assets/images/icon.png',
     platforms: ['ios', 'android'],
     orientation: 'portrait',
     scheme: branding.scheme,
     userInterfaceStyle: 'light',
     runtimeVersion: { policy: 'fingerprint' },
+    updates: {
+      enabled: false,
+      checkAutomatically: 'NEVER',
+      fallbackToCacheTimeout: 0,
+    },
     ios: {
       supportsTablet: true,
-      bundleIdentifier: process.env.SALLAH_IOS_BUNDLE_ID ?? branding.iosBundleIdentifier,
+      bundleIdentifier: configuredIosBundleIdentifier ?? branding.iosBundleIdentifier,
+      buildNumber: '1',
+      icon: './assets/images/icon.png',
+      config: { usesNonExemptEncryption: false },
       infoPlist: { CFBundleAllowMixedLocalizations: true },
     },
     android: {
-      package: process.env.SALLAH_ANDROID_PACKAGE ?? branding.androidPackage,
-      adaptiveIcon: { backgroundColor: branding.colors.sand },
+      package: configuredAndroidPackage ?? branding.androidPackage,
+      versionCode: 1,
+      icon: './assets/images/icon.png',
+      adaptiveIcon: {
+        backgroundColor: branding.colors.sand,
+        foregroundImage: './assets/images/adaptive-icon.png',
+        monochromeImage: './assets/images/adaptive-icon-monochrome.png',
+      },
       blockedPermissions: ['android.permission.ACCESS_BACKGROUND_LOCATION'],
       ...(androidMapsApiKey ? { config: { googleMaps: { apiKey: androidMapsApiKey } } } : {}),
     },
@@ -81,6 +110,15 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           locationWhenInUsePermission: translate('ar', 'permissionLocation'),
           isIosBackgroundLocationEnabled: false,
           isAndroidBackgroundLocationEnabled: false,
+        },
+      ],
+      [
+        'expo-splash-screen',
+        {
+          backgroundColor: branding.colors.sand,
+          image: './assets/images/splash-icon.png',
+          imageWidth: 180,
+          resizeMode: 'contain',
         },
       ],
       ['expo-notifications', { defaultChannel: 'service-updates' }],

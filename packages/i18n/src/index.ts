@@ -60,6 +60,8 @@ const ar = {
   foregroundLocationReason:
     'نستخدم موقعك في المقدمة فقط لتسهيل تحديد مكان الخدمة. لا نطلب موقعًا في الخلفية.',
   locationPermissionTitle: 'استخدام موقعك الحالي',
+  openDeviceSettings: 'فتح إعدادات الجهاز',
+  locationUsingRecentFix: 'تعذر تحديث الموقع بدقة. عُرض آخر موقع حديث؛ راجع الدبوس قبل التأكيد.',
   addressRequired: 'أكمل وصف العنوان قبل المتابعة.',
   saveLocationFailed: 'تعذر حفظ الموقع الآن. حاول مرة أخرى.',
   archiveAddressTitle: 'أرشفة الموقع؟',
@@ -816,6 +818,9 @@ const en: TranslationShape = {
   foregroundLocationReason:
     'We use foreground location only to help place the service pin. Background location is not requested.',
   locationPermissionTitle: 'Use your current location',
+  openDeviceSettings: 'Open device settings',
+  locationUsingRecentFix:
+    'A fresh fix is unavailable. A recent location is shown; check the pin before confirming.',
   addressRequired: 'Complete the address description before continuing.',
   saveLocationFailed: 'The location could not be saved. Try again.',
   archiveAddressTitle: 'Archive this location?',
@@ -1605,6 +1610,9 @@ const ur: TranslationShape = {
   foregroundLocationReason:
     'ہم صرف اس اسکرین کے دوران سروس پن رکھنے کے لیے مقام استعمال کرتے ہیں۔ پس منظر کا مقام درکار نہیں۔',
   locationPermissionTitle: 'موجودہ مقام استعمال کریں',
+  openDeviceSettings: 'ڈیوائس کی ترتیبات کھولیں',
+  locationUsingRecentFix:
+    'تازہ درست مقام دستیاب نہیں۔ حالیہ مقام دکھایا گیا ہے؛ تصدیق سے پہلے پن دیکھ لیں۔',
   addressRequired: 'جاری رکھنے سے پہلے پتے کی تفصیل مکمل کریں۔',
   saveLocationFailed: 'مقام محفوظ نہیں ہو سکا۔ دوبارہ کوشش کریں۔',
   archiveAddressTitle: 'یہ مقام آرکائیو کریں؟',
@@ -1969,6 +1977,9 @@ const hi: TranslationShape = {
   foregroundLocationReason:
     'हम केवल इस स्क्रीन पर सेवा पिन रखने के लिए फ़ोरग्राउंड स्थान उपयोग करते हैं। बैकग्राउंड स्थान नहीं माँगा जाता।',
   locationPermissionTitle: 'मौजूदा स्थान इस्तेमाल करें',
+  openDeviceSettings: 'डिवाइस सेटिंग खोलें',
+  locationUsingRecentFix:
+    'नया सटीक स्थान उपलब्ध नहीं है। हाल का स्थान दिखाया गया है; पुष्टि से पहले पिन जाँचें।',
   addressRequired: 'आगे बढ़ने से पहले पते का विवरण पूरा करें।',
   saveLocationFailed: 'स्थान सहेजा नहीं जा सका। फिर कोशिश करें।',
   archiveAddressTitle: 'इस स्थान को आर्काइव करें?',

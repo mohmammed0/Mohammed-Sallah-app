@@ -37,3 +37,9 @@ The migration installs a 15-minute pg_cron dispatcher that fails closed when tho
 this repository run did not create the entries or activate the hosted schedule.
 
 Rollback application code by redeploying the prior immutable artifact. Do not reverse a production migration destructively: stop writes/disable the affected feature, deploy a compensating migration, or restore to a new project after incident approval. See backup/recovery and release docs.
+
+For every Preview/Beta rollout, record the exact source SHA, app/web/Edge artifact identity,
+configuration version, migration manifest, operator, UTC time, focused smoke result, and prior
+artifact selected for rollback. Repository configuration is not proof that an external monitoring
+destination, backup restore, scanner host, push provider, AI provider, maps key, or device build is
+active; retain `HUMAN INPUT REQUIRED` or `NOT RUN` until exact-environment evidence exists.

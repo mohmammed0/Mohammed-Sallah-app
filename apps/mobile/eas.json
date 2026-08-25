@@ -1,9 +1,13 @@
 {
   "$schema": "https://json.schemastore.org/eas.json",
-  "cli": { "version": ">= 16.0.0", "appVersionSource": "remote" },
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "remote",
+    "requireCommit": true
+  },
   "build": {
     "development": {
-      "developmentClient": true,
+      "environment": "development",
       "distribution": "internal",
       "channel": "development",
       "env": { "EXPO_PUBLIC_APP_ENV": "local" }
@@ -21,8 +25,10 @@
       }
     },
     "production": {
+      "environment": "production",
       "channel": "production",
       "autoIncrement": true,
+      "android": { "buildType": "app-bundle" },
       "env": { "EXPO_PUBLIC_APP_ENV": "production" }
     }
   },
