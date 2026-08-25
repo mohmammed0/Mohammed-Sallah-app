@@ -39,13 +39,13 @@
     "@eslint/js": "10.0.1",
     "@playwright/test": "1.62.1",
     "@types/node": "24.3.0",
-    "eslint": "10.8.1",
+    "eslint": "10.9.0",
     "prettier": "3.9.6",
-    "supabase": "2.114.0",
-    "turbo": "2.10.10",
+    "supabase": "2.115.0",
+    "turbo": "2.10.11",
     "typescript": "6.0.3",
     "typescript-eslint": "8.67.0",
-    "vitest": "4.1.10"
+    "vitest": "4.1.11"
   },
   "workspaces": [
     "apps/*",

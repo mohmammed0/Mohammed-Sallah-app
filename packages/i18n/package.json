@@ -13,11 +13,11 @@
     "test": "vitest run --exclude dist/**"
   },
   "dependencies": {
-    "i18next": "26.3.6"
+    "i18next": "26.4.0"
   },
   "devDependencies": {
     "@sallah/typescript-config": "workspace:*",
     "typescript": "6.0.3",
-    "vitest": "4.1.10"
+    "vitest": "4.1.11"
   }
 }
