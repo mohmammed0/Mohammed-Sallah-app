@@ -127,4 +127,19 @@ describe('privacy-safe operational logging', () => {
     expect(second).toMatch(/^[0-9a-f-]{36}$/i);
     expect(second).not.toBe(first);
   });
+
+  it('creates safe correlation IDs when Web Crypto is unavailable at mobile startup', () => {
+    vi.stubGlobal('crypto', undefined);
+
+    try {
+      const first = createCorrelationId();
+      const second = createCorrelationId();
+
+      expect(first).toMatch(/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/);
+      expect(second).toMatch(/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/);
+      expect(second).not.toBe(first);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

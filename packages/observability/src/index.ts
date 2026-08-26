@@ -107,6 +107,22 @@ export const consoleLogger: Logger = {
     console.log(line);
   },
 };
+
+let fallbackCorrelationSequence = 0;
+
+function createFallbackCorrelationId(): string {
+  fallbackCorrelationSequence = (fallbackCorrelationSequence + 1) % 0x1000000;
+  const timestamp = Date.now().toString(36);
+  const sequence = fallbackCorrelationSequence.toString(36).padStart(5, '0');
+  const random = Math.floor(Math.random() * 0x100000000)
+    .toString(36)
+    .padStart(7, '0');
+  return `corr-${timestamp}-${sequence}-${random}`;
+}
+
 export function createCorrelationId(): string {
-  return globalThis.crypto.randomUUID();
+  const cryptoApi = globalThis.crypto as typeof globalThis.crypto | undefined;
+  return typeof cryptoApi?.randomUUID === 'function'
+    ? cryptoApi.randomUUID()
+    : createFallbackCorrelationId();
 }
