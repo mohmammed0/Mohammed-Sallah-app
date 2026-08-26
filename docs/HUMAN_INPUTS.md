@@ -60,10 +60,17 @@ seconds/two attempts/1,200 output tokens for diagnostic, 20 seconds/two attempts
 translation, and 45 seconds/two attempts plus an 8,000-character transcript bound for transcription.
 No live operation silently falls back to deterministic content.
 
-The bounded local adapter smoke on 2026-08-25 made one synthetic diagnostic request and returned the
-safe terminal category `OPENAI_QUOTA_REQUIRED`; no second paid attempt was made. The OpenAI project
-owner must provide approved model quota before the remaining live text, image, transcription, and
-translation canary can run. Enabling billing or changing the account plan remains a human-owned action.
+The bounded local live verification on 2026-08-26 completed exactly six provider requests using
+synthetic, repository-safe data only. Text and scanner-clean image diagnostics passed with
+`gpt-5.6-terra`; a seven-second scanner-clean M4A transcription passed with `gpt-transcribe`; and
+Arabic-to-English, Arabic-to-Urdu, and Arabic-to-Hindi provider-brief translations passed with
+`gpt-5.6-luna`. The editable transcript confirmation and original-text-preserving translation
+contracts also passed. No real customer or provider content was submitted, and the ignored local
+credential remained server-only and untracked.
+
+This is local functional evidence only. Hosted Preview activation, the final security audit, and
+physical-device validation remain **NOT RUN**. The operation-specific legal/privacy approvals and
+target-environment secret-store decisions above remain required before Preview or production use.
 
 The production scanner approval must record exact external control and Storage origins, separate
 control/attestation HMAC rotation owners, `private-only` network policy, signature maximum age, one-job

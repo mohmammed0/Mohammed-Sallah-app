@@ -3,7 +3,7 @@
 [العربية](../ar/CLOSED_BETA.md) · [Documentation map](../README.md)
 
 **التصنيف | Classification:** CURRENT SOURCE OF TRUTH
-**آخر تحقق مرجعي | Reference date:** 2026-08-22
+**آخر تحقق مرجعي | Reference date:** 2026-08-26
 
 ## الحالة المختصرة | Summary
 
@@ -44,7 +44,7 @@ EAS action, or production activation has occurred.
 | --------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------- |
 | M1 — الثقة وسلامة المحتوى               | **PASS / FROZEN**                                  | [PR #17](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/17) |
 | M2 — فحص الوسائط                        | **IN PROGRESS** محلياً فقط؛ الاستضافة **NOT RUN**  | [#20](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/20)  |
-| M3 — AI/التفريغ/الترجمة الحقيقية        | **HUMAN INPUT REQUIRED** قبل التكامل الحقيقي       | [#18](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/18)  |
+| M3 — AI/التفريغ/الترجمة الحقيقية        | **LOCAL LIVE PASS**؛ Preview **NOT RUN**           | [#18](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/18)  |
 | M4 — الإشعارات الفعلية                  | **NOT RUN** على جهاز فعلي                          | [#19](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/19)  |
 | M5 — تجربة مقدم الخدمة وإتاحة beta      | **NOT STARTED**                                    | [#16](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/16)  |
 | M6 — النسخ الاحتياطي والمراقبة والتشغيل | **HUMAN INPUT REQUIRED**                           | [#21](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/21)  |
@@ -57,6 +57,10 @@ EAS action, or production activation has occurred.
 
 ## الأدلة والبوابات | Evidence and gates
 
+- تحقق M3 المحلي المباشر في 2026-08-26 نفّذ ستة طلبات متسلسلة فقط ببيانات اصطناعية: تشخيص نصي
+  وصورة نظيفة عبر `gpt-5.6-terra`، تفريغ M4A نظيف قابل للتحرير عبر `gpt-transcribe`، وترجمة موجز
+  مقدم الخدمة إلى الإنجليزية والأردية والهندية عبر `gpt-5.6-luna`. كلها **PASS** محلياً. تفعيل
+  Preview والتدقيق الأمني النهائي واختبار الجهاز **NOT RUN**، ولم تُستخدم بيانات مستخدمين حقيقية.
 - اختبارات المستودع المحلية تثبت فقط النطاق الذي شُغلت عليه؛ أحدث نتائج M1 التفصيلية تبقى في
   تقارير التنفيذ وخططها ولا تتحول تلقائياً إلى دليل جهاز أو إنتاج.
 - اختبار Android/iOS الفعلي، حسابات المتاجر، الهوية القانونية، عناوين الدعم العامة، اتفاقيات
