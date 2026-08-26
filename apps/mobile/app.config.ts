@@ -14,6 +14,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const environment = parsedEnvironment.data;
   const production = environment === 'production';
   const previewOrProduction = environment === 'preview' || production;
+  const easBuildPlatform = process.env.EAS_BUILD_PLATFORM;
+  // EAS sets EAS_BUILD_PLATFORM to the platform currently being configured.
+  // Treat an absent or unrecognized value as Android-capable so Preview cannot
+  // silently omit its restricted Maps key outside an explicit iOS-only build.
+  const requiresAndroidMaps = easBuildPlatform !== 'ios';
   // Build-time only. This key is restricted in Google Cloud to the Android
   // package name and signing certificate; it is never exposed through EXPO_PUBLIC_*.
   const androidMapsApiKey = process.env.SALLAH_ANDROID_GOOGLE_MAPS_API_KEY;
@@ -22,19 +27,22 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const configuredProjectId = process.env.EAS_PROJECT_ID;
   const projectId = configuredProjectId ?? defaultEasProjectId;
   if (
-    production &&
-    (!configuredProjectId ||
-      !process.env.EXPO_PUBLIC_SUPABASE_URL ||
-      !process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY)
+    previewOrProduction &&
+    (!process.env.EXPO_PUBLIC_SUPABASE_URL || !process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY)
   ) {
     throw new Error(
-      'Production mobile build requires EAS_PROJECT_ID and Supabase public configuration',
+      production
+        ? 'Production mobile build requires explicit Supabase public configuration'
+        : 'Preview and production mobile builds require explicit Supabase public configuration',
     );
+  }
+  if (production && !configuredProjectId) {
+    throw new Error('Production mobile build requires EAS_PROJECT_ID');
   }
   if (production && (!configuredAndroidPackage || !configuredIosBundleIdentifier)) {
     throw new Error('Production mobile build requires final Android and iOS identifiers');
   }
-  if (previewOrProduction && !androidMapsApiKey) {
+  if (previewOrProduction && requiresAndroidMaps && !androidMapsApiKey) {
     throw new Error(
       'Preview and production mobile builds require a restricted Android Maps API key',
     );

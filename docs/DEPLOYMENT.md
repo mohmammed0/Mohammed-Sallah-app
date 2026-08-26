@@ -7,7 +7,9 @@
 3. Provision the private pull-worker scanner, ClamD, image sanitizer, bounded FFmpeg remux runtime,
    private DNS, TLS,
    deny-by-default egress, continuous readiness, signature updates, and alerts. Do not deploy the
-   local Compose topology as production infrastructure.
+   local Compose topology as production infrastructure. The provider-neutral nonproduction host
+   contract is `infra/media-scanner/compose.preview.yaml`; it is preparation evidence only until a
+   chosen authorized host proves its firewall, TLS, routing, image digest, freshness, and canaries.
 4. Configure Auth redirect allowlists, private buckets, Edge secrets, SMTP, rate limits, and least-privileged operator accounts.
 5. Prove the scanner freshness, capacity, network, outbound-update, minimized-runtime-image, and alert
    gates before enabling upload promotion. The liveness endpoint alone is not ClamD readiness evidence.
@@ -16,6 +18,10 @@
 8. Promote mobile builds only after device and store-review validation.
 
 Never deploy `seed.sql` demo/test identities, local JWT secrets, or placeholder URLs. Web may be hosted on any Node-compatible platform; do not assume Vercel. Supabase service-role and AI keys belong only in provider secret stores. Online payment and SMS feature flags remain off until real credentials and reconciliation/runbooks are approved.
+
+Preview Push uses the `sallah-notification-worker` cron job. Its dispatcher reads the exact worker
+URL and distinct worker secret from Supabase Vault and fails closed while either value is absent.
+Expo credentials and the token-encryption key remain Edge-only; none belongs in EAS client variables.
 
 The repository/local M2V test uses real local Supabase Storage/PostgreSQL/Edge, the repository pull
 worker, exact signed capabilities, and ClamD. Edge carries metadata only; the worker downloads and

@@ -12,6 +12,7 @@ const keys = [
   'SALLAH_ANDROID_GOOGLE_MAPS_API_KEY',
   'SALLAH_ANDROID_PACKAGE',
   'SALLAH_IOS_BUNDLE_ID',
+  'EAS_BUILD_PLATFORM',
 ] as const;
 const saved = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
 
@@ -29,6 +30,8 @@ function build() {
 
 function configurePreview() {
   process.env.EXPO_PUBLIC_APP_ENV = 'preview';
+  process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://preview.invalid';
+  process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY = 'publishable-test-value';
   process.env.SALLAH_ANDROID_PACKAGE = 'com.mohmammed0.sallah.preview';
   process.env.SALLAH_IOS_BUNDLE_ID = 'com.mohmammed0.sallah.preview';
 }
@@ -52,12 +55,46 @@ describe('mobile Expo APP_ENV boundary', () => {
 
   it('fails closed for Preview without the restricted Android Maps key', () => {
     configurePreview();
+    process.env.EAS_BUILD_PLATFORM = 'android';
     delete process.env.SALLAH_ANDROID_GOOGLE_MAPS_API_KEY;
+    expect(build).toThrow(/Preview and production mobile builds require.*Maps/i);
+  });
+
+  it('fails closed for Preview without Supabase public configuration', () => {
+    configurePreview();
+    process.env.SALLAH_ANDROID_GOOGLE_MAPS_API_KEY = 'restricted-preview-key';
+
+    delete process.env.EXPO_PUBLIC_SUPABASE_URL;
+    expect(build).toThrow(/Preview and production mobile builds require.*Supabase/i);
+
+    process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://preview.invalid';
+    delete process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    expect(build).toThrow(/Preview and production mobile builds require.*Supabase/i);
+  });
+
+  it('does not require the Android Maps key for an explicit iOS EAS Preview build', () => {
+    configurePreview();
+    process.env.EAS_BUILD_PLATFORM = 'ios';
+    delete process.env.SALLAH_ANDROID_GOOGLE_MAPS_API_KEY;
+
+    const result = build();
+
+    expect(result.ios?.bundleIdentifier).toBe('com.mohmammed0.sallah.preview');
+    expect(result.android?.config).toBeUndefined();
+    expect(result.extra?.maps).toEqual({ androidConfigured: false });
+  });
+
+  it('fails safely for a Preview build with an unknown EAS platform and no Maps key', () => {
+    configurePreview();
+    process.env.EAS_BUILD_PLATFORM = 'windows';
+    delete process.env.SALLAH_ANDROID_GOOGLE_MAPS_API_KEY;
+
     expect(build).toThrow(/Preview and production mobile builds require.*Maps/i);
   });
 
   it('configures foreground-only Maps plus explicit icon, splash and update policy', () => {
     configurePreview();
+    process.env.EAS_BUILD_PLATFORM = 'android';
     process.env.SALLAH_ANDROID_GOOGLE_MAPS_API_KEY = 'restricted-preview-key';
 
     const result = build();

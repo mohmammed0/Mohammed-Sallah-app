@@ -25,3 +25,7 @@ document, user identity, or arbitrary URL. Push tokens are AES-256-GCM encrypted
 limited to ten active installations, rotated atomically, revocable per device or account, and removed
 during deletion processing. Notification opens map only to fixed routes and are authorized again
 against the current session and role.
+
+Hosted Preview polling uses the one-minute `sallah-notification-worker` pg_cron dispatcher. Its exact
+HTTPS Edge URL and dedicated worker secret come from Supabase Vault at invocation time; they are not
+stored in the cron command. Missing, malformed, or reused media-cleanup credentials fail closed.

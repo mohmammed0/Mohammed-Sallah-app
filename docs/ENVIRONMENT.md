@@ -27,6 +27,17 @@ Environments are `local`, `test`, `preview`, and `production`. Copy `.env.exampl
 | `SALLAH_ANDROID_GOOGLE_MAPS_API_KEY`                             | Build only     | Restricted Android Maps key; injected into native config, never Expo JS `extra`        |
 | Brand/legal/support/privacy/terms values                         | Build/runtime  | Placeholders rejected in production                                                    |
 
+Preview mobile builds require explicit `EXPO_PUBLIC_SUPABASE_URL` and
+`EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`; they never fall back to localhost. Android Preview builds
+also require the restricted Maps key. EAS exposes `EAS_BUILD_PLATFORM`, so an explicit iOS-only
+Preview configuration remains independent of the Android Maps credential.
+
+The hosted notification schedule reads only
+`sallah_preview_notification_worker_url` and
+`sallah_preview_notification_worker_secret` from Supabase Vault. The URL must be the exact HTTPS
+Preview Edge Function URL, the secret must be 32-256 UTF-8 bytes and distinct from the media-cleanup
+worker secret, and neither value is stored in the cron command.
+
 `UPLOAD_SCANNER_MODE=deterministic` is allowed only in local/test and is not evidence of production
 malware scanning or sanitization. Preview and production require `external`, the complete operations
 contract above, exact HTTPS control and Storage origins, and distinct 32-256 UTF-8-byte HMAC secrets.

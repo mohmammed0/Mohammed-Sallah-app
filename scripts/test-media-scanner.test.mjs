@@ -316,6 +316,63 @@ test('ClamD is private, persistent, and sized for one job plus reload headroom',
   assert.match(clamd, /^ExitOnOOM yes$/mu);
 });
 
+test('Preview scanner host contract is fail-closed and provider-neutral', async () => {
+  const [compose, runbook] = await Promise.all([
+    source('infra/media-scanner/compose.preview.yaml'),
+    source('docs/operations/PREVIEW_MEDIA_SCANNER.md'),
+  ]);
+  const daemon = serviceBlock(compose, 'clamd', 'worker');
+  const worker = serviceBlock(compose, 'worker');
+  assert.ok(daemon && worker);
+
+  assert.match(
+    compose,
+    /clamav\/clamav:1\.4\.6@sha256:e6444f72de025a3d57e2820dd1ad9f8734d1d4d6ab0e3336cdeb09fa2ba2f122/u,
+  );
+  assert.match(
+    worker,
+    /SALLAH_SCANNER_WORKER_IMAGE:\?set the reviewed worker image by immutable digest/u,
+  );
+  assert.doesNotMatch(compose, /^\s+build:/mu);
+  assert.doesNotMatch(compose, /^\s+ports:/mu);
+  assert.match(compose, /scanner-private:\n\s+internal:\s*true/u);
+  assert.match(compose, /control-storage-egress:\n\s+external:\s*true/u);
+  assert.match(compose, /signature-egress:\n\s+external:\s*true/u);
+  assert.match(compose, /clamav-signatures:\n\s+external:\s*true/u);
+  assert.match(compose, /freshclam[\s\S]*--daemon[\s\S]*--checks=24/u);
+
+  assert.match(daemon, /expose:\s*\['3310'\]/u);
+  assert.match(daemon, /networks:\s*\[scanner-private\]/u);
+  assert.match(daemon, /mem_limit:\s*4g/u);
+  assert.match(worker, /APP_ENV:\s*preview/u);
+  assert.match(worker, /UPLOAD_SCANNER_MODE:\s*external/u);
+  assert.match(worker, /UPLOAD_SCANNER_NETWORK_POLICY:\s*private-only/u);
+  assert.match(worker, /UPLOAD_SCANNER_SIGNATURE_MAX_AGE_HOURS:\s*'24'/u);
+  assert.match(worker, /UPLOAD_SCANNER_MAX_CONCURRENT_JOBS:\s*'1'/u);
+  assert.match(worker, /UPLOAD_SCANNER_JOB_DEADLINE_SECONDS:\s*'120'/u);
+  assert.match(worker, /UPLOAD_SCANNER_CONTROL_TIMEOUT_MS:\s*'5000'/u);
+  assert.match(worker, /mem_limit:\s*1g/u);
+  assert.match(worker, /memswap_limit:\s*1g/u);
+  assert.match(worker, /\/tmp\/scanner:rw,noexec,nosuid,nodev,size=256m[^\n]*mode=0700/u);
+  assert.match(worker, /networks:\s*\[scanner-private, control-storage-egress\]/u);
+  assert.match(worker, /scanner-control-secret/u);
+  assert.match(worker, /scanner-attestation-secret/u);
+  assert.equal((worker.match(/uid:\s*'65532'/gu) ?? []).length, 2);
+  assert.equal((worker.match(/gid:\s*'65532'/gu) ?? []).length, 2);
+  assert.equal((worker.match(/mode:\s*0400/gu) ?? []).length, 2);
+  assert.doesNotMatch(
+    worker,
+    /SUPABASE_(?:SECRET|SERVICE_ROLE|PUBLISHABLE)|DATABASE_URL|POSTGRES_PASSWORD|S3_ACCESS_KEY|AWS_ACCESS_KEY_ID|\bJWT\b/u,
+  );
+
+  assert.match(runbook, /PREVIEW_SCANNER_HOST_REQUIRED/u);
+  assert.match(runbook, /no inbound API or gateway/u);
+  assert.match(runbook, /deny-by-default egress networks/u);
+  assert.match(runbook, /Never expose TCP 3310/u);
+  assert.match(runbook, /synthetic non-user content only/u);
+  assert.match(runbook, /not hosted Preview activation evidence/u);
+});
+
 test('worker receives only exact control-plane configuration and two dedicated secrets', async () => {
   const [compose, adapter] = await Promise.all([
     source('infra/media-scanner/compose.yaml'),

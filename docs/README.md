@@ -70,13 +70,14 @@ status, and audience.
 
 ## التشغيل | Operations
 
-| المستند                                                              | الوصف العربي                       | الحالة                      | الجمهور    |
-| -------------------------------------------------------------------- | ---------------------------------- | --------------------------- | ---------- |
-| [Incident response](operations/INCIDENT_RESPONSE.md)                 | الاستجابة للحوادث والتصعيد         | CURRENT SOURCE OF TRUTH     | الأمن وSRE |
-| [Backup and recovery](operations/BACKUP_AND_RECOVERY.md)             | النسخ والاستعادة والقرارات البشرية | CURRENT SUPPORTING DOCUMENT | SRE        |
-| [Support runbook](operations/SUPPORT_RUNBOOK.md)                     | تشغيل الدعم وحدود الوصول           | CURRENT SUPPORTING DOCUMENT | الدعم      |
-| [Provider verification](operations/PROVIDER_VERIFICATION_RUNBOOK.md) | مراجعة تأهيل مقدم الخدمة           | CURRENT SUPPORTING DOCUMENT | العمليات   |
-| [Payment reconciliation](operations/PAYMENT_RECONCILIATION.md)       | تسوية الدفتر ومراجعة الاستثناءات   | CURRENT SUPPORTING DOCUMENT | المالية    |
+| المستند                                                              | الوصف العربي                              | الحالة                      | الجمهور     |
+| -------------------------------------------------------------------- | ----------------------------------------- | --------------------------- | ----------- |
+| [Incident response](operations/INCIDENT_RESPONSE.md)                 | الاستجابة للحوادث والتصعيد                | CURRENT SOURCE OF TRUTH     | الأمن وSRE  |
+| [Backup and recovery](operations/BACKUP_AND_RECOVERY.md)             | النسخ والاستعادة والقرارات البشرية        | CURRENT SUPPORTING DOCUMENT | SRE         |
+| [Preview media scanner](operations/PREVIEW_MEDIA_SCANNER.md)         | عقد استضافة ماسح Preview دون ادعاء تفعيله | CURRENT SUPPORTING DOCUMENT | المنصة وSRE |
+| [Support runbook](operations/SUPPORT_RUNBOOK.md)                     | تشغيل الدعم وحدود الوصول                  | CURRENT SUPPORTING DOCUMENT | الدعم       |
+| [Provider verification](operations/PROVIDER_VERIFICATION_RUNBOOK.md) | مراجعة تأهيل مقدم الخدمة                  | CURRENT SUPPORTING DOCUMENT | العمليات    |
+| [Payment reconciliation](operations/PAYMENT_RECONCILIATION.md)       | تسوية الدفتر ومراجعة الاستثناءات          | CURRENT SUPPORTING DOCUMENT | المالية     |
 
 ## الإصدار والأجهزة والمتاجر | Release, devices, and stores
 
