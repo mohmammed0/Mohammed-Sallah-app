@@ -101,16 +101,96 @@ class FakeClient implements ScannerControlClient {
 function dependencies(
   fake: FakeClient,
   nowProvider: () => Date = () => now,
+  runtimeConfig: ScannerRuntimeConfig = config,
 ): ScannerControlDependencies {
   return {
     createServiceClient: () => fake,
-    runtimeConfig: () => config,
+    runtimeConfig: () => runtimeConfig,
     storageServiceOrigin: () => fake.trustedServiceOrigin,
     s3SigningCredentials: () => s3Credentials,
     now: nowProvider,
     log: () => undefined,
   };
 }
+
+Deno.test('scanner-control accepts the exact managed Edge route while authenticating the public canonical path', async () => {
+  const fake = new FakeClient();
+  fake.responses.set('consume_media_scanner_nonce', { data: { accepted: true }, error: null });
+  fake.responses.set('claim_media_scan_job', { data: null, error: null });
+  const previewConfig: ScannerRuntimeConfig = {
+    ...config,
+    appEnv: 'preview',
+    storageOrigin: 'https://preview.example.test',
+    controlOrigin: 'https://preview.example.test',
+  };
+  const request = await signedRequest(
+    'claim',
+    {
+      operationId,
+      nonceOperationId,
+      workerId: 'scanner-worker-1',
+      signatureTimestamp: '2026-08-21T12:00:00.000Z',
+      signatureMaxAgeSeconds: 3600,
+    },
+    '-',
+    nonce,
+    'https://edge-runtime.example/scanner-control',
+  );
+
+  const response = await createScannerControlHandler(
+    dependencies(fake, () => now, previewConfig),
+  )(request);
+
+  assertEquals(response.status, 200);
+  assertEquals(await response.json(), { status: 'idle' });
+});
+
+Deno.test('scanner-control rejects near-match managed Edge targets before DB or Storage', async () => {
+  const previewConfig: ScannerRuntimeConfig = {
+    ...config,
+    appEnv: 'preview',
+    storageOrigin: 'https://preview.example.test',
+    controlOrigin: 'https://preview.example.test',
+  };
+  const body = {
+    operationId,
+    nonceOperationId,
+    workerId: 'scanner-worker-1',
+    signatureTimestamp: '2026-08-21T12:00:00.000Z',
+    signatureMaxAgeSeconds: 3600,
+  };
+  const candidates = [
+    'https://edge-runtime.example/scanner-control/extra',
+    'https://edge-runtime.example/scanner-control?debug=1',
+    'https://edge-runtime.example/functions/v1/scanner-control/extra',
+    'https://scanner-control.edge-runtime.example/',
+  ];
+
+  for (const candidate of candidates) {
+    const fake = new FakeClient();
+    const request = await signedRequest('claim', body, '-', nonce, candidate);
+    const response = await createScannerControlHandler(
+      dependencies(fake, () => now, previewConfig),
+    )(request);
+    assertEquals(response.status, 401);
+    assertEquals(fake.calls, []);
+  }
+
+  const fake = new FakeClient();
+  const badSignature = await signedRequest(
+    'claim',
+    body,
+    '-',
+    nonce,
+    'https://edge-runtime.example/scanner-control',
+  );
+  badSignature.headers.set('x-sallah-scanner-signature', '0'.repeat(64));
+  const rejected = await createScannerControlHandler(
+    dependencies(fake, () => now, previewConfig),
+  )(badSignature);
+  assertEquals(rejected.status, 401);
+  assertEquals(fake.calls, []);
+});
 
 async function signedRequest(
   action: string,

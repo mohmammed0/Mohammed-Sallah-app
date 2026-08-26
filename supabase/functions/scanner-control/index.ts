@@ -346,10 +346,17 @@ async function parseAuthenticatedRequest(
     requestUrl.pathname === scannerControlPath;
   const isLocalEdgeRuntimeTarget = (config.appEnv === 'local' || config.appEnv === 'test') &&
     requestUrl.origin === 'http://127.0.0.1:8081' && requestUrl.pathname === '/scanner-control';
+  // Managed Supabase dispatches the public invocation to the function-prefixed
+  // route. Its internal origin is not a stable public contract, so bind the exact
+  // routed path and keep the signed canonical path public and fixed. HMAC remains
+  // the authentication boundary.
+  const isManagedEdgeRuntimeTarget =
+    (config.appEnv === 'preview' || config.appEnv === 'production') &&
+    requestUrl.pathname === '/scanner-control';
   if (
     request.method !== 'POST' || requestUrl.username !== '' || requestUrl.password !== '' ||
     requestUrl.search !== '' || requestUrl.hash !== '' ||
-    (!isPublicTarget && !isLocalEdgeRuntimeTarget)
+    (!isPublicTarget && !isLocalEdgeRuntimeTarget && !isManagedEdgeRuntimeTarget)
   ) {
     throw new Error('SCANNER_AUTH_INVALID');
   }
