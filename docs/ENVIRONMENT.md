@@ -15,7 +15,11 @@ Environments are `local`, `test`, `preview`, and `production`. Copy `.env.exampl
 | `UPLOAD_SCANNER_MAX_CONCURRENT_JOBS`, `*_JOB_DEADLINE_SECONDS`   | Worker         | Exactly one active job and one immutable 120-second deadline per attempt               |
 | `UPLOAD_SCANNER_CONTROL_TIMEOUT_MS`, `*_ALERTS_ENABLED`          | Operations     | Metadata-call timeout is exactly 5 seconds; alerts required outside local/test         |
 | `UPLOAD_SCANNER_WORKER_ID`, `*_IDLE_DELAY_MS`                    | Worker         | Opaque scanner identity and bounded 100-10,000ms idle pull interval                    |
-| `AI_PROVIDER`, model and provider keys                           | Edge/server    | Deterministic provider local/test only                                                 |
+| `OPENAI_API_KEY`                                                 | Edge only      | Shared server-side credential for explicitly enabled OpenAI operations; never public   |
+| `AI_PROVIDER`, `OPENAI_DIAGNOSTIC_MODEL`                         | Edge only      | Live diagnostic: `openai` / `gpt-5.6-terra`; deterministic is local/test-only          |
+| `OPENAI_DIAGNOSTIC_SUPPORTS_IMAGES`                              | Edge only      | Explicit capability gate; clean private images are never silently dropped              |
+| `TRANSLATION_PROVIDER`, `OPENAI_TRANSLATION_MODEL`               | Edge only      | Live provider briefs: `openai` / `gpt-5.6-luna`; disabled unless explicitly selected   |
+| `TRANSCRIPTION_PROVIDER`, `OPENAI_TRANSCRIPTION_MODEL`           | Edge only      | Live clean-audio transcription: `openai` / `gpt-transcribe`                            |
 | `PAYMENT_PROVIDER`                                               | Server         | `offline` default; fake/sandbox forbidden in production                                |
 | `PUSH_ENABLED`, `EXPO_ACCESS_TOKEN`                              | Edge/release   | Push must be explicit; the Expo token is server-only                                   |
 | `PUSH_TOKEN_ENCRYPTION_KEY`, `NOTIFICATION_WORKER_SECRET`        | Edge only      | Dedicated AES-256 token key and distinct worker secret; never exposed to clients       |
@@ -38,7 +42,39 @@ used only inside `scanner-control` to produce an exact opaque-path SigV4 URL; th
 broad S3 credential. Hosted cleanup additionally requires the two Vault entries documented in
 [Required human inputs](HUMAN_INPUTS.md); they are not environment variables exposed to clients.
 
+## OpenAI runtime contract
+
+OpenAI is an authenticated server boundary. `OPENAI_API_KEY` is supplied only to Edge Functions and
+must never use a `NEXT_PUBLIC_` or `EXPO_PUBLIC_` prefix, enter an EAS client bundle, appear in logs,
+or be returned to a caller. Selecting any OpenAI-backed operation requires the shared credential and
+its explicit provider/model setting:
+
+| Operation                    | Provider/model              | Overall deadline | Attempts  | Output bound                     |
+| ---------------------------- | --------------------------- | ---------------- | --------- | -------------------------------- |
+| Diagnostic text/image intake | `openai` / `gpt-5.6-terra`  | 30 seconds       | At most 2 | 1,200 output tokens              |
+| Provider brief translation   | `openai` / `gpt-5.6-luna`   | 20 seconds       | At most 2 | 800 output tokens                |
+| Clean-audio transcription    | `openai` / `gpt-transcribe` | 45 seconds       | At most 2 | 8,000 validated transcript chars |
+
+The audio endpoint has no output-token parameter; the server validates the returned transcript at
+8,000 characters. SDK-internal retries are disabled so the shared runtime, deadline, and two-attempt
+limit remain authoritative. Only retryable timeouts, rate limits, and provider 5xx failures may use
+the second attempt; exhausted quota and billing errors are terminal and are not retried. Logs and
+persisted failure records contain bounded categories, attempts, latency, and usage counts only—not
+prompts, transcripts, provider bodies, private media, or raw exceptions.
+
+There is no silent live fallback. In `preview` or `production`, a missing credential, unsupported
+provider, exhausted deadline, or invalid structured response fails explicitly. Diagnostic and
+transcription callers retain their editable/retry flow; translation returns an explicit failed state
+with the unchanged original brief. Deterministic diagnostic and translation adapters remain
+available only when both `APP_ENV` and the explicit provider selection are local/test.
+
+Repository support for these adapters does not activate them. Preview and production remain blocked
+until the account owner supplies the credential through the approved server secret store and the
+AI/privacy owners approve the payload, region, retention, notices, quota, and selected model access.
+See [Required human inputs](HUMAN_INPUTS.md).
+
 Production is fail-closed: missing values, `.invalid`/`example`/placeholder content, deterministic AI,
+deterministic translation, incomplete configuration for any explicitly selected OpenAI provider,
 deterministic media scanning, incomplete scanner operations inputs, incomplete encrypted push-worker
-configuration, and fake/sandbox payment adapters cause a non-zero validator exit. Rotate a leaked key
-immediately, revoke affected sessions/tokens, review audit logs, and follow the incident runbook.
+configuration, and fake/sandbox payment adapters cause a non-zero validator exit. Rotate a leaked
+key immediately, revoke affected sessions/tokens, review audit logs, and follow the incident runbook.
