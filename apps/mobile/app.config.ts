@@ -22,6 +22,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   // Build-time only. This key is restricted in Google Cloud to the Android
   // package name and signing certificate; it is never exposed through EXPO_PUBLIC_*.
   const androidMapsApiKey = process.env.SALLAH_ANDROID_GOOGLE_MAPS_API_KEY;
+  // EAS resolves this file variable into a temporary build-only path. The
+  // Firebase client config is never committed and contains no server key.
+  const googleServicesFile = process.env.GOOGLE_SERVICES_JSON;
   const configuredAndroidPackage = process.env.SALLAH_ANDROID_PACKAGE;
   const configuredIosBundleIdentifier = process.env.SALLAH_IOS_BUNDLE_ID;
   const configuredProjectId = process.env.EAS_PROJECT_ID;
@@ -45,6 +48,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   if (previewOrProduction && requiresAndroidMaps && !androidMapsApiKey) {
     throw new Error(
       'Preview and production mobile builds require a restricted Android Maps API key',
+    );
+  }
+  if (previewOrProduction && requiresAndroidMaps && !googleServicesFile) {
+    throw new Error(
+      'Preview and production Android builds require the Firebase app configuration file',
     );
   }
   if (environment === 'preview' && (!configuredAndroidPackage || !configuredIosBundleIdentifier)) {
@@ -77,6 +85,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     android: {
       package: configuredAndroidPackage ?? branding.androidPackage,
+      ...(googleServicesFile ? { googleServicesFile } : {}),
       versionCode: 1,
       icon: './assets/images/icon.png',
       adaptiveIcon: {
