@@ -7,7 +7,7 @@ export interface ConversationMessage {
   mediaUploadIds?: string[] | undefined;
   delivery?: 'pending' | 'retryable' | 'offline' | 'sent' | undefined;
   inputKind?: 'text' | 'voice' | 'image' | undefined;
-  transcriptStatus?: 'pending' | 'retryable' | 'completed' | undefined;
+  transcriptStatus?: 'pending' | 'review' | 'retryable' | 'completed' | undefined;
 }
 
 export function upsertPendingCustomerMessage(
@@ -50,6 +50,27 @@ export function markConversationMessageRetryable(
           delivery: 'retryable' as const,
           temporary: true,
           transcriptStatus: message.inputKind === 'voice' ? ('retryable' as const) : undefined,
+        }
+      : message,
+  );
+}
+
+export function updateConversationTranscript(
+  history: readonly ConversationMessage[],
+  clientMessageId: string,
+  transcript: string,
+  status: 'review' | 'completed',
+): ConversationMessage[] {
+  return history.map((message) =>
+    message.role === 'user' &&
+    message.clientMessageId === clientMessageId &&
+    message.inputKind === 'voice'
+      ? {
+          ...message,
+          text: transcript,
+          delivery: 'pending' as const,
+          temporary: true,
+          transcriptStatus: status,
         }
       : message,
   );

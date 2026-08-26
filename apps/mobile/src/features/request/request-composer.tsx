@@ -36,6 +36,7 @@ import {
   categorySelectionSource as resolveCategorySelectionSource,
   conversationOriginalText,
   markConversationMessageRetryable,
+  updateConversationTranscript,
   upsertPendingCustomerMessage,
   type ConversationMessage,
 } from './conversation-state';
@@ -44,14 +45,19 @@ import {
   appendTemporaryFallback,
   clearAiIntakeAbandonment,
   clearAiIntakeSnapshot,
+  confirmTranscriptReview,
   enqueuePendingTurn,
+  isTranscriptReviewRequiredError,
   loadAiIntakeSnapshot,
   queueAiIntakeAbandonment,
   reconcileAuthoritativeTurn,
   replayPendingTurns,
   retryFailedTranscriptionTurns,
   saveAiIntakeSnapshot,
+  stageTranscriptReview,
   takeAiIntakeAbandonment,
+  TranscriptReviewRequiredError,
+  updateTranscriptReview,
   type PendingCustomerTurn,
 } from './conversation-recovery';
 import { isNetworkOnline } from '@/features/connectivity/network-state';
@@ -97,9 +103,14 @@ const subcategorySchema = z.object({
 });
 const functionResultSchema = z.object({ data: z.unknown(), error: z.unknown().nullable() });
 const transcriptionResultSchema = z.object({
-  transcript: z.string().min(1).max(20_000),
+  transcript: z.string().min(1).max(8_000),
   editable: z.literal(true),
   cached: z.boolean().optional(),
+});
+const transcriptionConfirmationSchema = z.object({
+  transcript: z.string().min(1).max(8_000),
+  editable: z.literal(true),
+  confirmed: z.literal(true),
 });
 const restoredSessionSchema = z.object({
   session: z.object({ id: z.uuid() }).nullable(),
@@ -768,28 +779,36 @@ export function RequestComposer() {
   ): Promise<{ diagnostic: AiDiagnostic; turn: PendingCustomerTurn }> {
     let turn = await prepareQueuedTurn(queuedTurn);
     if (turn.inputKind === 'voice') {
+      if (turn.transcriptionStatus === 'review') throw new TranscriptReviewRequiredError();
       const voiceUploadId = turn.mediaBindings.find((binding) => binding.kind === 'voice')?.upload
         ?.uploadId;
       if (!voiceUploadId) throw new Error('CLEAN_VOICE_UPLOAD_REQUIRED');
-      const transcriptionRaw: unknown = await supabase.functions.invoke<unknown>('transcribe', {
-        body: {
-          uploadId: voiceUploadId,
-          locale,
-          clientMessageId: turn.clientMessageId,
-        },
-      });
-      const transcriptionResponse = functionResultSchema.parse(transcriptionRaw);
-      if (transcriptionResponse.error) throw new Error('TRANSCRIPTION_FAILED');
-      const transcription = transcriptionResultSchema.parse(transcriptionResponse.data);
-      turn = {
-        ...turn,
-        text: transcription.transcript,
-        transcript: transcription.transcript,
-        transcriptionStatus: 'completed',
-      };
-      setPendingTurns((current) =>
-        current.map((item) => (item.clientMessageId === turn.clientMessageId ? turn : item)),
-      );
+      if (turn.transcriptionStatus !== 'completed') {
+        const transcriptionRaw: unknown = await supabase.functions.invoke<unknown>('transcribe', {
+          body: {
+            action: 'transcribe',
+            uploadId: voiceUploadId,
+            locale,
+            clientMessageId: turn.clientMessageId,
+          },
+        });
+        const transcriptionResponse = functionResultSchema.parse(transcriptionRaw);
+        if (transcriptionResponse.error) throw new Error('TRANSCRIPTION_FAILED');
+        const transcription = transcriptionResultSchema.parse(transcriptionResponse.data);
+        turn = stageTranscriptReview(turn, transcription.transcript);
+        setPendingTurns((current) =>
+          current.map((item) => (item.clientMessageId === turn.clientMessageId ? turn : item)),
+        );
+        setConversation((current) =>
+          updateConversationTranscript(
+            current,
+            turn.clientMessageId,
+            turn.transcript ?? '',
+            'review',
+          ),
+        );
+        throw new TranscriptReviewRequiredError();
+      }
     }
     const raw: unknown = await supabase.functions.invoke<unknown>('ai-diagnostic', {
       body: {
@@ -813,6 +832,65 @@ export function RequestComposer() {
       setSessionId(result.metadata.sessionId);
     }
     return { diagnostic: result, turn };
+  }
+
+  async function confirmActiveTranscriptReview(turn: PendingCustomerTurn) {
+    if (!online) {
+      setError(t('offline'));
+      return;
+    }
+    let confirmed: PendingCustomerTurn;
+    try {
+      confirmed = confirmTranscriptReview(turn);
+    } catch {
+      setError(t('transcriptConfirmationFailed'));
+      return;
+    }
+    const voiceUploadId = confirmed.mediaBindings.find((binding) => binding.kind === 'voice')
+      ?.upload?.uploadId;
+    if (!voiceUploadId) {
+      setError(t('transcriptionFailed'));
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const raw: unknown = await supabase.functions.invoke<unknown>('transcribe', {
+        body: {
+          action: 'confirm',
+          uploadId: voiceUploadId,
+          locale,
+          clientMessageId: confirmed.clientMessageId,
+          transcript: confirmed.transcript,
+        },
+      });
+      const response = functionResultSchema.parse(raw);
+      if (response.error) throw new Error('TRANSCRIPT_CONFIRMATION_FAILED');
+      const persisted = transcriptionConfirmationSchema.parse(response.data);
+      confirmed = {
+        ...confirmed,
+        text: persisted.transcript,
+        transcript: persisted.transcript,
+      };
+      setPendingTurns((current) =>
+        current.map((item) =>
+          item.clientMessageId === confirmed.clientMessageId ? confirmed : item,
+        ),
+      );
+      setConversation((current) =>
+        updateConversationTranscript(
+          current,
+          confirmed.clientMessageId,
+          confirmed.transcript ?? '',
+          'completed',
+        ),
+      );
+      replaySignatureRef.current = '';
+    } catch {
+      setError(t('transcriptConfirmationFailed'));
+    } finally {
+      setBusy(false);
+    }
   }
 
   function applyDiagnosticResult(
@@ -845,7 +923,10 @@ export function RequestComposer() {
       return;
     }
     if (!restored || busy || !pendingTurns.length || replayingRef.current) return;
-    const signature = pendingTurns.map((turn) => turn.clientMessageId).join(':');
+    if (pendingTurns[0]?.transcriptionStatus === 'review') return;
+    const signature = pendingTurns
+      .map((turn) => `${turn.clientMessageId}:${turn.transcriptionStatus}`)
+      .join(':');
     if (signature === replaySignatureRef.current) return;
     replaySignatureRef.current = signature;
     replayingRef.current = true;
@@ -861,7 +942,7 @@ export function RequestComposer() {
         setPendingTurns((current) =>
           current.filter((turn) => !completedIds.has(turn.clientMessageId)),
         );
-        if (replayed.pending.length) {
+        if (replayed.pending.length && !isTranscriptReviewRequiredError(replayed.error)) {
           const retryableIds = new Set(replayed.pending.map((turn) => turn.clientMessageId));
           setConversation((current) =>
             current.map((message) =>
@@ -873,7 +954,9 @@ export function RequestComposer() {
             ),
           );
           setError(
-            replayed.pending.some((turn) => turn.inputKind === 'voice')
+            replayed.pending.some(
+              (turn) => turn.inputKind === 'voice' && turn.transcriptionStatus !== 'completed',
+            )
               ? t('transcriptionFailed')
               : t('aiUnavailableDraftCreated'),
           );
@@ -897,7 +980,9 @@ export function RequestComposer() {
           ? {
               ...turn,
               transcriptionStatus:
-                turn.inputKind === 'voice' ? 'pending' : turn.transcriptionStatus,
+                turn.inputKind === 'voice' && turn.transcriptionStatus !== 'completed'
+                  ? 'pending'
+                  : turn.transcriptionStatus,
             }
           : turn,
       ),
@@ -911,7 +996,9 @@ export function RequestComposer() {
               ...message,
               delivery: 'pending' as const,
               transcriptStatus:
-                message.inputKind === 'voice' ? ('pending' as const) : message.transcriptStatus,
+                message.inputKind === 'voice' && message.transcriptStatus !== 'completed'
+                  ? ('pending' as const)
+                  : message.transcriptStatus,
             }
           : message,
       ),
@@ -1025,7 +1112,12 @@ export function RequestComposer() {
         current.filter((item) => item.clientMessageId !== turn!.clientMessageId),
       );
       setDescription('');
-    } catch {
+    } catch (caught) {
+      if (isTranscriptReviewRequiredError(caught)) {
+        setDescription('');
+        setError('');
+        return;
+      }
       if (!online && turn?.inputKind === 'voice') {
         setDescription('');
         setError(t('aiUnavailableDraftCreated'));
@@ -1277,6 +1369,7 @@ export function RequestComposer() {
   const attachedImageCount = reviewImages.length;
   const voiceTurns = pendingTurns.filter((turn) => turn.inputKind === 'voice');
   const latestVoiceTurn = voiceTurns.at(-1);
+  const transcriptReviewTurn = voiceTurns.find((turn) => turn.transcriptionStatus === 'review');
   const completedVoiceMessage = conversation
     .filter((message) => message.role === 'user' && message.inputKind === 'voice')
     .at(-1);
@@ -1574,33 +1667,75 @@ export function RequestComposer() {
             {activeVoiceMediaId ? (
               <MediaPreview kind="voice" label={t('turnAttachmentReady')} />
             ) : null}
-            <ChatComposer
-              cameraLabel={t('cameraPhoto')}
-              disabled={busy}
-              galleryLabel={activeImageMediaId ? t('changePhoto') : t('galleryPhoto')}
-              onCamera={() => void pickImage('camera')}
-              onChangeText={(value) => {
-                setDescription(value);
-                invalidateApproval();
-              }}
-              onGallery={() => void pickImage('library')}
-              onSend={() => void analyze(false)}
-              onVoice={() => void (recorderState.isRecording ? stopRecording() : startRecording())}
-              placeholder={
-                conversation.length
-                  ? t('answerFollowUpPlaceholder')
-                  : t('problemDescriptionPlaceholder')
-              }
-              sendLabel={busy ? t('analyzing') : t('send')}
-              value={description}
-              voiceLabel={
-                recorderState.isRecording
-                  ? t('stopRecordingSeconds', {
-                      seconds: Math.ceil(recorderState.durationMillis / 1000),
-                    })
-                  : t('recordVoice')
-              }
-            />
+            {transcriptReviewTurn ? (
+              <Surface testID="transcript-review" tone="accent">
+                <Text style={customerStyles.section}>{t('transcriptReviewTitle')}</Text>
+                <Text style={customerStyles.caption}>{t('transcriptReviewBody')}</Text>
+                <Field
+                  label={t('transcriptReviewField')}
+                  maxLength={8_000}
+                  multiline
+                  onChangeText={(value) => {
+                    try {
+                      const edited = updateTranscriptReview(transcriptReviewTurn, value);
+                      setPendingTurns((current) =>
+                        current.map((turn) =>
+                          turn.clientMessageId === edited.clientMessageId ? edited : turn,
+                        ),
+                      );
+                      setConversation((current) =>
+                        updateConversationTranscript(
+                          current,
+                          edited.clientMessageId,
+                          edited.transcript ?? '',
+                          'review',
+                        ),
+                      );
+                      setError('');
+                    } catch {
+                      setError(t('transcriptConfirmationFailed'));
+                    }
+                  }}
+                  value={transcriptReviewTurn.transcript ?? ''}
+                />
+                <ActionButton
+                  disabled={busy || !transcriptReviewTurn.transcript?.trim()}
+                  label={t('confirmTranscript')}
+                  loading={busy}
+                  onPress={() => void confirmActiveTranscriptReview(transcriptReviewTurn)}
+                />
+              </Surface>
+            ) : (
+              <ChatComposer
+                cameraLabel={t('cameraPhoto')}
+                disabled={busy}
+                galleryLabel={activeImageMediaId ? t('changePhoto') : t('galleryPhoto')}
+                onCamera={() => void pickImage('camera')}
+                onChangeText={(value) => {
+                  setDescription(value);
+                  invalidateApproval();
+                }}
+                onGallery={() => void pickImage('library')}
+                onSend={() => void analyze(false)}
+                onVoice={() =>
+                  void (recorderState.isRecording ? stopRecording() : startRecording())
+                }
+                placeholder={
+                  conversation.length
+                    ? t('answerFollowUpPlaceholder')
+                    : t('problemDescriptionPlaceholder')
+                }
+                sendLabel={busy ? t('analyzing') : t('send')}
+                value={description}
+                voiceLabel={
+                  recorderState.isRecording
+                    ? t('stopRecordingSeconds', {
+                        seconds: Math.ceil(recorderState.durationMillis / 1000),
+                      })
+                    : t('recordVoice')
+                }
+              />
+            )}
             <ActionButton
               disabled={
                 pendingTurns.length > 0 || title.trim().length < 3 || summary.trim().length < 10

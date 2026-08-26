@@ -112,6 +112,51 @@ describe('environment safety', () => {
     );
   });
 
+  it('centralizes the bounded OpenAI model defaults without exposing a client key', () => {
+    const environment = validateServerEnvironment(base);
+    expect(environment.OPENAI_DIAGNOSTIC_MODEL).toBe('gpt-5.6-terra');
+    expect(environment.OPENAI_TRANSLATION_MODEL).toBe('gpt-5.6-luna');
+    expect(environment.OPENAI_TRANSCRIPTION_MODEL).toBe('gpt-transcribe');
+    expect(environment.TRANSLATION_PROVIDER).toBe('disabled');
+    expect(environment.TRANSCRIPTION_PROVIDER).toBe('disabled');
+  });
+
+  it('requires the server-only OpenAI key for every selected live provider', () => {
+    for (const overrides of [
+      { AI_PROVIDER: 'openai' },
+      { TRANSLATION_PROVIDER: 'openai' },
+      { TRANSCRIPTION_PROVIDER: 'openai' },
+    ]) {
+      expect(() => validateServerEnvironment({ ...base, ...overrides })).toThrow(/OPENAI_API_KEY/);
+    }
+    expect(
+      validateServerEnvironment({
+        ...base,
+        AI_PROVIDER: 'openai',
+        TRANSLATION_PROVIDER: 'openai',
+        TRANSCRIPTION_PROVIDER: 'openai',
+        OPENAI_API_KEY: 'test-only-key',
+      }).OPENAI_API_KEY,
+    ).toBe('test-only-key');
+  });
+
+  it('keeps deterministic AI and translation inside explicit local/test only', () => {
+    expect(() =>
+      validateServerEnvironment({
+        ...productionBase,
+        APP_ENV: 'preview',
+        AI_PROVIDER: 'deterministic',
+      }),
+    ).toThrow(/Deterministic AI/);
+    expect(() =>
+      validateServerEnvironment({
+        ...productionBase,
+        APP_ENV: 'preview',
+        TRANSLATION_PROVIDER: 'deterministic',
+      }),
+    ).toThrow(/Deterministic translation/);
+  });
+
   it('rejects deterministic scanning outside explicit local/test', () => {
     expect(() => validateServerEnvironment({ ...base, APP_ENV: 'preview' })).toThrow(
       /test\/local-only/,

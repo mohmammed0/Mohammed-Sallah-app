@@ -29,6 +29,10 @@ describe('V2 safe media-scan consumers', () => {
     expect(composer).not.toContain('body: { storagePath: voiceStoragePath');
     expect(composer).toContain("functions.invoke<unknown>('transcribe'");
     expect(composer).toContain('uploadId: voiceUploadId');
+    expect(composer).toContain("action: 'transcribe'");
+    expect(composer).toContain('stageTranscriptReview');
+    expect(composer).toContain("action: 'confirm'");
+    expect(composer).toContain('confirmTranscriptReview');
     expect(composer).toContain("media.kind === 'image' ? 'request_media' : 'request_audio'");
     expect(composer).toContain('`request-media:${media.id}`');
   });

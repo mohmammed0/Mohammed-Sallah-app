@@ -1,4 +1,12 @@
-import { deterministic, diagnosticSchema, inputSchema, jsonSchema } from './diagnostic.ts';
+import {
+  assertCanAppendDiagnosticTurn,
+  deterministic,
+  diagnosticSchema,
+  inputSchema,
+  jsonSchema,
+  MAX_DIAGNOSTIC_MESSAGES,
+} from './diagnostic.ts';
+import { openAiDiagnosticJsonSchema } from './ai-provider.ts';
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -26,14 +34,62 @@ Deno.test('input boundary rejects empty and oversized conversations', () => {
       .success,
     'oversized message must fail',
   );
+  assert(
+    !inputSchema.safeParse({
+      locale: 'ar',
+      messages: Array.from({ length: 5 }, () => ({ role: 'user', text: 'x'.repeat(7000) })),
+    }).success,
+    'oversized aggregate conversation must fail',
+  );
+  assert(
+    !inputSchema.safeParse({
+      locale: 'ar',
+      messages: [{ role: 'user', text: 'وصف صالح' }],
+      categoryHints: ['../../unsafe'],
+    }).success,
+    'category hints must be bounded slugs',
+  );
 });
 
-Deno.test('provider JSON schema is closed and contains metadata', () => {
+Deno.test('conversation capacity fails before a new persisted user and assistant pair can overflow', () => {
+  assertCanAppendDiagnosticTurn(MAX_DIAGNOSTIC_MESSAGES - 2);
+  for (const count of [-1, MAX_DIAGNOSTIC_MESSAGES - 1, MAX_DIAGNOSTIC_MESSAGES]) {
+    let rejected = false;
+    try {
+      assertCanAppendDiagnosticTurn(count);
+    } catch (error) {
+      rejected = error instanceof Error && error.message === 'AI_CONVERSATION_LIMIT_REACHED';
+    }
+    assert(rejected, `message count ${count} must fail before persistence`);
+  }
+});
+
+Deno.test('application JSON schema remains closed and contains server metadata', () => {
   assert(jsonSchema.additionalProperties === false, 'root schema must reject extra properties');
   assert(jsonSchema.required.includes('metadata'), 'metadata must be required');
   assert(
     jsonSchema.required.includes('quickReplies'),
     'quick replies must use the strict contract',
+  );
+});
+
+Deno.test('OpenAI strict schema excludes server metadata and requires every property', () => {
+  assert(
+    !openAiDiagnosticJsonSchema.required.includes('metadata'),
+    'provider must not author server metadata',
+  );
+  assert(
+    !('metadata' in openAiDiagnosticJsonSchema.properties),
+    'provider schema must omit metadata entirely',
+  );
+  assert(
+    openAiDiagnosticJsonSchema.additionalProperties === false,
+    'provider schema must reject extra properties',
+  );
+  const keys = Object.keys(openAiDiagnosticJsonSchema.properties).sort();
+  assert(
+    JSON.stringify([...openAiDiagnosticJsonSchema.required].sort()) === JSON.stringify(keys),
+    'strict provider schema must require every root property',
   );
 });
 

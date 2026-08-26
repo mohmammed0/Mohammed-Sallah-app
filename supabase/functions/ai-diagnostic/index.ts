@@ -3,6 +3,7 @@ import { z } from 'npm:zod@4.4.3';
 import { authenticatedUser, serviceClient } from '../_shared/auth.ts';
 import { corsHeaders, json, safeError } from '../_shared/http.ts';
 import {
+  assertCanAppendDiagnosticTurn,
   deterministic,
   type Diagnostic,
   diagnosticSchema,
@@ -15,6 +16,17 @@ import {
   type ProviderImage,
 } from '../_shared/ai-provider.ts';
 import { detectMime } from '../_shared/upload-security.ts';
+import { parseAppEnvironment } from '../_shared/scanner-control.ts';
+import {
+  assertConfirmedVoiceDiagnostic,
+  type ConfirmedVoiceTranscript,
+} from '../_shared/diagnostic-voice.ts';
+import {
+  DEFAULT_OPENAI_DIAGNOSTIC_MODEL,
+  OPENAI_DIAGNOSTIC_DEADLINE_MS,
+  OpenAiCallError,
+  OpenAiResponseError,
+} from '../_shared/openai-runtime.ts';
 
 type ServiceDb = ReturnType<typeof serviceClient>;
 type UploadRow = {
@@ -28,6 +40,36 @@ type UploadRow = {
   declared_mime_type: string;
   size_bytes: number;
 };
+
+function providerFailure(error: unknown): {
+  category: string;
+  attempts: number;
+  inputUnits: number;
+  outputUnits: number;
+} {
+  if (error instanceof OpenAiCallError) {
+    return { category: error.category, attempts: error.attempts, inputUnits: 0, outputUnits: 0 };
+  }
+  if (error instanceof OpenAiResponseError) {
+    return {
+      category: error.category,
+      attempts: error.attempts,
+      inputUnits: error.inputUnits,
+      outputUnits: error.outputUnits,
+    };
+  }
+  const code = error instanceof Error ? error.message : '';
+  return {
+    category: code === 'MODEL_VISION_NOT_SUPPORTED'
+      ? 'model_without_vision'
+      : code === 'PROVIDER_NOT_CONFIGURED'
+      ? 'provider_not_configured'
+      : 'provider_unavailable',
+    attempts: 0,
+    inputUnits: 0,
+    outputUnits: 0,
+  };
+}
 
 async function authorizeAndLoadImages(
   db: ServiceDb,
@@ -73,6 +115,7 @@ Deno.serve(async (request) => {
   if (request.method !== 'POST') return json(request, { error: 'method_not_allowed' }, 405);
   const started = Date.now();
   try {
+    const environment = parseAppEnvironment(Deno.env.get('APP_ENV'));
     const user = await authenticatedUser(request);
     const input = inputSchema.parse(await request.json());
     const db = serviceClient();
@@ -95,13 +138,49 @@ Deno.serve(async (request) => {
     if (promptVersion.error || !promptVersion.data) {
       throw new Error('AI_PROMPT_VERSION_NOT_CONFIGURED');
     }
-    let authorizedMedia: Awaited<ReturnType<typeof authorizeAndLoadImages>> | null = null;
-    if (!input.sessionId) {
-      authorizedMedia = await authorizeAndLoadImages(db, user.id, input.mediaUploadIds);
-      if (input.inputKind === 'image' && authorizedMedia.images.length === 0) {
-        throw new Error('AI_IMAGE_REQUIRED');
-      }
+    const lastUserMessage = [...input.messages].reverse().find((message) =>
+      message.role === 'user'
+    );
+    if (!lastUserMessage) throw new Error('USER_MESSAGE_REQUIRED');
+    const authorizedMedia = await authorizeAndLoadImages(db, user.id, input.mediaUploadIds);
+    if (input.inputKind === 'image' && authorizedMedia.images.length === 0) {
+      throw new Error('AI_IMAGE_REQUIRED');
     }
+    await assertConfirmedVoiceDiagnostic(
+      {
+        userId: user.id,
+        clientMessageId: input.clientMessageId,
+        inputKind: input.inputKind,
+        lastUserText: lastUserMessage.text,
+        uploads: authorizedMedia.uploads.map((upload) => ({
+          purpose: upload.purpose,
+          finalPath: upload.final_path,
+        })),
+      },
+      {
+        async find(voice): Promise<ConfirmedVoiceTranscript | null> {
+          const { data, error } = await db.from('transcription_jobs').select(
+            'user_id,client_message_id,private_audio_path,status,request_id,customer_edited_transcript',
+          ).eq('user_id', voice.userId)
+            .eq('client_message_id', voice.clientMessageId)
+            .eq('private_audio_path', voice.privateAudioPath)
+            .eq('status', 'completed')
+            .is('request_id', null)
+            .maybeSingle();
+          if (error) throw new Error('AI_TRANSCRIPT_LOOKUP_FAILED');
+          return data
+            ? {
+              userId: data.user_id,
+              clientMessageId: data.client_message_id,
+              privateAudioPath: data.private_audio_path,
+              status: data.status,
+              requestId: data.request_id,
+              customerEditedTranscript: data.customer_edited_transcript,
+            }
+            : null;
+        },
+      },
+    );
     let sessionId = input.sessionId;
     if (sessionId) {
       const { data: session, error: sessionError } = await db
@@ -128,10 +207,6 @@ Deno.serve(async (request) => {
       sessionId = session.id;
     }
     const clientMessageId = input.clientMessageId ?? crypto.randomUUID();
-    const lastUserMessage = [...input.messages].reverse().find((message) =>
-      message.role === 'user'
-    );
-    if (!lastUserMessage) throw new Error('USER_MESSAGE_REQUIRED');
     const existingMessage = await db
       .from('ai_messages')
       .select('id,sequence_number,original_content,metadata')
@@ -164,10 +239,14 @@ Deno.serve(async (request) => {
       persistedUserMessage = { id: existingMessage.data.id };
       userSequence = existingMessage.data.sequence_number;
     } else {
-      authorizedMedia ??= await authorizeAndLoadImages(db, user.id, input.mediaUploadIds);
-      if (input.inputKind === 'image' && authorizedMedia.images.length === 0) {
-        throw new Error('AI_IMAGE_REQUIRED');
+      const messageCount = await db
+        .from('ai_messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('session_id', sessionId);
+      if (messageCount.error || messageCount.count === null) {
+        throw new Error('AI_MESSAGE_COUNT_FAILED');
       }
+      assertCanAppendDiagnosticTurn(messageCount.count);
       const sequenceQuery = await db
         .from('ai_messages')
         .select('sequence_number')
@@ -194,8 +273,7 @@ Deno.serve(async (request) => {
       if (userMessageError || !data) throw new Error('AI_MESSAGE_PERSIST_FAILED');
       persistedUserMessage = data;
     }
-    const { uploads, images } = authorizedMedia ??
-      await authorizeAndLoadImages(db, user.id, input.mediaUploadIds);
+    const { uploads, images } = authorizedMedia;
     if (input.inputKind === 'image' && images.length === 0) throw new Error('AI_IMAGE_REQUIRED');
     if (input.mediaUploadIds.length) {
       const { error: mediaError } = await db.from('ai_message_media').upsert(
@@ -225,33 +303,70 @@ Deno.serve(async (request) => {
       })),
     });
     let result: Diagnostic;
-    let success = true;
-    let category: null | string = null;
-    const providerName = Deno.env.get('AI_PROVIDER') ?? 'deterministic';
-    const model = Deno.env.get('AI_MODEL') ?? 'gpt-5.4-nano';
-    const supportsImages = Deno.env.get('AI_MODEL_SUPPORTS_IMAGES') === 'true';
+    let inputUnits = 0;
+    let outputUnits = 0;
+    const providerName = Deno.env.get('AI_PROVIDER');
+    const model = Deno.env.get('OPENAI_DIAGNOSTIC_MODEL') ?? DEFAULT_OPENAI_DIAGNOSTIC_MODEL;
+    const supportsImages = Deno.env.get('OPENAI_DIAGNOSTIC_SUPPORTS_IMAGES') === 'true';
     try {
-      if (providerName === 'openai' && images.length && !supportsImages) {
-        result = deterministic(historyInput);
-        success = false;
-        category = 'model_without_vision';
-      } else if (providerName === 'openai') {
+      if (providerName === 'openai') {
+        if (images.length && !supportsImages) throw new Error('MODEL_VISION_NOT_SUPPORTED');
         const apiKey = Deno.env.get('OPENAI_API_KEY');
         if (!apiKey) throw new Error('PROVIDER_NOT_CONFIGURED');
-        const client = new OpenAI({ apiKey });
+        const client = new OpenAI({
+          apiKey,
+          timeout: OPENAI_DIAGNOSTIC_DEADLINE_MS,
+          maxRetries: 0,
+          logLevel: 'off',
+        });
         const provider = createOpenAiProvider(
           client as unknown as Parameters<typeof createOpenAiProvider>[0],
           model,
           supportsImages,
         );
-        result = await provider.diagnose(historyInput, images);
-      } else {
+        const live = await provider.diagnose(historyInput, images);
+        result = live.diagnostic;
+        inputUnits = live.inputUnits;
+        outputUnits = live.outputUnits;
+      } else if (
+        providerName === 'deterministic' && ['local', 'test'].includes(environment)
+      ) {
         result = deterministic(historyInput);
+      } else if (!providerName) {
+        throw new Error('PROVIDER_NOT_CONFIGURED');
+      } else {
+        throw new Error('AI_PROVIDER_UNSUPPORTED');
       }
-    } catch {
-      result = deterministic(historyInput);
-      success = false;
-      category = 'provider_fallback';
+    } catch (error) {
+      const failure = providerFailure(error);
+      console.error(JSON.stringify({
+        event: 'openai_operation_failure',
+        operation: 'diagnostic',
+        category: failure.category,
+        attempts: failure.attempts,
+        latencyMs: Date.now() - started,
+        correlationId,
+      }));
+      const { error: failureUsageError } = await db.from('ai_usage_events').insert({
+        user_id: user.id,
+        session_id: sessionId,
+        provider: providerName ?? 'unconfigured',
+        model,
+        operation: 'diagnostic',
+        input_units: failure.inputUnits,
+        output_units: failure.outputUnits,
+        success: false,
+        error_category: failure.category,
+        latency_ms: Date.now() - started,
+      });
+      if (failureUsageError) {
+        console.error(JSON.stringify({
+          event: 'openai_usage_persist_failure',
+          operation: 'diagnostic',
+          correlationId,
+        }));
+      }
+      throw error;
     }
     if (!result.enoughInformation && !input.summaryRequested) {
       result.customerSummary = null;
@@ -266,7 +381,7 @@ Deno.serve(async (request) => {
       visionInputCount: images.length,
       visionMode: images.length === 0
         ? 'not_requested'
-        : success && providerName === 'openai'
+        : providerName === 'openai'
         ? 'provider'
         : 'text_fallback',
       summaryRequested: input.summaryRequested,
@@ -304,7 +419,7 @@ Deno.serve(async (request) => {
         structured_output: result,
         fallback_source: result.metadata.fallback ? 'deterministic' : null,
         latency_ms: Date.now() - started,
-        error_category: category,
+        error_category: null,
       })
       .select('id')
       .single();
@@ -325,16 +440,19 @@ Deno.serve(async (request) => {
       .eq('id', sessionId)
       .eq('user_id', user.id);
     if (sessionUpdateError) throw new Error('AI_SESSION_UPDATE_FAILED');
-    await db.from('ai_usage_events').insert({
+    const { error: usageError } = await db.from('ai_usage_events').insert({
       user_id: user.id,
       session_id: sessionId,
       provider: result.metadata.provider,
       model: result.metadata.model,
       operation: 'diagnostic',
-      success,
-      error_category: category,
+      input_units: inputUnits,
+      output_units: outputUnits,
+      success: true,
+      error_category: null,
       latency_ms: Date.now() - started,
     });
+    if (usageError) throw new Error('AI_USAGE_PERSIST_FAILED');
     return json(request, result);
   } catch (error) {
     return safeError(request, error, correlationId);

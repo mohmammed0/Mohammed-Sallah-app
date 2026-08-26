@@ -6,6 +6,7 @@ import {
   categorySelectionSource,
   conversationOriginalText,
   markConversationMessageRetryable,
+  updateConversationTranscript,
   upsertPendingCustomerMessage,
   type ConversationMessage,
 } from '../src/features/request/conversation-state';
@@ -80,6 +81,44 @@ describe('multi-turn request conversation', () => {
     const retryable = markConversationMessageRetryable(second, 'client-message-0002');
     expect(retryable[0]?.delivery).toBe('offline');
     expect(retryable[1]?.delivery).toBe('retryable');
+  });
+
+  it('updates only the matching voice message while transcript review is edited and confirmed', () => {
+    const history: ConversationMessage[] = [
+      {
+        role: 'user',
+        text: 'Voice recording',
+        clientMessageId: 'client-message-voice-0001',
+        inputKind: 'voice',
+        delivery: 'pending',
+        transcriptStatus: 'pending',
+      },
+      { role: 'assistant', text: 'Previous reply', clientMessageId: 'client-message-old-0001' },
+    ];
+
+    const reviewing = updateConversationTranscript(
+      history,
+      'client-message-voice-0001',
+      'The tap leaks slowly.',
+      'review',
+    );
+    expect(reviewing[0]).toMatchObject({
+      text: 'The tap leaks slowly.',
+      delivery: 'pending',
+      transcriptStatus: 'review',
+    });
+    expect(reviewing[1]).toEqual(history[1]);
+
+    const confirmed = updateConversationTranscript(
+      reviewing,
+      'client-message-voice-0001',
+      'The kitchen tap leaks slowly.',
+      'completed',
+    );
+    expect(confirmed[0]).toMatchObject({
+      text: 'The kitchen tap leaks slowly.',
+      transcriptStatus: 'completed',
+    });
   });
 
   it('requires explicit approval even for an editable fallback summary', () => {

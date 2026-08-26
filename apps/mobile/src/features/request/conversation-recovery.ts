@@ -40,8 +40,10 @@ export const pendingCustomerTurnSchema = z.object({
   mediaUploadIds: z.array(z.uuid()).max(4),
   localMediaIds: z.array(z.string().min(8).max(128)).max(4),
   mediaBindings: z.array(turnMediaBindingSchema).max(4).default([]),
-  transcript: z.string().min(1).max(8000).nullable().default(null),
-  transcriptionStatus: z.enum(['none', 'pending', 'retryable', 'completed']).default('none'),
+  transcript: z.string().max(8000).nullable().default(null),
+  transcriptionStatus: z
+    .enum(['none', 'pending', 'review', 'retryable', 'completed'])
+    .default('none'),
   confirmedCategorySlug: z.string().nullable(),
   confirmedSubcategorySlug: z.string().nullable().default(null),
   summaryRequested: z.boolean(),
@@ -58,7 +60,7 @@ const conversationMessageSchema = z.object({
   mediaUploadIds: z.array(z.uuid()).optional(),
   delivery: z.enum(['pending', 'retryable', 'offline', 'sent']).optional(),
   inputKind: z.enum(['text', 'voice', 'image']).optional(),
-  transcriptStatus: z.enum(['pending', 'retryable', 'completed']).optional(),
+  transcriptStatus: z.enum(['pending', 'review', 'retryable', 'completed']).optional(),
 });
 
 export const aiIntakeSnapshotSchema = z.object({
@@ -180,12 +182,73 @@ export function retryFailedTranscriptionTurns(
   );
 }
 
+function assertVoiceTurn(turn: PendingCustomerTurn): void {
+  if (turn.inputKind !== 'voice') throw new Error('TRANSCRIPT_REVIEW_INVALID');
+}
+
+function boundedTranscript(value: string, allowBlank: boolean): string {
+  if (value.length > 8000 || (!allowBlank && value.trim().length === 0)) {
+    throw new Error('TRANSCRIPT_REVIEW_INVALID');
+  }
+  return allowBlank ? value : value.trim();
+}
+
+export function stageTranscriptReview(
+  turn: PendingCustomerTurn,
+  transcript: string,
+): PendingCustomerTurn {
+  assertVoiceTurn(turn);
+  const reviewed = boundedTranscript(transcript, false);
+  return pendingCustomerTurnSchema.parse({
+    ...turn,
+    text: reviewed,
+    transcript: reviewed,
+    transcriptionStatus: 'review',
+  });
+}
+
+export function updateTranscriptReview(
+  turn: PendingCustomerTurn,
+  transcript: string,
+): PendingCustomerTurn {
+  assertVoiceTurn(turn);
+  if (turn.transcriptionStatus !== 'review') throw new Error('TRANSCRIPT_REVIEW_INVALID');
+  const reviewed = boundedTranscript(transcript, true);
+  return pendingCustomerTurnSchema.parse({ ...turn, text: reviewed, transcript: reviewed });
+}
+
+export function confirmTranscriptReview(turn: PendingCustomerTurn): PendingCustomerTurn {
+  assertVoiceTurn(turn);
+  if (turn.transcriptionStatus !== 'review' || turn.transcript === null) {
+    throw new Error('TRANSCRIPT_REVIEW_INVALID');
+  }
+  const reviewed = boundedTranscript(turn.transcript, false);
+  return pendingCustomerTurnSchema.parse({
+    ...turn,
+    text: reviewed,
+    transcript: reviewed,
+    transcriptionStatus: 'completed',
+  });
+}
+
+export class TranscriptReviewRequiredError extends Error {
+  constructor() {
+    super('TRANSCRIPT_REVIEW_REQUIRED');
+    this.name = 'TranscriptReviewRequiredError';
+  }
+}
+
+export function isTranscriptReviewRequiredError(error: unknown): boolean {
+  return error instanceof TranscriptReviewRequiredError;
+}
+
 export async function replayPendingTurns<T>(
   turns: readonly PendingCustomerTurn[],
   send: (turn: PendingCustomerTurn) => Promise<T>,
 ): Promise<{
   completed: Array<{ turn: PendingCustomerTurn; value: T }>;
   pending: PendingCustomerTurn[];
+  error?: unknown;
 }> {
   const unique = turns.filter(
     (turn, index) =>
@@ -197,8 +260,8 @@ export async function replayPendingTurns<T>(
     if (!turn) continue;
     try {
       completed.push({ turn, value: await send(turn) });
-    } catch {
-      return { completed, pending: unique.slice(index) };
+    } catch (error) {
+      return { completed, pending: unique.slice(index), error };
     }
   }
   return { completed, pending: [] };
@@ -254,9 +317,11 @@ export function appendTemporaryFallback(
       inputKind: turn.inputKind,
       transcriptStatus:
         turn.inputKind === 'voice'
-          ? turn.transcriptionStatus === 'retryable'
-            ? 'retryable'
-            : 'pending'
+          ? turn.transcriptionStatus === 'review'
+            ? 'review'
+            : turn.transcriptionStatus === 'retryable'
+              ? 'retryable'
+              : 'pending'
           : undefined,
     },
     {

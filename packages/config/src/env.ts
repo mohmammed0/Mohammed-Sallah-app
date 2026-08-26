@@ -55,11 +55,15 @@ export const serverEnvironmentSchema = publicEnvironmentSchema.extend({
   AI_PROVIDER: z
     .enum(['deterministic', 'openai', 'gemini', 'compatible', 'ollama'])
     .default('deterministic'),
-  AI_MODEL: z.string().min(1).default('gpt-5.4-nano'),
+  OPENAI_DIAGNOSTIC_MODEL: z.string().min(1).default('gpt-5.6-terra'),
+  OPENAI_DIAGNOSTIC_SUPPORTS_IMAGES: booleanString.default(false),
+  TRANSLATION_PROVIDER: z.enum(['disabled', 'deterministic', 'openai']).default('disabled'),
+  OPENAI_TRANSLATION_MODEL: z.string().min(1).default('gpt-5.6-luna'),
+  TRANSCRIPTION_PROVIDER: z.enum(['disabled', 'openai']).default('disabled'),
+  OPENAI_TRANSCRIPTION_MODEL: z.string().min(1).default('gpt-transcribe'),
   OPENAI_API_KEY: z.string().optional(),
   GEMINI_API_KEY: z.string().optional(),
   AI_COMPATIBLE_BASE_URL: url.optional(),
-  AI_DAILY_BUDGET_MINOR: z.coerce.number().int().nonnegative().default(0),
   PAYMENT_PROVIDER: z.enum(['offline', 'fake', 'sandbox', 'gateway']).default('offline'),
   PUSH_ENABLED: booleanString.default(false),
   EXPO_ACCESS_TOKEN: z.string().min(16).max(512).optional(),
@@ -114,6 +118,20 @@ export function validateServerEnvironment(
   }
   const env = parsed.data;
   const localOrTest = env.APP_ENV === 'local' || env.APP_ENV === 'test';
+  if (
+    (env.AI_PROVIDER === 'openai' ||
+      env.TRANSLATION_PROVIDER === 'openai' ||
+      env.TRANSCRIPTION_PROVIDER === 'openai') &&
+    !env.OPENAI_API_KEY
+  ) {
+    throw new Error('OPENAI_API_KEY is required by every selected OpenAI provider');
+  }
+  if (!localOrTest && env.AI_PROVIDER === 'deterministic') {
+    throw new Error(`Deterministic AI is test/local-only and forbidden in ${env.APP_ENV}`);
+  }
+  if (!localOrTest && env.TRANSLATION_PROVIDER === 'deterministic') {
+    throw new Error(`Deterministic translation is test/local-only and forbidden in ${env.APP_ENV}`);
+  }
   if (!localOrTest && env.UPLOAD_SCANNER_MODE !== 'external') {
     throw new Error(
       `Deterministic upload scanning is test/local-only; external scanning is required in ${env.APP_ENV}`,
@@ -172,7 +190,6 @@ export function validateServerEnvironment(
   if (env.APP_ENV === 'production') {
     const missing: string[] = [];
     if (!env.SUPABASE_SECRET_KEY) missing.push('SUPABASE_SECRET_KEY');
-    if (env.AI_PROVIDER === 'openai' && !env.OPENAI_API_KEY) missing.push('OPENAI_API_KEY');
     if (env.AI_PROVIDER === 'gemini' && !env.GEMINI_API_KEY) missing.push('GEMINI_API_KEY');
     if (env.PAYMENT_PROVIDER === 'fake' || env.PAYMENT_PROVIDER === 'sandbox') {
       throw new Error('Fake and sandbox payment providers are forbidden in production');
