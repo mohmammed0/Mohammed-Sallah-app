@@ -12,14 +12,19 @@
   [Draft PR #17](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/17).
 - **R1 / D1:** تنظيم المستودع الثنائي اللغة في Draft PR #24 ومحاذاة Expo SDK 57 في Draft PR #25
   منشوران كفروع أبناء دون دمج.
-- **M2 — Production-quality media scanning:** تنفيذ المستودع المحلي لبنية V2 غير المتزامنة جارٍ
-  في فرع معزول وغير ملتزم أو منشور. الاستضافة والتفعيل **NOT RUN**. المرجع هو
-  [Issue #20](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/20).
+- **M2 — Production-quality media scanning:** اكتمل تنفيذ المستودع وHosted CI عند
+  `03c35255514f4a2aba008a86912eaf38b0029eca` في
+  [Draft PR #26](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/26). نُشرت مخططات ودوال
+  التحكم إلى مشروع `Sallah Preview` غير الإنتاجي، لكن المضيف الخاص للماسح ما زال
+  **HUMAN INPUT REQUIRED**.
+- **F1/F2 — Feature completion:** اكتملت مسارات التطبيق والذكاء الاصطناعي محلياً؛ آخر دليل مباشر
+  محلي عند `756bff9c2902fb159915b91ef8166a60926dee30`. بدأ P1 تفعيل Preview، لكن أسرار Preview
+  وحساب EAS ومفتاح Maps المقيد واعتمادات Push ما زالت مدخلات خارجية.
 
-M1 Marketplace Trust and UGC Safety remains frozen at PR #17. R1 (#24) and the green D1 Expo patch
-alignment (#25) are published as unmerged child Draft PRs. M2V repository/local implementation is
-in progress in an isolated, uncommitted worktree. No hosted scanner, Supabase deployment, secret,
-EAS action, or production activation has occurred.
+M1 remains frozen at PR #17, while R1 (#24), D1 (#25), and M2 (#26) remain unmerged Draft PRs.
+Preview now has the repository database contract and exact-head Edge Functions, but OpenAI, scanner,
+Push, Maps, EAS signing, and external alert delivery are not represented as active without their
+account-owned configuration. No production or public-store action occurred.
 
 ## المراجع الرسمية | Authoritative links
 
@@ -40,17 +45,17 @@ EAS action, or production activation has occurred.
 
 ## خارطة الطريق | Roadmap
 
-| المرحلة                                 | الحالة                                             | المرجع                                                              |
-| --------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------- |
-| M1 — الثقة وسلامة المحتوى               | **PASS / FROZEN**                                  | [PR #17](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/17) |
-| M2 — فحص الوسائط                        | **IN PROGRESS** محلياً فقط؛ الاستضافة **NOT RUN**  | [#20](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/20)  |
-| M3 — AI/التفريغ/الترجمة الحقيقية        | **LOCAL LIVE PASS**؛ Preview **NOT RUN**           | [#18](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/18)  |
-| M4 — الإشعارات الفعلية                  | **NOT RUN** على جهاز فعلي                          | [#19](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/19)  |
-| M5 — تجربة مقدم الخدمة وإتاحة beta      | **NOT STARTED**                                    | [#16](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/16)  |
-| M6 — النسخ الاحتياطي والمراقبة والتشغيل | **HUMAN INPUT REQUIRED**                           | [#21](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/21)  |
-| M7/M8 — Android RC واختبار جهاز فعلي    | **NOT RUN**                                        | [#15](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/15)  |
-| M9 — بوابة الأمن والقانون والتشغيل      | **HUMAN INPUT REQUIRED**                           | [#22](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/22)  |
-| M10 — iOS/TestFlight                    | **OUT OF BETA SCOPE** للبوابة الأولى Android-first | [#23](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/23)  |
+| المرحلة                                 | الحالة                                                                       | المرجع                                                              |
+| --------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| M1 — الثقة وسلامة المحتوى               | **PASS / FROZEN**                                                            | [PR #17](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/17) |
+| M2 — فحص الوسائط                        | **REPOSITORY PASS**؛ Preview host **HUMAN INPUT REQUIRED**                   | [#20](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/20)  |
+| M3 — AI/التفريغ/الترجمة الحقيقية        | **LOCAL LIVE PASS**؛ Preview secrets **HUMAN INPUT REQUIRED**                | [#18](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/18)  |
+| M4 — الإشعارات الفعلية                  | مستودع/دوال Preview **PARTIAL**؛ الاعتمادات والجهاز **HUMAN INPUT REQUIRED** | [#19](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/19)  |
+| M5 — تجربة مقدم الخدمة وإتاحة beta      | **REPOSITORY COMPLETE**؛ الجهاز **NOT RUN**                                  | [#16](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/16)  |
+| M6 — النسخ الاحتياطي والمراقبة والتشغيل | **HUMAN INPUT REQUIRED**                                                     | [#21](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/21)  |
+| M7/M8 — Android RC واختبار جهاز فعلي    | الإعداد مكتمل؛ EAS/Maps والجهاز **HUMAN INPUT REQUIRED**                     | [#15](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/15)  |
+| M9 — بوابة الأمن والقانون والتشغيل      | **HUMAN INPUT REQUIRED**                                                     | [#22](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/22)  |
+| M10 — iOS/TestFlight                    | **OUT OF BETA SCOPE** للبوابة الأولى Android-first                           | [#23](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/23)  |
 
 لا تتطلب النسخة التجريبية الأولى مدفوعات إلكترونية أو دفعات آلية لمقدمي الخدمات أو SMS OTP إذا
 كفى البريد الإلكتروني أو إطلاقاً عاماً في App Store/Google Play أو تتبع موقع بالخلفية.
@@ -61,6 +66,12 @@ EAS action, or production activation has occurred.
   وصورة نظيفة عبر `gpt-5.6-terra`، تفريغ M4A نظيف قابل للتحرير عبر `gpt-transcribe`، وترجمة موجز
   مقدم الخدمة إلى الإنجليزية والأردية والهندية عبر `gpt-5.6-luna`. كلها **PASS** محلياً. تفعيل
   Preview والتدقيق الأمني النهائي واختبار الجهاز **NOT RUN**، ولم تُستخدم بيانات مستخدمين حقيقية.
+- في P1 طبّق مشروع `Sallah Preview` كل الترحيلات المحلية الـ41 ونشر عشر دوال Edge مطابقة للعقود
+  الحالية. تحقق نصي اصطناعي أعاد `provider_unavailable` بأمان قبل استدعاء OpenAI لأن جلسة إدارة
+  أسرار Supabase غير متاحة؛ لذلك OpenAI Preview ليس **PASS**. حُذفت حسابات canary الاصطناعية بعد
+  الفحص.
+- دوال وجدولة Push موجودة وتفشل مغلقة عند غياب Vault/Expo. دوال الماسح موجودة لكن لا يوجد مضيف
+  خاص مخول. لا يوجد تسجيل EAS محلي ولا مفتاح Maps Android مقيد، لذلك لم يبدأ أي build.
 - اختبارات المستودع المحلية تثبت فقط النطاق الذي شُغلت عليه؛ أحدث نتائج M1 التفصيلية تبقى في
   تقارير التنفيذ وخططها ولا تتحول تلقائياً إلى دليل جهاز أو إنتاج.
 - اختبار Android/iOS الفعلي، حسابات المتاجر، الهوية القانونية، عناوين الدعم العامة، اتفاقيات

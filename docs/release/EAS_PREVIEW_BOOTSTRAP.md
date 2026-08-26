@@ -1,5 +1,25 @@
 # EAS Preview bootstrap
 
+## P1 account audit — 2026-08-26
+
+The repository linkage and Preview profile below remain valid, but the current local EAS CLI session
+is not authenticated. Remote environment values, Android/iOS signing, Push credentials, current
+quota and remote version counters therefore could not be inspected or changed. No EAS build was
+started.
+
+Before the first Android Preview APK, the account owner must authenticate the approved
+`binmuhayas-team` session, confirm free quota and signing, and configure these Preview environment
+values through EAS rather than Git:
+
+- `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`;
+- `SALLAH_ANDROID_GOOGLE_MAPS_API_KEY`, restricted to
+  `com.mohmammed0.sallah.preview` and the actual EAS Preview signing SHA-1.
+
+The repository now fails closed if the public Preview Supabase values are absent. Android Preview
+also fails closed without the restricted Maps key; an explicit iOS-only configuration does not
+depend on that Android credential. The historical quota observation below is not current quota
+evidence.
+
 Status: configuration bootstrap complete; build not started  
 Evidence run: https://github.com/mohmammed0/Mohammed-Sallah-app/actions/runs/32217956056  
 Evidence source: `778ec4633e1ec535273e9b44075d35bac85c4db1`
