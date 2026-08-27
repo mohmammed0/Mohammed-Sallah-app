@@ -5,12 +5,91 @@ import {
   cleanupExpiredScannerNonces,
   type MediaArtifactCleanupClient,
 } from './index.ts';
+import * as privacyWorker from './index.ts';
 
 const workerId = 'privacy-worker-11111111-1111-4111-8111-111111111111';
 const firstArtifactId = '11111111-1111-4111-8111-111111111111';
 const secondArtifactId = '22222222-2222-4222-8222-222222222222';
 const firstPath = 'aa/bb/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const secondPath = 'cc/dd/cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+
+Deno.test('hosted account deletion enumerates owner objects through the Storage API', async () => {
+  const userId = '11111111-1111-4111-8111-111111111111';
+  const owned = new Set([
+    `${userId}/request_media/first.png`,
+    `${userId}/provider_document/second.png`,
+    '22222222-2222-4222-8222-222222222222/request_media/outsider.png',
+  ]);
+  const buckets = new Map([
+    [
+      'request-media',
+      new Set([
+        `${userId}/request_media/first.png`,
+        '22222222-2222-4222-8222-222222222222/request_media/outsider.png',
+      ]),
+    ],
+    ['provider-documents', new Set([`${userId}/provider_document/second.png`])],
+  ]);
+  const removeCalls: Array<{ bucket: string; paths: string[] }> = [];
+  const storageClient = {
+    storage: {
+      listBuckets: () =>
+        Promise.resolve({
+          data: [...buckets.keys()].map((id) => ({ id })),
+          error: null,
+        }),
+      from: (bucket: string) => ({
+        list: (prefix: string) => {
+          const base = prefix ? `${prefix}/` : '';
+          const children = new Map<
+            string,
+            { name: string; id: string | null; metadata: unknown }
+          >();
+          for (const path of buckets.get(bucket) ?? []) {
+            if (!path.startsWith(base)) continue;
+            const remainder = path.slice(base.length);
+            const slash = remainder.indexOf('/');
+            const name = slash < 0 ? remainder : remainder.slice(0, slash);
+            children.set(
+              name,
+              slash < 0
+                ? { name, id: `object-${name}`, metadata: {} }
+                : { name, id: null, metadata: null },
+            );
+          }
+          return Promise.resolve({ data: [...children.values()], error: null });
+        },
+        remove: (paths: string[]) => {
+          removeCalls.push({ bucket, paths: [...paths] });
+          for (const path of paths) {
+            buckets.get(bucket)?.delete(path);
+            owned.delete(path);
+          }
+          return Promise.resolve({ error: null });
+        },
+      }),
+    },
+  };
+  const removeOwned = (privacyWorker as unknown as Record<string, unknown>)
+    .removeOwnedStorageObjects;
+  assertEquals(typeof removeOwned, 'function');
+  if (typeof removeOwned !== 'function') return;
+  const removed = await (removeOwned as (
+    client: typeof storageClient,
+    owner: string,
+  ) => Promise<number>)(storageClient, userId);
+  assertEquals(removed, 2);
+  assertEquals(removeCalls, [
+    { bucket: 'request-media', paths: [`${userId}/request_media/first.png`] },
+    { bucket: 'provider-documents', paths: [`${userId}/provider_document/second.png`] },
+  ]);
+  assertEquals(
+    owned,
+    new Set([
+      '22222222-2222-4222-8222-222222222222/request_media/outsider.png',
+    ]),
+  );
+});
 
 function claim(artifactId: string, path: string) {
   return {

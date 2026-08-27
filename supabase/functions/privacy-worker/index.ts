@@ -11,7 +11,6 @@ import {
   privacyRetentionSchema,
   PrivacyWorkerError,
   scannerNonceCleanupSchema,
-  storageObjectSchema,
 } from '../_shared/privacy.ts';
 import { sha256Hex } from '../_shared/scanner-control.ts';
 import { workerSecretMatches } from '../_shared/worker-auth.ts';
@@ -19,41 +18,98 @@ import { workerSecretMatches } from '../_shared/worker-auth.ts';
 const exportBucket = 'exports';
 const maxJobsPerInvocation = 10;
 const maxMediaArtifactCleanupsPerInvocation = 50;
+const maxOwnedStoragePage = 1_000;
+const maxOwnedStorageDirectories = 10_000;
 
 function fail(category: string): never {
   throw new PrivacyWorkerError(category);
 }
 
-async function removeStorageObjects(
-  db: ReturnType<typeof serviceClient>,
+interface OwnedStorageClient {
+  storage: {
+    listBuckets(): Promise<{
+      data: Array<{ id: string }> | null;
+      error: unknown;
+    }>;
+    from(bucket: string): {
+      list(
+        prefix: string,
+        options: {
+          limit: number;
+          offset: number;
+          sortBy: { column: 'name'; order: 'asc' };
+        },
+      ): Promise<{
+        data: Array<{ name: string; id: string | null; metadata: unknown }> | null;
+        error: unknown;
+      }>;
+      remove(paths: string[]): Promise<{ error: unknown }>;
+    };
+  };
+}
+
+function validStorageSegment(value: unknown): value is string {
+  return typeof value === 'string' && value.length >= 1 && value.length <= 255 &&
+    value !== '.' && value !== '..' && !value.includes('/') && !value.includes('\\');
+}
+
+async function listOwnedStoragePage(
+  db: OwnedStorageClient,
+  userId: string,
+  maximum = maxOwnedStoragePage,
+) {
+  const { data: buckets, error: bucketError } = await db.storage.listBuckets();
+  if (bucketError || !Array.isArray(buckets) || buckets.length > 100) fail('storage_query_failed');
+  const objects: Array<{ bucket_id: string; name: string }> = [];
+  for (const bucket of buckets) {
+    if (!validStorageSegment(bucket.id)) fail('storage_query_failed');
+    const directories = [userId];
+    const visited = new Set<string>();
+    for (let directoryIndex = 0; directoryIndex < directories.length; directoryIndex += 1) {
+      if (directories.length > maxOwnedStorageDirectories) fail('storage_query_failed');
+      const directory = directories[directoryIndex];
+      if (!directory || visited.has(directory)) continue;
+      visited.add(directory);
+      for (let offset = 0; offset < 100_000; offset += maxOwnedStoragePage) {
+        const { data, error } = await db.storage.from(bucket.id).list(directory, {
+          limit: maxOwnedStoragePage,
+          offset,
+          sortBy: { column: 'name', order: 'asc' },
+        });
+        if (error || !Array.isArray(data)) fail('storage_query_failed');
+        for (const item of data) {
+          if (!validStorageSegment(item.name)) fail('storage_query_failed');
+          const path = `${directory}/${item.name}`;
+          assertOwnedStoragePath(userId, path);
+          if (item.id === null && item.metadata === null) {
+            directories.push(path);
+          } else {
+            objects.push({ bucket_id: bucket.id, name: path });
+            if (objects.length >= maximum) return objects;
+          }
+        }
+        if (data.length < maxOwnedStoragePage) break;
+      }
+    }
+  }
+  return objects;
+}
+
+export async function removeOwnedStorageObjects(
+  db: OwnedStorageClient,
   userId: string,
 ): Promise<number> {
   const removed = await drainOwnedStorage(
     userId,
-    async () => {
-      const { data, error } = await db
-        .schema('storage')
-        .from('objects')
-        .select('bucket_id,name')
-        .like('name', `${userId}/%`)
-        .order('bucket_id')
-        .order('name')
-        .limit(1000);
-      if (error) fail('storage_query_failed');
-      return storageObjectSchema.array().parse(data ?? []);
-    },
+    () => listOwnedStoragePage(db, userId),
     async (bucket, batch) => {
       const { error: removeError } = await db.storage.from(bucket).remove(batch);
       if (removeError) fail('storage_delete_failed');
     },
   );
-  const { count, error: verifyError } = await db
-    .schema('storage')
-    .from('objects')
-    .select('id', { count: 'exact', head: true })
-    .like('name', `${userId}/%`);
-  if (verifyError) fail('storage_verify_failed');
-  if ((count ?? 0) !== 0) fail('storage_objects_remaining');
+  if ((await listOwnedStoragePage(db, userId, 1)).length !== 0) {
+    fail('storage_objects_remaining');
+  }
   return removed;
 }
 
@@ -61,7 +117,7 @@ async function processAccountDeletion(
   db: ReturnType<typeof serviceClient>,
   job: PrivacyJob,
 ): Promise<void> {
-  await removeStorageObjects(db, job.userId);
+  await removeOwnedStorageObjects(db, job.userId);
   const { data: authUser, error: lookupError } = await db.auth.admin.getUserById(job.userId);
   if (lookupError && lookupError.status !== 404) fail('auth_lookup_failed');
   if (authUser?.user) {
