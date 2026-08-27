@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { MarketplaceApi } from '@sallah/api';
 import { formatSar, formatStatusLabel, type TranslationKey } from '@sallah/i18n';
 import { Button, Card, LoadingSkeleton, Screen, styles } from '@/components/ui';
+import { ProgressTimeline, resolveTimelineIndex } from '@/design-system/customer-components';
 import { supabase } from '@/lib/supabase';
 import { secureUpload } from '@/lib/secure-upload';
 import { useLocale } from '@/providers/locale-provider';
@@ -110,6 +111,17 @@ const disputeStatusKeys: Record<string, TranslationKey> = {
   resolved: 'disputeResolved',
   closed: 'disputeClosed',
 };
+const jobTimelineStatuses = [
+  'provider_selected',
+  'scheduled',
+  'en_route',
+  'arrived',
+  'diagnosing',
+  'awaiting_change_order_approval',
+  'in_progress',
+  'completion_submitted',
+  'completed',
+] as const;
 
 export default function Jobs() {
   const { locale, t } = useLocale();
@@ -674,6 +686,7 @@ export default function Jobs() {
           );
           const latestDispute = openDisputeCase ?? job.disputes[0];
           const jobProofs = proofs[job.id] ?? [];
+          const timelineIndex = resolveTimelineIndex(jobTimelineStatuses, job.status);
           const allProofsViewed = allCompletionEvidenceViewed(
             jobProofs.map((proof) => proof.id),
             proofViewed,
@@ -694,6 +707,15 @@ export default function Jobs() {
           return (
             <Card key={job.id}>
               <Text style={styles.badge}>{formatStatusLabel(job.status, locale)}</Text>
+              {timelineIndex !== null ? (
+                <ProgressTimeline
+                  currentIndex={timelineIndex}
+                  steps={jobTimelineStatuses.map((status) => ({
+                    id: status,
+                    label: formatStatusLabel(status, locale),
+                  }))}
+                />
+              ) : null}
               <Text>
                 {t('approvedTotal', { amount: formatSar(job.approved_total_minor, locale) })}
               </Text>

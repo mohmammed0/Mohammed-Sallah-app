@@ -1,9 +1,19 @@
 import { useState } from 'react';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, ScrollView, Text } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { z } from 'zod';
-import { Button, Card, LoadingSkeleton, Screen, styles } from '@/components/ui';
+import {
+  ActionButton,
+  CustomerScreen,
+  EmptyState,
+  LoadingBlock,
+  Notice,
+  Surface,
+  customerStyles,
+} from '@/design-system/primitives';
+import { AppIcon } from '@/design-system/icon';
+import { customerTokens as tokens } from '@/design-system/tokens';
 import { supabase } from '@/lib/supabase';
 import { formatSar } from '@sallah/i18n';
 import { useLocale } from '@/providers/locale-provider';
@@ -75,45 +85,123 @@ export default function Offers() {
     onError: () => setError(t('offerSelectFailed')),
   });
   return (
-    <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-      <Screen>
-        <Text style={styles.title}>{t('privateOffersTitle')}</Text>
-        <Text style={styles.lead}>{t('privateOffersLead')}</Text>
-        {!requestId && <Text style={styles.error}>{t('missingRequestId')}</Text>}
-        {query.isPending && <LoadingSkeleton label={t('loadingOffers')} />}
-        {query.isError && <Text style={styles.error}>{t('loadOffersFailed')}</Text>}
-        {query.data?.map((offer) => (
-          <Card key={offer.id}>
-            <Text style={styles.badge}>{formatSar(offer.totalAmountMinor, locale)}</Text>
-            <Text>{offer.providerName}</Text>
-            <Text style={styles.lead}>
-              {t('offerRatingSummary', {
-                rating: offer.rating.toFixed(1),
-                count: offer.ratingCount,
-                jobs: offer.completedJobs,
-              })}
-            </Text>
-            <Text style={styles.lead}>
-              {t('offerTimingSummary', {
-                arrival: offer.estimatedArrivalMinutes,
-                duration: offer.estimatedDurationMinutes,
-              })}
-            </Text>
-            <Text style={styles.lead}>
-              {offer.materialsIncluded ? t('materialsIncluded') : t('materialsNotIncluded')} ·{' '}
-              {t('warrantyDaysSummary', { days: offer.warrantyDays })}
-            </Text>
-            {offer.note.length > 0 && <Text>{offer.note}</Text>}
-            <Button
-              disabled={selectOffer.isPending || !offer.selectable}
-              label={t('selectThisOffer')}
-              onPress={() => selectOffer.mutate(offer.id)}
-            />
-          </Card>
-        ))}
-        {query.data?.length === 0 && <Text style={styles.lead}>{t('noActiveOffers')}</Text>}
-        {error.length > 0 && <Text style={styles.error}>{error}</Text>}
-      </Screen>
-    </ScrollView>
+    <CustomerScreen testID="customer-offers">
+      <View style={styles.header}>
+        <Text accessibilityRole="header" style={customerStyles.display}>
+          {t('privateOffersTitle')}
+        </Text>
+        <Text style={customerStyles.bodyMuted}>{t('privateOffersLead')}</Text>
+      </View>
+      {!requestId ? (
+        <Notice live tone="danger">
+          {t('missingRequestId')}
+        </Notice>
+      ) : null}
+      {query.isPending ? <LoadingBlock label={t('loadingOffers')} rows={4} /> : null}
+      {query.isError ? (
+        <Surface tone="danger">
+          <Notice live tone="danger">
+            {t('loadOffersFailed')}
+          </Notice>
+          <ActionButton
+            icon="refresh"
+            label={t('retry')}
+            onPress={() => void query.refetch()}
+            variant="secondary"
+          />
+        </Surface>
+      ) : null}
+      {query.data?.map((offer) => (
+        <Surface key={offer.id} accessibilityLabel={offer.providerName}>
+          <View style={customerStyles.between}>
+            <View style={styles.providerIcon}>
+              <AppIcon color={tokens.colors.primaryStrong} name="customer" size={24} />
+            </View>
+            <View style={styles.providerSummary}>
+              <Text style={customerStyles.section}>{offer.providerName}</Text>
+              <Text style={customerStyles.caption}>
+                {t('offerRatingSummary', {
+                  rating: offer.rating.toFixed(1),
+                  count: offer.ratingCount,
+                  jobs: offer.completedJobs,
+                })}
+              </Text>
+            </View>
+            <Text style={styles.price}>{formatSar(offer.totalAmountMinor, locale)}</Text>
+          </View>
+          <View style={styles.detailGrid}>
+            <View style={styles.detail}>
+              <AppIcon color={tokens.colors.primaryStrong} name="time" size={18} />
+              <Text style={styles.detailText}>
+                {t('offerTimingSummary', {
+                  arrival: offer.estimatedArrivalMinutes,
+                  duration: offer.estimatedDurationMinutes,
+                })}
+              </Text>
+            </View>
+            <View style={styles.detail}>
+              <AppIcon color={tokens.colors.success} name="shield" size={18} />
+              <Text style={styles.detailText}>
+                {t('warrantyDaysSummary', { days: offer.warrantyDays })}
+              </Text>
+            </View>
+            <View style={styles.detail}>
+              <AppIcon color={tokens.colors.accent} name="tools" size={18} />
+              <Text style={styles.detailText}>
+                {offer.materialsIncluded ? t('materialsIncluded') : t('materialsNotIncluded')}
+              </Text>
+            </View>
+          </View>
+          {offer.note.length > 0 ? <Text style={styles.note}>{offer.note}</Text> : null}
+          <ActionButton
+            disabled={selectOffer.isPending || !offer.selectable}
+            label={t('selectThisOffer')}
+            loading={selectOffer.isPending}
+            onPress={() => selectOffer.mutate(offer.id)}
+          />
+        </Surface>
+      ))}
+      {!query.isPending && !query.isError && query.data?.length === 0 ? (
+        <EmptyState body={t('privateOffersLead')} icon="requests" title={t('noActiveOffers')} />
+      ) : null}
+      {error.length > 0 ? (
+        <Notice live tone="danger">
+          {error}
+        </Notice>
+      ) : null}
+    </CustomerScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  header: { gap: tokens.spacing.xs },
+  providerIcon: {
+    alignItems: 'center',
+    backgroundColor: tokens.colors.primarySoft,
+    borderRadius: tokens.radius.md,
+    height: 48,
+    justifyContent: 'center',
+    width: 48,
+  },
+  providerSummary: { flex: 1, gap: tokens.spacing.xxs },
+  price: { ...tokens.type.section, color: tokens.colors.primaryStrong },
+  detailGrid: { gap: tokens.spacing.xs },
+  detail: {
+    alignItems: 'center',
+    backgroundColor: tokens.colors.surfaceMuted,
+    borderRadius: tokens.radius.md,
+    flexDirection: 'row',
+    gap: tokens.spacing.xs,
+    minHeight: 44,
+    paddingHorizontal: tokens.spacing.sm,
+    paddingVertical: tokens.spacing.xs,
+  },
+  detailText: { ...tokens.type.caption, color: tokens.colors.ink, flex: 1 },
+  note: {
+    ...tokens.type.body,
+    backgroundColor: tokens.colors.canvas,
+    borderRadius: tokens.radius.md,
+    color: tokens.colors.ink,
+    padding: tokens.spacing.sm,
+  },
+});

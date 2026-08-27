@@ -743,6 +743,75 @@ export function ActiveRequestCard({
   );
 }
 
+export function ProgressTimeline({
+  steps,
+  currentIndex,
+}: {
+  steps: ReadonlyArray<{ id: string; label: string }>;
+  currentIndex: number;
+}) {
+  const { locale } = useLocale();
+  const textDirection = {
+    textAlign: logicalTextAlignment(locale),
+    writingDirection: logicalWritingDirection(locale),
+  } as const;
+  return (
+    <View accessibilityRole="list" style={styles.timeline}>
+      {steps.map((step, index) => {
+        const completed = index < currentIndex;
+        const current = index === currentIndex;
+        return (
+          <View
+            key={step.id}
+            accessible
+            accessibilityState={{ selected: current }}
+            style={[styles.timelineItem, { flexDirection: logicalFlexDirection(locale) }]}
+          >
+            <View style={styles.timelineRail}>
+              <View
+                style={[
+                  styles.timelineMarker,
+                  completed && styles.timelineMarkerComplete,
+                  current && styles.timelineMarkerCurrent,
+                ]}
+              >
+                <AppIcon
+                  color={completed || current ? tokens.colors.white : tokens.colors.textMuted}
+                  name={completed ? 'check' : 'time'}
+                  size={14}
+                  strokeWidth={2.6}
+                />
+              </View>
+              {index < steps.length - 1 ? (
+                <View style={[styles.timelineLine, completed && styles.timelineLineComplete]} />
+              ) : null}
+            </View>
+            <Text
+              style={[
+                customerStyles.body,
+                styles.timelineLabel,
+                current && styles.timelineLabelCurrent,
+                !completed && !current && styles.timelineLabelUpcoming,
+                textDirection,
+              ]}
+            >
+              {step.label}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+export function resolveTimelineIndex<T extends string>(
+  steps: readonly T[],
+  currentStep: string,
+): number | null {
+  const index = steps.indexOf(currentStep as T);
+  return index >= 0 ? index : null;
+}
+
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   pressed: { opacity: tokens.stateOpacity.pressed },
@@ -917,4 +986,30 @@ const styles = StyleSheet.create({
     gap: tokens.spacing.sm,
   },
   reviewTitle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.xs },
+  timeline: { gap: 0 },
+  timelineItem: { alignItems: 'flex-start', flexDirection: 'row', minHeight: 54 },
+  timelineRail: { alignItems: 'center', width: 34 },
+  timelineMarker: {
+    alignItems: 'center',
+    backgroundColor: tokens.colors.surfaceMuted,
+    borderColor: tokens.colors.borderStrong,
+    borderRadius: 16,
+    borderWidth: 1,
+    height: 32,
+    justifyContent: 'center',
+    width: 32,
+  },
+  timelineMarkerComplete: {
+    backgroundColor: tokens.colors.success,
+    borderColor: tokens.colors.success,
+  },
+  timelineMarkerCurrent: {
+    backgroundColor: tokens.colors.primary,
+    borderColor: tokens.colors.primary,
+  },
+  timelineLine: { backgroundColor: tokens.colors.border, flex: 1, width: 2 },
+  timelineLineComplete: { backgroundColor: tokens.colors.success },
+  timelineLabel: { flex: 1, paddingHorizontal: tokens.spacing.sm, paddingTop: tokens.spacing.xxs },
+  timelineLabelCurrent: { color: tokens.colors.primaryStrong, fontWeight: '800' },
+  timelineLabelUpcoming: { color: tokens.colors.textMuted },
 });

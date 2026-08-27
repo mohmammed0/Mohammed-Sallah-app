@@ -52,6 +52,20 @@ vi.mock('../src/providers/locale-provider', () => ({
   true;
 
 describe('customer marketplace components', () => {
+  it('keeps an unknown job state out of the visible progress sequence', async () => {
+    const components = (await import('../src/design-system/customer-components')) as Record<
+      string,
+      unknown
+    >;
+    const resolveTimelineIndex = components['resolveTimelineIndex'];
+
+    expect(resolveTimelineIndex).toBeTypeOf('function');
+    if (typeof resolveTimelineIndex !== 'function') return;
+
+    expect(resolveTimelineIndex(['selected', 'travelling', 'completed'], 'paused')).toBeNull();
+    expect(resolveTimelineIndex(['selected', 'travelling', 'completed'], 'travelling')).toBe(1);
+  });
+
   it('renders location, service grid, chat, review, and tabs with locale direction', async () => {
     localeState.locale = 'ar';
     const { BottomTabs, ChatBubble, LocationHeader, ReviewSummaryCard, ServiceCategoryCard } =

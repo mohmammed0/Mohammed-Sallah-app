@@ -1,8 +1,17 @@
 import { useState } from 'react';
-import { Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import * as Linking from 'expo-linking';
-import { Button, Screen, styles } from '@/components/ui';
+import {
+  ActionButton,
+  CustomerScreen,
+  Field,
+  Notice,
+  Surface,
+  customerStyles,
+} from '@/design-system/primitives';
+import { AppIcon } from '@/design-system/icon';
+import { customerTokens as tokens } from '@/design-system/tokens';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/providers/locale-provider';
 export default function Auth() {
@@ -51,57 +60,86 @@ export default function Auth() {
       );
   }
   return (
-    <Screen>
-      <Text style={styles.title}>{t('authTitle')}</Text>
-      <Text style={styles.lead}>{t('authLead')}</Text>
-      <TextInput
-        accessibilityLabel={t('email')}
-        style={styles.input}
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-        autoComplete="email"
-      />
-      <TextInput
-        accessibilityLabel={t('password')}
-        style={styles.input}
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        autoComplete="password"
-      />
-      {error && (
-        <Text accessibilityLiveRegion="polite" style={styles.error}>
-          {error}
+    <CustomerScreen testID="auth-screen">
+      <View style={styles.hero}>
+        <View style={styles.mark}>
+          <AppIcon color={tokens.colors.white} name="tools" size={34} strokeWidth={2.4} />
+        </View>
+        <Text accessibilityRole="header" style={customerStyles.display}>
+          {t('authTitle')}
         </Text>
-      )}
-      {notice && (
-        <Text accessibilityLiveRegion="polite" style={styles.lead}>
-          {notice}
-        </Text>
-      )}
-      <View style={{ gap: 10 }}>
-        <Button disabled={pending} label={t('signIn')} onPress={() => void act('signin')} />
-        <Button
+        <Text style={styles.lead}>{t('authLead')}</Text>
+      </View>
+      <Surface style={styles.form}>
+        <Field
+          autoCapitalize="none"
+          autoComplete="email"
+          icon="customer"
+          keyboardType="email-address"
+          label={t('email')}
+          onChangeText={setEmail}
+          value={email}
+        />
+        <Field
+          autoComplete="password"
+          icon="shield"
+          label={t('password')}
+          onChangeText={setPassword}
+          secureTextEntry
+          value={password}
+        />
+        {error ? (
+          <Notice live tone="danger">
+            {error}
+          </Notice>
+        ) : null}
+        {notice ? (
+          <Notice live tone="success">
+            {notice}
+          </Notice>
+        ) : null}
+        <ActionButton
           disabled={pending}
-          kind="secondary"
+          label={t('signIn')}
+          loading={pending}
+          onPress={() => void act('signin')}
+        />
+        <ActionButton
+          disabled={pending}
           label={t('signUp')}
           onPress={() => void act('signup')}
+          variant="secondary"
         />
-        <Button
+      </Surface>
+      <Surface tone="muted">
+        <ActionButton
           disabled={pending || !email}
-          kind="secondary"
           label={t('resendVerification')}
           onPress={() => void act('resend')}
+          variant="ghost"
         />
-        <Button
+        <ActionButton
           disabled={pending || !email}
-          kind="secondary"
           label={t('resetPassword')}
           onPress={() => void act('reset')}
+          variant="ghost"
         />
-      </View>
-    </Screen>
+      </Surface>
+    </CustomerScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  hero: { alignItems: 'center', gap: tokens.spacing.sm, paddingVertical: tokens.spacing.lg },
+  mark: {
+    alignItems: 'center',
+    backgroundColor: tokens.colors.primary,
+    borderRadius: tokens.radius.xl,
+    height: 72,
+    justifyContent: 'center',
+    width: 72,
+    ...tokens.shadow.floating,
+  },
+  lead: { ...customerStyles.bodyMuted, maxWidth: 420, textAlign: 'center' },
+  form: { gap: tokens.spacing.md },
+});
