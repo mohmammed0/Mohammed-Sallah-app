@@ -4,9 +4,22 @@
 **آخر تحديث مرجعي:** 2026-08-26
 **البيئة:** Preview فقط؛ لا يوجد نشر Production أو إرسال عام للمتاجر.
 
-This candidate completes the professional closed-beta product experience while preserving the
-existing marketplace, authorization, private-media, and scanner contracts. Exact APK identity is
-recorded with the final build evidence and Draft PR, not invented ahead of the build.
+This branch implements the professional closed-beta product experience while preserving the
+existing marketplace, authorization, private-media, and scanner contracts. Distribution is
+currently blocked by the Android customer-tab runtime defect recorded below; it is not represented
+as a ready beta release.
+
+## حالة المرشح الحالية | Current candidate status
+
+- **BLOCKED — FUNCTIONAL WORK REMAINS.** The exact Android artifact from code SHA
+  `80d5b71a399b357bfa39e52f1fa4822254d94aa4` and EAS build
+  `cdba7eeb-70e1-4847-9984-a748af9dec07` reaches the root recovery screen when an authenticated
+  customer workspace mounts.
+- The safe runtime category is Expo Router `BottomTabNavigator` reporting
+  `Maximum update depth exceeded`; no credential, Supabase, Scanner, OpenAI, or marketplace-trust
+  failure was involved.
+- The process remains alive and the root recovery UI is usable, but the customer journey is blocked;
+  therefore this artifact is diagnostic only and must not be distributed as the closed beta.
 
 ## الجديد | What changed
 
@@ -72,7 +85,8 @@ recorded with the final build evidence and Draft PR, not invented ahead of the b
 - customer/provider/admin Preview accounts are operational with synthetic data.
 - مقدم الخدمة موثق، خدمة `air-conditioning` معتمدة، منطقة الرياض 40 كم، ويقبل الطلبات؛ matching
   وfeed نجحا سابقًا.
-- Android Studio Emulator startup PASS، وعرض Google Maps على المحاكي PASS.
+- Android Studio Emulator provider startup and prior Maps smoke have evidence, but the exact current
+  APK customer startup is **FAIL** because of the navigation loop above.
 - Scanner/ClamAV clean image, clean audio remux, EICAR rejection, and cleanup PASS.
 - OpenAI text, clean image, transcription, and translation canaries PASS.
 - Push physical receipt and physical GPS accuracy are **NOT RUN**.
@@ -99,8 +113,8 @@ recorded with the final build evidence and Draft PR, not invented ahead of the b
 - عند فشل خدمة خارجية، تبقى المسارات fail-closed وتعرض حالة آمنة بدل نجاح وهمي.
 - يمكن الرجوع إلى SHA الأب المسجل مع إبقاء بيانات Preview والترحيلات forward-only؛ لا تُعدّل migration
   مطبقة ولا تُرقّى وسائط quarantine يدويًا.
-- هوية APK النهائية وSHA-256 والحزمة والإصدار وEAS build ID تُسجل فقط بعد اكتمال build واحد من SHA
-  نهائي مطابق.
+- هوية artifact التشخيصية وSHA-256 والحزمة والإصدار وEAS build ID مسجلة، لكنها لا تُعد هوية إصدار
+  نهائي حتى نجاح runtime وإعادة بناء APK صالحة للتوزيع.
 
 English summary: the release candidate adds a coherent professional Arabic-first customer,
 provider, and admin experience while keeping Supabase authority, sealed offers, exact-location

@@ -6,6 +6,24 @@
 This document records accepted closed-beta constraints. It does not waive authorization, privacy,
 scanner, RLS, localization, or accessibility requirements.
 
+## عطل Android مانع حاليًا | Current Android blocker
+
+- APK الإنتاجية التجريبية المبنية من كود SHA
+  `80d5b71a399b357bfa39e52f1fa4822254d94aa4`، EAS build
+  `cdba7eeb-70e1-4847-9984-a748af9dec07`، والحزمة `com.mohmammed0.sallah.preview`
+  بإصدار `0.1.0` و`versionCode 12` ليست صالحة للتوزيع كبيتا حاليًا.
+- عند تركيب مساحة العميل في production APK، يدخل Expo Router `BottomTabNavigator` في
+  `Maximum update depth exceeded`. تبقى عملية Android حيّة لأن شاشة الاسترداد الجذرية تعمل، لكن
+  رحلة العميل لا تصبح قابلة للاستخدام.
+- نجحت اختبارات المسارات والواجهة المصدرية وlint/typecheck، لكن ثلاث محاولات إصلاح مركزة لم تغلق
+  عطل runtime؛ لذلك الحالة الصادقة هي **FUNCTIONAL WORK REMAINS** وليست beta ready.
+- لا يجوز توزيع artifact أو تمثيل تشغيل العميل كـPASS قبل إعادة إنتاج الحلقة محليًا وربطها بالسطر
+  المسبب ثم نجاح تشغيل العميل وتبديل الدور على APK جديدة دقيقة الرأس.
+
+English: the exact Android artifact above is diagnostic only. Its root recovery screen prevents a
+process crash, but the authenticated customer tabs still enter an Expo Router maximum-update loop.
+The closed-beta Android build remains blocked until that production-runtime defect is fixed.
+
 ## خدمات Preview | Preview services
 
 ### Push — إعداد جزئي | Partial configuration
@@ -56,7 +74,8 @@ scanner, RLS, localization, or accessibility requirements.
 
 ## حدود الجهاز والبناء | Device and build limits
 
-- Android Studio Emulator هو دليل التشغيل الحالي؛ مصفوفة الأجهزة الفعلية غير منفذة.
+- Android Studio Emulator هو بيئة التشخيص الحالية؛ تشغيل مساحة العميل في APK الدقيقة الحالية
+  **FAIL** كما هو موضح أعلاه، ومصفوفة الأجهزة الفعلية غير منفذة.
 - receipt الفعلي لـPush، دقة GPS الواقعية، ظروف الشبكة الخلوية، الكاميرا/الميكروفون على أجهزة متعددة،
   وإدارة الذاكرة طويلة المدة مؤجلة.
 - إعداد iOS يمكن أن يكون جاهزًا، لكن البناء يحتاج Apple signing/team صالحًا؛ لا توجد صلاحية لشراء
