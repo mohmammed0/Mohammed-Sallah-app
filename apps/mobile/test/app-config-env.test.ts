@@ -137,6 +137,7 @@ describe('mobile Expo APP_ENV boundary', () => {
         resizeMode: 'contain',
       },
     ]);
+    expect(result.plugins).toContain('expo-asset');
     expect(result.extra?.maps).toEqual({ androidConfigured: true });
     expect(JSON.stringify(result.extra)).not.toContain('restricted-preview-key');
   });

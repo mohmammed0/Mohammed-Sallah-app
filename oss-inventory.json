@@ -83,7 +83,7 @@
     {
       "project": "expo/expo",
       "package": "expo",
-      "version": "57.0.16",
+      "version": "57.0.17",
       "license": "MIT",
       "use": "iOS/Android framework, Router and native modules",
       "security": "GitHub security policy/advisories"
@@ -91,7 +91,7 @@
     {
       "project": "facebook/react-native",
       "package": "react-native",
-      "version": "0.86.2",
+      "version": "0.86.3",
       "license": "MIT",
       "use": "native UI runtime",
       "security": "GitHub security policy"
@@ -179,7 +179,7 @@
     {
       "project": "expo/expo",
       "package": "expo-file-system",
-      "version": "57.0.5",
+      "version": "57.0.6",
       "license": "MIT",
       "use": "durable user-scoped app-private storage for offline request media",
       "security": "Expo GitHub security policy/advisories"
