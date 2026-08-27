@@ -1,0 +1,14 @@
+appId: com.mohmammed0.sallah.preview
+---
+- launchApp
+- assertNotVisible: 'إعادة محاولة بدء التطبيق'
+- assertVisible: 'كيف نساعدك اليوم؟'
+- assertVisible: 'الرئيسية'
+- tapOn: 'طلباتي'
+- assertVisible: 'طلباتي وعروضي'
+- tapOn: 'الرسائل'
+- assertVisible: 'الرسائل'
+- tapOn: 'الحساب'
+- assertVisible: 'الحساب والخصوصية'
+- tapOn: 'الرئيسية'
+- assertVisible: 'كيف نساعدك اليوم؟'
