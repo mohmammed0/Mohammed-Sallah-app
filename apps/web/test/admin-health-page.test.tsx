@@ -64,6 +64,18 @@ describe('minimum beta operational health dashboard', () => {
     expect(html).toContain('حوادث مفتوحة');
   });
 
+  it('renders an Arabic-first operational hierarchy with accessible status and queue states', async () => {
+    const html = await renderAdminPage();
+
+    expect(html).toContain('class="admin-dashboard"');
+    expect(html).toContain('class="admin-dashboard-heading"');
+    expect(html).toContain('aria-live="polite"');
+    expect(html).toContain('class="admin-status-badge admin-status-badge--attention"');
+    expect(html).toContain('class="table admin-queue-table"');
+    expect(html).toContain('data-label="الحالة"');
+    expect(html).toContain('class="admin-empty-state"');
+  });
+
   it.each([
     ['an extra metric', { ...validMetrics, unexpected_healthy_count: 0 }],
     ['a non-numeric metric', { ...validMetrics, scanner_failures: '0' }],
