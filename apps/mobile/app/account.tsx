@@ -119,11 +119,11 @@ export default function Account() {
   }
   async function switchToProvider() {
     await setActiveRole('provider');
-    router.replace(
+    const route =
       context?.providerVerificationStatus === 'verified'
         ? '/provider-home'
-        : '/provider/onboarding',
-    );
+        : '/provider/onboarding';
+    requestAnimationFrame(() => router.replace(route));
   }
   return (
     <ScrollView contentContainerStyle={styles.scrollScreen} keyboardShouldPersistTaps="handled">

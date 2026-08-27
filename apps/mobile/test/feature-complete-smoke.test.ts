@@ -71,6 +71,7 @@ const notificationsScreen = readFileSync(
   'utf8',
 );
 const accountScreen = readFileSync(new URL('../app/account.tsx', import.meta.url), 'utf8');
+const authScreen = readFileSync(new URL('../app/auth.tsx', import.meta.url), 'utf8');
 
 const customerSteps = [
   'authentication',
@@ -126,6 +127,13 @@ describe('feature-complete beta smoke contracts', () => {
     expect(accountScreen).toContain("setActiveRole('provider')");
     expect(accountScreen).toContain("? '/provider-home'");
     expect(accountScreen).toContain(": '/provider/onboarding'");
+    expect(accountScreen).toContain('requestAnimationFrame');
+    expect(providerHome).toContain('requestAnimationFrame');
+  });
+
+  it('lets the authoritative session context select the post-sign-in landing route', () => {
+    expect(authScreen).not.toContain("router.replace('/home')");
+    expect(authScreen).not.toContain("from 'expo-router'");
   });
 
   it('never presents raw notification event identifiers as customer copy', () => {

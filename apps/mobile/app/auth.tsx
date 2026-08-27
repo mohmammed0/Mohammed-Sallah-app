@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
 import * as Linking from 'expo-linking';
 import {
   ActionButton,
@@ -51,13 +50,13 @@ export default function Auth() {
       setError(t('authFailed'));
       return;
     }
-    if (mode === 'signin') router.replace('/home');
-    else
+    if (mode !== 'signin') {
       setNotice(
         mode === 'signup' || mode === 'resend'
           ? t('verificationEmailSent')
           : t('recoveryEmailSent'),
       );
+    }
   }
   return (
     <CustomerScreen testID="auth-screen">
