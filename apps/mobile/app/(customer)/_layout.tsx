@@ -67,7 +67,6 @@ export default function CustomerTabs() {
           ),
         }}
       />
-      <Tabs.Screen name="customer-jobs" options={{ href: null }} />
     </Tabs>
   );
 }

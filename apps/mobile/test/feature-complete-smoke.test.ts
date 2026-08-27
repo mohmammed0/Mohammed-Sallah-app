@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import {
   DeterministicAiProvider,
   assertJobTransition,
@@ -62,6 +62,10 @@ const providerTabs = readFileSync(
   new URL('../app/(provider)/_layout.tsx', import.meta.url),
   'utf8',
 );
+const customerTabs = readFileSync(
+  new URL('../app/(customer)/_layout.tsx', import.meta.url),
+  'utf8',
+);
 const providerHome = readFileSync(
   new URL('../app/(provider)/provider-home.tsx', import.meta.url),
   'utf8',
@@ -110,6 +114,12 @@ describe('feature-complete beta smoke contracts', () => {
     expect(providerTabs).toContain('writingDirection: dir');
     expect(providerTabs).not.toContain('exact_location');
     expect(providerTabs).not.toContain('offer_amount');
+  });
+
+  it('keeps job details on the root stack without an unstable hidden tab alias', () => {
+    expect(customerTabs).not.toContain('href: null');
+    expect(existsSync(new URL('../app/(customer)/customer-jobs.tsx', import.meta.url))).toBe(false);
+    expect(jobsScreen).toContain('ProgressTimeline');
   });
 
   it('keeps dual-role switching and provider support destinations reachable', () => {
