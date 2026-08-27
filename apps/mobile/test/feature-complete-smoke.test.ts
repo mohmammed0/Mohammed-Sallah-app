@@ -126,10 +126,11 @@ describe('feature-complete beta smoke contracts', () => {
     expect(accountScreen).toContain('ScrollView');
     expect(accountScreen).toContain('styles.scrollScreen');
     expect(accountScreen).toContain("setActiveRole('provider')");
-    expect(accountScreen).toContain("? '/provider-home'");
-    expect(accountScreen).toContain(": '/provider/onboarding'");
+    expect(accountScreen).toContain("router.replace('/home')");
+    expect(accountScreen).not.toContain('providerVerificationStatus');
     expect(accountScreen).toContain('requestAnimationFrame');
     expect(providerHome).toContain('requestAnimationFrame');
+    expect(providerHome).toContain("router.replace('/home')");
   });
 
   it('lets the authoritative session context select the post-sign-in landing route', () => {

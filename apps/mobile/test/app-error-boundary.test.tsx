@@ -11,17 +11,14 @@ vi.mock('@sallah/observability', () => ({
 }));
 
 vi.mock('react-native', () => ({
+  Pressable: 'Pressable',
+  StyleSheet: { create: <T,>(styles: T) => styles },
   Text: 'Text',
+  View: 'View',
 }));
 
 vi.mock('@sallah/i18n', () => ({
   translate: (_locale: string, key: string) => key,
-}));
-
-vi.mock('@/components/ui', () => ({
-  Button: 'Button',
-  Screen: 'Screen',
-  styles: { error: {}, lead: {}, title: {} },
 }));
 
 vi.mock('@/providers/locale-provider', () => ({
@@ -59,12 +56,12 @@ describe('mobile root error boundary', () => {
       );
     });
 
-    expect(renderer?.root.findAllByType('Screen')).toHaveLength(1);
+    expect(renderer?.root.findAllByType('View')).toHaveLength(1);
     expect(
       renderer?.root.findAll((node) => node.props.accessibilityLiveRegion === 'assertive'),
     ).toHaveLength(1);
-    const button = renderer?.root.findByType('Button');
-    expect(button?.props.label).toBe('retry');
+    const button = renderer?.root.findByType('Pressable');
+    expect(button?.props.accessibilityLabel).toBe('startupRetryAccessibility');
     expect(observability.write).toHaveBeenCalledWith({
       level: 'error',
       event: 'mobile_error_boundary',

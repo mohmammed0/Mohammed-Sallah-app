@@ -1,8 +1,7 @@
 import { Component, type ReactNode } from 'react';
-import { Text } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { translate } from '@sallah/i18n';
 import { consoleLogger, createCorrelationId } from '@sallah/observability';
-import { Button, Screen, styles } from '@/components/ui';
 
 interface MobileAppErrorBoundaryProps {
   children: ReactNode;
@@ -16,26 +15,67 @@ interface MobileAppErrorBoundaryState {
 
 function MobileErrorFallback({ onReset }: { onReset: () => void }) {
   return (
-    <Screen>
-      <Text accessibilityRole="header" selectable style={styles.title}>
+    <View style={fallbackStyles.screen}>
+      <Text accessibilityRole="header" selectable style={fallbackStyles.title}>
         {translate('ar', 'startupErrorTitle')}
       </Text>
       <Text
         accessibilityLiveRegion="assertive"
         accessibilityRole="alert"
         selectable
-        style={styles.error}
+        style={fallbackStyles.error}
       >
         {translate('ar', 'startupErrorMessage')}
       </Text>
-      <Button
+      <Pressable
         accessibilityLabel={translate('ar', 'startupRetryAccessibility')}
-        label={translate('ar', 'retry')}
+        accessibilityRole="button"
         onPress={onReset}
-      />
-    </Screen>
+        style={({ pressed }) => [fallbackStyles.button, pressed && fallbackStyles.buttonPressed]}
+      >
+        <Text style={fallbackStyles.buttonText}>{translate('ar', 'retry')}</Text>
+      </Pressable>
+    </View>
   );
 }
+
+const fallbackStyles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 24,
+    gap: 16,
+    backgroundColor: '#f8f6f1',
+  },
+  title: {
+    color: '#172b25',
+    fontSize: 28,
+    fontWeight: '700',
+    textAlign: 'right',
+  },
+  error: {
+    color: '#9b2c2c',
+    fontSize: 17,
+    lineHeight: 26,
+    textAlign: 'right',
+  },
+  button: {
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    backgroundColor: '#176b57',
+    paddingHorizontal: 20,
+  },
+  buttonPressed: {
+    opacity: 0.82,
+  },
+  buttonText: {
+    color: '#ffffff',
+    fontSize: 17,
+    fontWeight: '700',
+  },
+});
 
 export class MobileAppErrorBoundary extends Component<
   MobileAppErrorBoundaryProps,
