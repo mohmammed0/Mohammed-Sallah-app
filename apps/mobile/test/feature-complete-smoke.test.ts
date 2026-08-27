@@ -70,6 +70,7 @@ const notificationsScreen = readFileSync(
   new URL('../app/notifications.tsx', import.meta.url),
   'utf8',
 );
+const accountScreen = readFileSync(new URL('../app/account.tsx', import.meta.url), 'utf8');
 
 const customerSteps = [
   'authentication',
@@ -117,6 +118,14 @@ describe('feature-complete beta smoke contracts', () => {
     expect(providerHome).toContain("route: '/provider/earnings'");
     expect(providerHome).toContain("route: '/support'");
     expect(providerHome).not.toContain('<Notice tone="success">{t(\'qualified\')}</Notice>');
+  });
+
+  it('keeps long account controls reachable and permits an authorized provider-role switch', () => {
+    expect(accountScreen).toContain('ScrollView');
+    expect(accountScreen).toContain('styles.scrollScreen');
+    expect(accountScreen).toContain("setActiveRole('provider')");
+    expect(accountScreen).toContain("? '/provider-home'");
+    expect(accountScreen).toContain(": '/provider/onboarding'");
   });
 
   it('never presents raw notification event identifiers as customer copy', () => {

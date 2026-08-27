@@ -78,6 +78,13 @@ export const styles = StyleSheet.create({
     padding: tokens.spacing.lg,
     gap: tokens.spacing.md,
   },
+  scrollScreen: {
+    flexGrow: 1,
+    backgroundColor: tokens.colors.canvas,
+    padding: tokens.spacing.lg,
+    paddingBottom: tokens.spacing.xxl,
+    gap: tokens.spacing.md,
+  },
   card: {
     backgroundColor: tokens.colors.surface,
     borderRadius: tokens.radius.lg,

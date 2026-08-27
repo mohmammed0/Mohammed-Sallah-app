@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Alert, Switch, Text, TextInput, View } from 'react-native';
+import { Alert, ScrollView, Switch, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { formatStatusLabel } from '@sallah/i18n';
-import { Button, Card, Screen, styles } from '@/components/ui';
+import { Button, Card, styles } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/providers/locale-provider';
 import { useSessionContext } from '@/providers/session-provider';
@@ -29,7 +29,7 @@ export default function Account() {
   const [userId, setUserId] = useState<string | null>(null);
   const [reauthPassword, setReauthPassword] = useState('');
   const [deletionSummary, setDeletionSummary] = useState<Record<string, unknown> | null>(null);
-  const { context, signOutAll } = useSessionContext();
+  const { context, setActiveRole, signOutAll } = useSessionContext();
   const { activeLocation } = useCustomerLocation();
   async function loadDeletionSummary() {
     const result = await (
@@ -117,8 +117,16 @@ export default function Account() {
     await signOutAll();
     router.replace('/');
   }
+  async function switchToProvider() {
+    await setActiveRole('provider');
+    router.replace(
+      context?.providerVerificationStatus === 'verified'
+        ? '/provider-home'
+        : '/provider/onboarding',
+    );
+  }
   return (
-    <Screen>
+    <ScrollView contentContainerStyle={styles.scrollScreen} keyboardShouldPersistTaps="handled">
       <Text style={styles.title}>{t('accountPrivacyTitle')}</Text>
       {context && !context.allowed && (
         <Card>
@@ -142,6 +150,9 @@ export default function Account() {
             onPress={() => router.push('/locations')}
           />
         </Card>
+      ) : null}
+      {context?.roles.includes('provider') && context.activeRole !== 'provider' ? (
+        <Button kind="secondary" label={t('provider')} onPress={() => void switchToProvider()} />
       ) : null}
       <Card>
         <Text style={styles.badge}>{t('language')}</Text>
@@ -239,6 +250,6 @@ export default function Account() {
           {status}
         </Text>
       )}
-    </Screen>
+    </ScrollView>
   );
 }
