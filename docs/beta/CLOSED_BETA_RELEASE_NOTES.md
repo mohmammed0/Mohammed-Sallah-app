@@ -1,25 +1,30 @@
 # ملاحظات إصدار صلّح التجريبي المغلق | Sallah Closed Beta Release Notes
 
 **الإصدار:** Professional Closed Beta candidate
-**آخر تحديث مرجعي:** 2026-08-26
+**آخر تحديث مرجعي:** 2026-08-27
 **البيئة:** Preview فقط؛ لا يوجد نشر Production أو إرسال عام للمتاجر.
 
 This branch implements the professional closed-beta product experience while preserving the
-existing marketplace, authorization, private-media, and scanner contracts. Distribution is
-currently blocked by the Android customer-tab runtime defect recorded below; it is not represented
-as a ready beta release.
+existing marketplace, authorization, private-media, and scanner contracts. The Android customer
+tab runtime blocker is resolved and the repaired exact-head APK is ready for closed-beta
+distribution; physical-device and final-audit gates remain deferred.
 
 ## حالة المرشح الحالية | Current candidate status
 
-- **BLOCKED — FUNCTIONAL WORK REMAINS.** The exact Android artifact from code SHA
-  `80d5b71a399b357bfa39e52f1fa4822254d94aa4` and EAS build
-  `cdba7eeb-70e1-4847-9984-a748af9dec07` reaches the root recovery screen when an authenticated
-  customer workspace mounts.
-- The safe runtime category is Expo Router `BottomTabNavigator` reporting
-  `Maximum update depth exceeded`; no credential, Supabase, Scanner, OpenAI, or marketplace-trust
-  failure was involved.
-- The process remains alive and the root recovery UI is usable, but the customer journey is blocked;
-  therefore this artifact is diagnostic only and must not be distributed as the closed beta.
+- **READY FOR CLOSED-BETA DISTRIBUTION.** Code SHA
+  `191ec64901e5c231306cd3f14048a4c36ac3a163`, EAS build
+  `208ab028-3796-45aa-99c3-ec9992298008`, package `com.mohmammed0.sallah.preview`, version `0.1.0`
+  and `versionCode 13` produced the repaired APK.
+- Root cause: `/customer-home` re-exported legacy `/home`; `/home` redirected customers back to
+  `/customer-home`; the navigator therefore updated and remounted the same redirecting tab until
+  React reported `Maximum update depth exceeded`.
+- Fix: `/customer-home` now renders `CustomerHome` directly while `/home` remains a one-way legacy
+  redirect. The premium UI, protected-route ownership, role authorization, and deep links remain.
+- Emulator verification passed the customer home, all four tabs, request-creation return, sign-out
+  and sign-in, two repeat launches, and customer/provider role switching. No root recovery,
+  maximum-depth error, or fatal process exit appeared.
+- APK SHA-256:
+  `8758f6d42304991012c19e6467d1c7927c377cb5e5ccf9d9a06187603b1ad653`.
 
 ## الجديد | What changed
 
@@ -85,8 +90,10 @@ as a ready beta release.
 - customer/provider/admin Preview accounts are operational with synthetic data.
 - مقدم الخدمة موثق، خدمة `air-conditioning` معتمدة، منطقة الرياض 40 كم، ويقبل الطلبات؛ matching
   وfeed نجحا سابقًا.
-- Android Studio Emulator provider startup and prior Maps smoke have evidence, but the exact current
-  APK customer startup is **FAIL** because of the navigation loop above.
+- Android Studio Emulator customer startup, all customer tabs, request-creation return, repeat
+  launch, and customer/provider role switching are **PASS** on the repaired exact-head APK.
+- The focused production-route regression plus existing route/recovery suite passed `21/21`; mobile
+  lint, mobile typecheck, Expo compatibility, Expo Doctor `21/21`, and Android local export passed.
 - Scanner/ClamAV clean image, clean audio remux, EICAR rejection, and cleanup PASS.
 - OpenAI text, clean image, transcription, and translation canaries PASS.
 - Push physical receipt and physical GPS accuracy are **NOT RUN**.
@@ -113,11 +120,12 @@ as a ready beta release.
 - عند فشل خدمة خارجية، تبقى المسارات fail-closed وتعرض حالة آمنة بدل نجاح وهمي.
 - يمكن الرجوع إلى SHA الأب المسجل مع إبقاء بيانات Preview والترحيلات forward-only؛ لا تُعدّل migration
   مطبقة ولا تُرقّى وسائط quarantine يدويًا.
-- هوية artifact التشخيصية وSHA-256 والحزمة والإصدار وEAS build ID مسجلة، لكنها لا تُعد هوية إصدار
-  نهائي حتى نجاح runtime وإعادة بناء APK صالحة للتوزيع.
+- هوية APK القابلة للتوزيع وSHA-256 والحزمة والإصدار وEAS build ID مسجلة أعلاه. يبقى استخدامها
+  محصورًا في Preview/closed beta ولا يمثل نشر Production أو إرسال متجر.
 
 English summary: the release candidate adds a coherent professional Arabic-first customer,
 provider, and admin experience while keeping Supabase authority, sealed offers, exact-location
-privacy, private-media scanning, and server authorization unchanged. Scanner and OpenAI have live
+privacy, private-media scanning, and server authorization unchanged. The repaired Android APK
+passes customer navigation and dual-role switching on the emulator. Scanner and OpenAI retain live
 synthetic Preview evidence; Maps is emulator verified; Push receipt, physical devices, restore and
 alert drills, the final audit, and stores remain explicitly pending.

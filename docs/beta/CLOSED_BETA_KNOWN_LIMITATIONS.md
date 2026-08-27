@@ -1,28 +1,32 @@
 # القيود المعروفة للنسخة التجريبية المغلقة | Closed Beta Known Limitations
 
-**آخر تحديث مرجعي:** 2026-08-26
+**آخر تحديث مرجعي:** 2026-08-27
 هذه القائمة تفصل بدقة بين القيود المقبولة للبيتا وبين العطل الوظيفي. `NOT RUN` لا تعني `PASS`.
 
 This document records accepted closed-beta constraints. It does not waive authorization, privacy,
 scanner, RLS, localization, or accessibility requirements.
 
-## عطل Android مانع حاليًا | Current Android blocker
+## إصلاح مانع Android وهوية التوزيع | Android blocker resolved
 
-- APK الإنتاجية التجريبية المبنية من كود SHA
-  `80d5b71a399b357bfa39e52f1fa4822254d94aa4`، EAS build
-  `cdba7eeb-70e1-4847-9984-a748af9dec07`، والحزمة `com.mohmammed0.sallah.preview`
-  بإصدار `0.1.0` و`versionCode 12` ليست صالحة للتوزيع كبيتا حاليًا.
-- عند تركيب مساحة العميل في production APK، يدخل Expo Router `BottomTabNavigator` في
-  `Maximum update depth exceeded`. تبقى عملية Android حيّة لأن شاشة الاسترداد الجذرية تعمل، لكن
-  رحلة العميل لا تصبح قابلة للاستخدام.
-- نجحت اختبارات المسارات والواجهة المصدرية وlint/typecheck، لكن ثلاث محاولات إصلاح مركزة لم تغلق
-  عطل runtime؛ لذلك الحالة الصادقة هي **FUNCTIONAL WORK REMAINS** وليست beta ready.
-- لا يجوز توزيع artifact أو تمثيل تشغيل العميل كـPASS قبل إعادة إنتاج الحلقة محليًا وربطها بالسطر
-  المسبب ثم نجاح تشغيل العميل وتبديل الدور على APK جديدة دقيقة الرأس.
+- عُزل سبب `Maximum update depth exceeded`: كان مسار التبويب `/customer-home` يعيد تصدير شاشة
+  `/home` القديمة، بينما أصبحت `/home` تعيد التوجيه إلى `/customer-home`. أدى ذلك إلى حلقة
+  `/customer-home → Redirect('/customer-home') → تحديث navigator → إعادة تركيب /customer-home`.
+- أصبح تبويب العميل يملك شاشة `CustomerHome` مباشرة، مع إبقاء `/home` مسار انتقال قديم أحادي
+  الاتجاه. لم تتغير حماية المسارات أو شاشات التصميم الاحترافي أو قواعد الأدوار.
+- يغطي regression الجديد شجرة مسار العميل الفعلية وملكية الشاشة، ونجحت اختبارات المسارات المركزة
+  `21/21` مع lint وtypecheck والتصدير المحلي.
+- APK القابلة للتوزيع مبنية من SHA
+  `191ec64901e5c231306cd3f14048a4c36ac3a163`، EAS build
+  `208ab028-3796-45aa-99c3-ec9992298008`، الحزمة `com.mohmammed0.sallah.preview`، الإصدار
+  `0.1.0` و`versionCode 13`، وSHA-256
+  `8758f6d42304991012c19e6467d1c7927c377cb5e5ccf9d9a06187603b1ad653`.
+- نجح على Android Studio Emulator: دخول العميل، الصفحة الرئيسية، التبويبات الأربعة، فتح إنشاء
+  الطلب والعودة، الخروج والدخول، إعادة التشغيل مرتين، وتبديل الحساب المزدوج عميل ↔ مقدم خدمة مع
+  فتح موجز مقدم الخدمة. لم يظهر recovery أو maximum-depth أو fatal process exit.
 
-English: the exact Android artifact above is diagnostic only. Its root recovery screen prevents a
-process crash, but the authenticated customer tabs still enter an Expo Router maximum-update loop.
-The closed-beta Android build remains blocked until that production-runtime defect is fixed.
+English: the customer tab now renders the real `CustomerHome` screen instead of re-exporting the
+legacy redirect route. The repaired exact-head APK passed customer tabs, repeat launch, and
+dual-role switching on the Android Studio Emulator. Physical-device coverage remains deferred.
 
 ## خدمات Preview | Preview services
 
@@ -74,8 +78,8 @@ The closed-beta Android build remains blocked until that production-runtime defe
 
 ## حدود الجهاز والبناء | Device and build limits
 
-- Android Studio Emulator هو بيئة التشخيص الحالية؛ تشغيل مساحة العميل في APK الدقيقة الحالية
-  **FAIL** كما هو موضح أعلاه، ومصفوفة الأجهزة الفعلية غير منفذة.
+- Android Studio Emulator هو بيئة التحقق الحالية؛ تشغيل مساحة العميل وتبويباتها وتبديل الدور في
+  APK الدقيقة أعلاه **PASS**، ومصفوفة الأجهزة الفعلية غير منفذة.
 - receipt الفعلي لـPush، دقة GPS الواقعية، ظروف الشبكة الخلوية، الكاميرا/الميكروفون على أجهزة متعددة،
   وإدارة الذاكرة طويلة المدة مؤجلة.
 - إعداد iOS يمكن أن يكون جاهزًا، لكن البناء يحتاج Apple signing/team صالحًا؛ لا توجد صلاحية لشراء
@@ -101,7 +105,7 @@ The closed-beta Android build remains blocked until that production-runtime defe
 - legal/privacy/store compliance؛
 - public App Store/Google Play submission.
 
-English summary: Scanner, ClamAV, Storage, and OpenAI have synthetic Preview evidence; Maps is
-emulator verified. Push lacks the account-owned Expo access token and authoritative receipt
-evidence. Physical devices, restore/alert drills, final security review, legal review, and stores are
-explicitly deferred rather than represented as passing.
+English summary: the repaired Android closed-beta APK passes customer navigation and dual-role
+switching on the emulator. Scanner, ClamAV, Storage, and OpenAI retain synthetic Preview evidence;
+Maps is emulator verified. Push lacks authoritative physical receipt evidence. Physical devices,
+restore/alert drills, final security review, legal review, and stores remain explicitly deferred.
