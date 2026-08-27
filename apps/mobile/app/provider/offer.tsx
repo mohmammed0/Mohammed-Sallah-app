@@ -1,9 +1,10 @@
 import { Controller, useForm } from 'react-hook-form';
 import { useState } from 'react';
-import { ScrollView, Text, TextInput, View } from 'react-native';
+import { Text, TextInput, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { z } from 'zod';
-import { Button, Card, Screen, styles } from '@/components/ui';
+import { styles } from '@/components/ui';
+import { ActionButton, CustomerScreen, Notice, Surface } from '@/design-system/primitives';
 import { MarketplaceApi } from '@sallah/api';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/providers/locale-provider';
@@ -101,64 +102,63 @@ export default function ProviderOffer() {
     { name: 'warrantyDays', label: t('warrantyDays') },
   ];
   return (
-    <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-      <Screen>
-        <Text style={styles.title}>{t('privateSealedOfferTitle')}</Text>
-        <Card>
-          <Text style={styles.lead}>{t('privateSealedOfferNotice')}</Text>
-        </Card>
-        {fields.map((item) => (
-          <Controller
-            key={item.name}
-            control={control}
-            name={item.name}
-            render={({ field }) => (
-              <TextInput
-                style={styles.input}
-                accessibilityLabel={item.label}
-                placeholder={item.label}
-                keyboardType="decimal-pad"
-                value={String(field.value)}
-                onBlur={field.onBlur}
-                onChangeText={field.onChange}
-              />
-            )}
-          />
-        ))}
-        <View style={styles.row}>
-          <Button
-            label={materialsIncluded ? t('materialsIncluded') : t('materialsNotIncluded')}
-            kind={materialsIncluded ? 'primary' : 'secondary'}
-            onPress={() => setMaterialsIncluded((value) => !value)}
-          />
-        </View>
+    <CustomerScreen>
+      <Text style={styles.title}>{t('privateSealedOfferTitle')}</Text>
+      <Surface tone="accent">
+        <Text style={styles.lead}>{t('privateSealedOfferNotice')}</Text>
+      </Surface>
+      {fields.map((item) => (
         <Controller
+          key={item.name}
           control={control}
-          name="note"
+          name={item.name}
           render={({ field }) => (
             <TextInput
-              style={[styles.input, { minHeight: 110, textAlignVertical: 'top' }]}
-              multiline
-              accessibilityLabel={t('offerNoteA11y')}
-              placeholder={t('offerScopePlaceholder')}
-              value={field.value}
+              style={styles.input}
+              accessibilityLabel={item.label}
+              placeholder={item.label}
+              keyboardType="decimal-pad"
+              value={String(field.value)}
               onBlur={field.onBlur}
               onChangeText={field.onChange}
             />
           )}
         />
-        {formState.errors.root?.message && (
-          <Text accessibilityRole="alert" style={styles.error}>
-            {formState.errors.root.message}
-          </Text>
-        )}
-        {done && <Text accessibilityLiveRegion="polite">{t('offerSubmitted')}</Text>}
-        <Button
-          disabled={formState.isSubmitting || done}
-          label={formState.isSubmitting ? t('loading') : t('submitOfferAction')}
-          onPress={() => void handleSubmit(submit)()}
+      ))}
+      <View style={styles.row}>
+        <ActionButton
+          label={materialsIncluded ? t('materialsIncluded') : t('materialsNotIncluded')}
+          variant={materialsIncluded ? 'primary' : 'secondary'}
+          onPress={() => setMaterialsIncluded((value) => !value)}
         />
-      </Screen>
-    </ScrollView>
+      </View>
+      <Controller
+        control={control}
+        name="note"
+        render={({ field }) => (
+          <TextInput
+            style={[styles.input, { minHeight: 110, textAlignVertical: 'top' }]}
+            multiline
+            accessibilityLabel={t('offerNoteA11y')}
+            placeholder={t('offerScopePlaceholder')}
+            value={field.value}
+            onBlur={field.onBlur}
+            onChangeText={field.onChange}
+          />
+        )}
+      />
+      {formState.errors.root?.message && (
+        <Notice tone="danger" live>
+          {formState.errors.root.message}
+        </Notice>
+      )}
+      {done && <Text accessibilityLiveRegion="polite">{t('offerSubmitted')}</Text>}
+      <ActionButton
+        disabled={formState.isSubmitting || done}
+        label={formState.isSubmitting ? t('loading') : t('submitOfferAction')}
+        loading={formState.isSubmitting}
+        onPress={() => void handleSubmit(submit)()}
+      />
+    </CustomerScreen>
   );
 }

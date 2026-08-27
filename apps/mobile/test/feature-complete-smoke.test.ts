@@ -58,6 +58,18 @@ const providerEarnings = readFileSync(
   new URL('../app/provider/earnings.tsx', import.meta.url),
   'utf8',
 );
+const providerTabs = readFileSync(
+  new URL('../app/(provider)/_layout.tsx', import.meta.url),
+  'utf8',
+);
+const providerHome = readFileSync(
+  new URL('../app/(provider)/provider-home.tsx', import.meta.url),
+  'utf8',
+);
+const notificationsScreen = readFileSync(
+  new URL('../app/notifications.tsx', import.meta.url),
+  'utf8',
+);
 
 const customerSteps = [
   'authentication',
@@ -88,6 +100,30 @@ const providerSteps = [
 ] as const;
 
 describe('feature-complete beta smoke contracts', () => {
+  it('keeps provider navigation branded, directional, and separate from marketplace data', () => {
+    expect(providerTabs).toContain("from '@/design-system/icon'");
+    expect(providerTabs).toContain("from '@/design-system/tokens'");
+    expect(providerTabs).toContain('tabBarActiveTintColor');
+    expect(providerTabs).toContain('writingDirection: dir');
+    expect(providerTabs).not.toContain('exact_location');
+    expect(providerTabs).not.toContain('offer_amount');
+  });
+
+  it('keeps dual-role switching and provider support destinations reachable', () => {
+    expect(providerHome).toContain('setActiveRole');
+    expect(providerHome).toContain("setActiveRole('customer')");
+    expect(providerHome).toContain("route: '/provider/onboarding'");
+    expect(providerHome).toContain("route: '/notifications'");
+    expect(providerHome).toContain("route: '/provider/earnings'");
+    expect(providerHome).toContain("route: '/support'");
+    expect(providerHome).not.toContain('<Notice tone="success">{t(\'qualified\')}</Notice>');
+  });
+
+  it('never presents raw notification event identifiers as customer copy', () => {
+    expect(notificationsScreen).toContain('notificationEventLabelKey');
+    expect(notificationsScreen).not.toContain('{item.event_type}');
+  });
+
   it('keeps the customer journey connected from authentication through completion and rating', async () => {
     expect(manifest.journeys.customer).toEqual(customerSteps);
     expect(

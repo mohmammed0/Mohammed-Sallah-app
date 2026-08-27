@@ -215,12 +215,6 @@ export default function ProviderFeed() {
                 <Text style={styles.lead}>
                   {t('providerBriefMediaCount', { count: match.brief.media.length })}
                 </Text>
-                <Text style={styles.lead}>
-                  {t('providerBriefApproximateLocation', {
-                    latitude: match.brief.approximateLocation.latitude,
-                    longitude: match.brief.approximateLocation.longitude,
-                  })}
-                </Text>
                 {match.brief.requiredCapabilities.map((capability) => (
                   <Text key={capability} style={styles.lead}>
                     {t('requiredCapability')}: {capability}
