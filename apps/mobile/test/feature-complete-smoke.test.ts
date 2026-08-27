@@ -126,11 +126,15 @@ describe('feature-complete beta smoke contracts', () => {
     expect(accountScreen).toContain('ScrollView');
     expect(accountScreen).toContain('styles.scrollScreen');
     expect(accountScreen).toContain("setActiveRole('provider')");
-    expect(accountScreen).toContain("router.replace('/home')");
+    expect(accountScreen).toContain('providerSwitchPending');
+    expect(accountScreen).toContain("context?.activeRole !== 'provider'");
+    expect(accountScreen).toContain('router.replace(productLandingRoute(context))');
     expect(accountScreen).not.toContain('providerVerificationStatus');
-    expect(accountScreen).toContain('requestAnimationFrame');
-    expect(providerHome).toContain('requestAnimationFrame');
-    expect(providerHome).toContain("router.replace('/home')");
+    expect(accountScreen).not.toContain('requestAnimationFrame');
+    expect(providerHome).toMatch(
+      /async function switchToCustomer\(\) \{\s+await setActiveRole\('customer'\);\s+\}/,
+    );
+    expect(providerHome).not.toContain('requestAnimationFrame');
   });
 
   it('lets the authoritative session context select the post-sign-in landing route', () => {

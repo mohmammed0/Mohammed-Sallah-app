@@ -6,6 +6,7 @@ import { Button, Card, styles } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/providers/locale-provider';
 import { useSessionContext } from '@/providers/session-provider';
+import { productLandingRoute } from '@/features/auth/route-policy';
 import { useCustomerLocation } from '@/features/location/location-provider';
 import { revokeExpoPushDevice } from '@/features/notifications/expo-push-runtime';
 
@@ -25,12 +26,18 @@ const defaultNotifications: NotificationPreferences = {
 export default function Account() {
   const { locale, setLocale, t } = useLocale();
   const [status, setStatus] = useState('');
+  const [providerSwitchPending, setProviderSwitchPending] = useState(false);
   const [notifications, setNotifications] = useState(defaultNotifications);
   const [userId, setUserId] = useState<string | null>(null);
   const [reauthPassword, setReauthPassword] = useState('');
   const [deletionSummary, setDeletionSummary] = useState<Record<string, unknown> | null>(null);
   const { context, setActiveRole, signOutAll } = useSessionContext();
   const { activeLocation } = useCustomerLocation();
+  useEffect(() => {
+    if (!providerSwitchPending || context?.activeRole !== 'provider') return;
+    setProviderSwitchPending(false);
+    router.replace(productLandingRoute(context));
+  }, [context, providerSwitchPending]);
   async function loadDeletionSummary() {
     const result = await (
       supabase.rpc as unknown as (
@@ -118,8 +125,13 @@ export default function Account() {
     router.replace('/');
   }
   async function switchToProvider() {
-    await setActiveRole('provider');
-    requestAnimationFrame(() => router.replace('/home'));
+    setProviderSwitchPending(true);
+    try {
+      await setActiveRole('provider');
+    } catch {
+      setProviderSwitchPending(false);
+      setStatus(t('authFailed'));
+    }
   }
   return (
     <ScrollView contentContainerStyle={styles.scrollScreen} keyboardShouldPersistTaps="handled">

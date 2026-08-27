@@ -44,7 +44,6 @@ export default function ProviderHome() {
 
   async function switchToCustomer() {
     await setActiveRole('customer');
-    requestAnimationFrame(() => router.replace('/home'));
   }
 
   return (
