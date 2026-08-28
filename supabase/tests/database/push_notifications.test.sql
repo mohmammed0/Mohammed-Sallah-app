@@ -1,5 +1,5 @@
 begin;
-select plan(64);
+select plan(66);
 
 insert into auth.users(id,email) values
   ('fa800000-0000-4000-8000-000000000001','push-customer@example.test'),
@@ -154,6 +154,21 @@ select is(
   (select payload from public.notification_outbox where channel='push' and deduplication_key='push-test-offer:push'),
   '{"schema":"sallah.push.v1","destination":"offers"}'::jsonb,
   'push payload contains only the fixed safe route envelope'
+);
+select is(
+  (select logical_notification_id from public.notification_outbox
+   where channel='push' and deduplication_key='push-test-offer:push'),
+  (select id from public.notification_outbox
+   where channel='in_app' and deduplication_key='push-test-offer'),
+  'the push row is transport for the authoritative logical notification'
+);
+select is(
+  (select count(*) from public.notification_outbox
+   where logical_notification_id=(select id from public.notification_outbox
+     where channel='in_app' and deduplication_key='push-test-offer')
+     and logical_notification_id=id),
+  1::bigint,
+  'one logical event has exactly one authoritative notification row'
 );
 select ok(
   (select payload::text !~ 'must-not-leave-database'

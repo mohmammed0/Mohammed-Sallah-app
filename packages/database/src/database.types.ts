@@ -3371,6 +3371,7 @@ export type Database = {
           last_error_category: string | null;
           lease_expires_at: string | null;
           lease_token_hash: string | null;
+          logical_notification_id: string;
           payload: Json;
           receipt_checks: number;
           status: Database['public']['Enums']['notification_status'];
@@ -3391,6 +3392,7 @@ export type Database = {
           last_error_category?: string | null;
           lease_expires_at?: string | null;
           lease_token_hash?: string | null;
+          logical_notification_id: string;
           payload: Json;
           receipt_checks?: number;
           status?: Database['public']['Enums']['notification_status'];
@@ -3411,6 +3413,7 @@ export type Database = {
           last_error_category?: string | null;
           lease_expires_at?: string | null;
           lease_token_hash?: string | null;
+          logical_notification_id?: string;
           payload?: Json;
           receipt_checks?: number;
           status?: Database['public']['Enums']['notification_status'];
@@ -3419,6 +3422,13 @@ export type Database = {
           worker_id?: string | null;
         };
         Relationships: [
+          {
+            foreignKeyName: 'notification_outbox_logical_notification_fkey';
+            columns: ['logical_notification_id'];
+            isOneToOne: false;
+            referencedRelation: 'notification_outbox';
+            referencedColumns: ['id'];
+          },
           {
             foreignKeyName: 'notification_outbox_template_id_fkey';
             columns: ['template_id'];

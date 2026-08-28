@@ -1,5 +1,5 @@
 begin;
-select plan(34);
+select plan(41);
 
 select has_table('public','customer_acceptance_evidence','completion decisions preserve authoritative evidence references');
 
@@ -119,8 +119,35 @@ select is((select count(*) from public.job_events where job_id='f1400000-0000-40
   'job event links the completion rejection and dispute');
 select is((select count(*) from public.financial_holds where job_id='f1400000-0000-4000-8000-000000000001' and status='held'),1::bigint,
   'an applicable financial hold is created');
-select is((select count(*) from public.notification_outbox where user_id='f1000000-0000-4000-8000-000000000002' and event_type='completion_rejected_dispute_opened'),1::bigint,
+select is((select count(*) from public.notification_outbox where user_id='f1000000-0000-4000-8000-000000000002' and event_type='completion_rejected_dispute_opened' and logical_notification_id=id),1::bigint,
   'provider receives one rejection notification');
+select is((select count(*) from public.notification_outbox where user_id='f1000000-0000-4000-8000-000000000002' and event_type='completion_rejected_dispute_opened' and channel='in_app'),1::bigint,
+  'the rejection has exactly one user-visible in-app row');
+select is(
+  (select logical_notification_id from public.notification_outbox
+   where user_id='f1000000-0000-4000-8000-000000000002'
+     and event_type='completion_rejected_dispute_opened' and channel='push'),
+  (select id from public.notification_outbox
+   where user_id='f1000000-0000-4000-8000-000000000002'
+     and event_type='completion_rejected_dispute_opened' and channel='in_app'),
+  'the push transport references the same logical rejection notification');
+select is(
+  (select payload from public.notification_outbox
+   where user_id='f1000000-0000-4000-8000-000000000002'
+     and event_type='completion_rejected_dispute_opened' and channel='in_app'),
+  jsonb_build_object(
+    'jobId','f1400000-0000-4000-8000-000000000001'::uuid,
+    'disputeId',(select (payload->>'disputeId')::uuid from atomic_context where key='rejection')
+  ),
+  'the logical rejection notification keeps the correct recipient-safe payload');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','f1000000-0000-4000-8000-000000000002',true);
+select is(
+  (select count(*) from public.notification_outbox
+   where event_type='completion_rejected_dispute_opened'),
+  1::bigint,
+  'the provider can read exactly one user-visible rejection notification through RLS');
+reset role;
 select is((select count(*) from public.notification_outbox where user_id in (
   'f1000000-0000-4000-8000-000000000003','f1000000-0000-4000-8000-000000000004') and event_type='operations_dispute_queue'),1::bigint,
   'only the operations queue receives an unassigned dispute');
@@ -140,6 +167,11 @@ select is(
   (select payload->>'disputeId' from atomic_context where key='rejection'),
   'same key and canonical payload replay the same dispute'
 );
+reset role;
+select is((select count(*) from public.notification_outbox where user_id='f1000000-0000-4000-8000-000000000002' and event_type='completion_rejected_dispute_opened' and logical_notification_id=id),1::bigint,
+  'an exact response-loss replay keeps one logical rejection notification');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','f1000000-0000-4000-8000-000000000001',true);
 select throws_ok(
   $$select public.accept_completion(
     'f1400000-0000-4000-8000-000000000001',false,
@@ -247,6 +279,69 @@ select throws_ok(
     'f1500000-0000-4000-8000-000000000001','Different body','{}','atomic-message-key'
   )$$,'IDEMPOTENCY_KEY_CONFLICT','core message key cannot be reused for another payload');
 reset role;
+
+insert into public.service_requests(
+  id,customer_id,category_id,city_id,title,structured_description,original_text,
+  approximate_location,exact_address_id,status,published_at,customer_approved_at
+) select 'f1200000-0000-4000-8000-000000000002','f1000000-0000-4000-8000-000000000001',cat.id,city.id,
+  'Later completion','Independent later completion fixture','Independent later completion fixture',
+  extensions.st_setsrid(extensions.st_makepoint(46.67,24.71),4326)::extensions.geography,
+  'f1100000-0000-4000-8000-000000000001','provider_selected',now(),now()
+from public.service_categories cat cross join public.cities city
+where cat.slug='general-handyman' and city.code='riyadh';
+insert into public.offers(
+  id,request_id,provider_id,total_amount_minor,materials_included,estimated_arrival_minutes,
+  estimated_duration_minutes,expires_at,idempotency_key,status
+) values(
+  'f1300000-0000-4000-8000-000000000002','f1200000-0000-4000-8000-000000000002',
+  'f1000000-0000-4000-8000-000000000002',18500,false,45,120,now()+interval '1 day',
+  'atomic-later-offer-key','selected'
+);
+insert into public.jobs(
+  id,request_id,selected_offer_id,customer_id,provider_id,exact_address_id,status,approved_total_minor,version
+) values(
+  'f1400000-0000-4000-8000-000000000002','f1200000-0000-4000-8000-000000000002',
+  'f1300000-0000-4000-8000-000000000002','f1000000-0000-4000-8000-000000000001',
+  'f1000000-0000-4000-8000-000000000002','f1100000-0000-4000-8000-000000000001',
+  'completion_submitted',18500,1
+);
+insert into public.payments(
+  job_id,customer_id,provider_id,provider_name,amount_minor,status,payment_mode,idempotency_key
+) values(
+  'f1400000-0000-4000-8000-000000000002','f1000000-0000-4000-8000-000000000001',
+  'f1000000-0000-4000-8000-000000000002','Atomic provider',18500,'offline','offline',
+  'atomic-later-payment-key'
+);
+insert into public.completion_attempts(
+  id,job_id,provider_id,attempt_number,status,idempotency_key
+) values(
+  'f1700000-0000-4000-8000-000000000002','f1400000-0000-4000-8000-000000000002',
+  'f1000000-0000-4000-8000-000000000002',1,'submitted','atomic-later-attempt-key'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub','f1000000-0000-4000-8000-000000000001',true);
+select is(
+  public.accept_completion(
+    'f1400000-0000-4000-8000-000000000002',false,
+    'A later unrelated completion has independent evidence concerns',1,'',
+    'atomic-later-rejection-key','{}'::uuid[]
+  )->>'status',
+  'disputed',
+  'a later unrelated completion rejection remains independently actionable'
+);
+reset role;
+select is((
+  select count(*)
+  from public.notification_outbox
+  where user_id='f1000000-0000-4000-8000-000000000002'
+    and event_type='completion_rejected_dispute_opened'
+    and logical_notification_id=id
+    and payload->>'jobId' in (
+      'f1400000-0000-4000-8000-000000000001',
+      'f1400000-0000-4000-8000-000000000002'
+    )
+),2::bigint,'unrelated later rejections each retain one distinct logical notification');
+
 insert into public.idempotency_keys(user_id,command,key,request_hash,status)
 values('f1000000-0000-4000-8000-000000000001','test_processing','processing-key',repeat('f',64),'processing');
 select throws_ok(

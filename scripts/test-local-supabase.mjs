@@ -705,6 +705,17 @@ async function runConcurrentIdempotencyFlow(config, owner, provider) {
   ) {
     fail('concurrent_completion_rejection_created_duplicate_disputes');
   }
+  const logicalNotificationCount = runLocalDatabaseFixture(`
+    select count(*)
+    from public.notification_outbox
+    where user_id='${provider.id}'::uuid
+      and event_type='completion_rejected_dispute_opened'
+      and payload->>'jobId'='${jobId}'
+      and logical_notification_id=id;
+  `);
+  if (logicalNotificationCount !== '1') {
+    fail('concurrent_completion_rejection_created_duplicate_logical_notifications');
+  }
   const conflict = await rpc(config, owner, 'accept_completion', {
     ...rejectionPayload,
     p_reason: 'A conflicting completion rejection payload.',
