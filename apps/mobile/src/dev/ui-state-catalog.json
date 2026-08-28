@@ -1,0 +1,178 @@
+{
+  "schemaVersion": "1.0.0",
+  "productionEnabled": false,
+  "dataPolicy": "synthetic-only",
+  "locales": ["ar", "en", "ur", "hi"],
+  "directions": ["rtl", "ltr"],
+  "devices": ["small-phone", "large-phone"],
+  "states": [
+    {
+      "id": "loading",
+      "title": "Loading",
+      "description": "Bounded initial fetch with skeleton content.",
+      "fixture": "synthetic-loading"
+    },
+    {
+      "id": "ready",
+      "title": "Ready",
+      "description": "Complete safe fixture with enabled primary action.",
+      "fixture": "synthetic-ready"
+    },
+    {
+      "id": "empty",
+      "title": "Empty",
+      "description": "No records with an explanatory next action.",
+      "fixture": "synthetic-empty"
+    },
+    {
+      "id": "error",
+      "title": "Safe error",
+      "description": "Localized categorical error without internal details.",
+      "fixture": "synthetic-error"
+    },
+    {
+      "id": "offline",
+      "title": "Offline",
+      "description": "Cached content and a connectivity banner.",
+      "fixture": "synthetic-offline"
+    },
+    {
+      "id": "retrying",
+      "title": "Retrying",
+      "description": "One bounded retry is in progress.",
+      "fixture": "synthetic-retrying"
+    },
+    {
+      "id": "validation-error",
+      "title": "Validation error",
+      "description": "Field-level safe validation feedback.",
+      "fixture": "synthetic-validation-error"
+    },
+    {
+      "id": "forbidden",
+      "title": "Forbidden",
+      "description": "Server-authoritative access denial.",
+      "fixture": "synthetic-forbidden"
+    },
+    {
+      "id": "blocked",
+      "title": "Blocked",
+      "description": "Communication unavailable through the generic trust projection.",
+      "fixture": "synthetic-blocked"
+    },
+    {
+      "id": "suspended",
+      "title": "Suspended",
+      "description": "Restricted account with support guidance.",
+      "fixture": "synthetic-suspended"
+    },
+    {
+      "id": "expired",
+      "title": "Expired",
+      "description": "Expired offer or capability with a safe next action.",
+      "fixture": "synthetic-expired"
+    },
+    {
+      "id": "conflict",
+      "title": "Conflict",
+      "description": "Version or idempotency conflict requiring refresh.",
+      "fixture": "synthetic-conflict"
+    },
+    {
+      "id": "ai-unavailable",
+      "title": "AI unavailable",
+      "description": "Original input retained; live-provider success is not fabricated.",
+      "fixture": "synthetic-ai-unavailable"
+    },
+    {
+      "id": "scanner-pending",
+      "title": "Scanner pending",
+      "description": "Private media remains quarantined while scanning.",
+      "fixture": "synthetic-scanner-pending"
+    },
+    {
+      "id": "upload-rejected",
+      "title": "Upload rejected",
+      "description": "Unsupported or unsafe media with no promotion.",
+      "fixture": "synthetic-upload-rejected"
+    },
+    {
+      "id": "notification-disabled",
+      "title": "Notifications disabled",
+      "description": "Permission guidance without blocking the product.",
+      "fixture": "synthetic-notification-disabled"
+    },
+    {
+      "id": "location-denied",
+      "title": "Location denied",
+      "description": "Manual pin remains available without background access.",
+      "fixture": "synthetic-location-denied"
+    },
+    {
+      "id": "long-text",
+      "title": "Long text",
+      "description": "Bounded multilingual content wrapping without truncating critical actions.",
+      "fixture": "synthetic-long-text"
+    },
+    {
+      "id": "missing-media",
+      "title": "Missing media",
+      "description": "Protected attachment unavailable with a safe retry.",
+      "fixture": "synthetic-missing-media"
+    },
+    {
+      "id": "slow-network",
+      "title": "Slow network",
+      "description": "Delayed response with cancellation-safe loading.",
+      "fixture": "synthetic-slow-network"
+    },
+    {
+      "id": "keyboard-open",
+      "title": "Keyboard open",
+      "description": "Input and primary action remain visible.",
+      "fixture": "synthetic-keyboard-open"
+    },
+    {
+      "id": "large-text",
+      "title": "Large text",
+      "description": "Scaled typography with resilient controls.",
+      "fixture": "synthetic-large-text"
+    },
+    {
+      "id": "arabic-rtl",
+      "title": "Arabic RTL",
+      "description": "Arabic source-language layout and logical mirroring.",
+      "fixture": "synthetic-ar-rtl"
+    },
+    {
+      "id": "english-ltr",
+      "title": "English LTR",
+      "description": "English left-to-right layout.",
+      "fixture": "synthetic-en-ltr"
+    },
+    {
+      "id": "urdu-rtl",
+      "title": "Urdu RTL",
+      "description": "Urdu right-to-left layout.",
+      "fixture": "synthetic-ur-rtl"
+    },
+    {
+      "id": "hindi-ltr",
+      "title": "Hindi LTR",
+      "description": "Hindi left-to-right layout.",
+      "fixture": "synthetic-hi-ltr"
+    },
+    {
+      "id": "small-phone",
+      "title": "Small phone",
+      "description": "Narrow portrait viewport with reachable actions.",
+      "fixture": "synthetic-small-phone"
+    },
+    {
+      "id": "large-phone",
+      "title": "Large phone",
+      "description": "Large portrait viewport without excessive stretching.",
+      "fixture": "synthetic-large-phone"
+    }
+  ]
+}
