@@ -25,12 +25,12 @@ Deno.test('OpenAI retry policy retries only timeout, 429, and 5xx within two tot
   ) {
     let calls = 0;
     const result = await callOpenAi(
-      async (options) => {
+      (options) => {
         assert(options.maxRetries === 0, 'SDK retries must be disabled');
         assert(options.timeout > 0 && options.timeout <= 1_000, 'attempt timeout must be bounded');
         calls += 1;
         if (calls === 1) throw error;
-        return 'ok';
+        return Promise.resolve('ok');
       },
       { operation: 'diagnostic', deadlineMs: 1_000, retryDelayMs: 0 },
     );

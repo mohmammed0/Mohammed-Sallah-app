@@ -166,6 +166,10 @@ vi.mock('@/components/ui', () => ({
   Screen: 'Screen',
   styles: { badge: {}, error: {}, input: {}, lead: {}, row: {}, title: {} },
 }));
+vi.mock('@/design-system/customer-components', () => ({
+  ProgressTimeline: 'ProgressTimeline',
+  resolveTimelineIndex: () => 0,
+}));
 vi.mock('@/providers/locale-provider', () => ({
   useLocale: () => ({
     locale: 'en',
