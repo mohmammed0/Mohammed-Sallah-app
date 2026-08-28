@@ -1,0 +1,128 @@
+{
+  "schemaVersion": "1.0.0",
+  "repository": "mohmammed0/Mohammed-Sallah-app",
+  "canonicalBranch": "codex/repository-finalization-multitool-handoff-v1",
+  "exactSha": "git:HEAD",
+  "exactShaCommand": "git rev-parse HEAD",
+  "generatedAt": "2026-08-27T22:10:00-05:00",
+  "draftPr": {
+    "status": "draft-after-publication",
+    "base": "codex/closed-beta-final-v1",
+    "head": "codex/repository-finalization-multitool-handoff-v1",
+    "numberCommand": "gh pr view codex/repository-finalization-multitool-handoff-v1 --json number,url"
+  },
+  "versions": {
+    "node": "24.19.0",
+    "pnpm": "11.19.0",
+    "supabaseCli": "2.114.0",
+    "deno": "2.9.5",
+    "expo": "57.0.17",
+    "reactNative": "0.86.3",
+    "next": "16.3.1"
+  },
+  "apps": ["apps/mobile", "apps/web", "services/media-scanner"],
+  "packages": [
+    "packages/api",
+    "packages/config",
+    "packages/database",
+    "packages/domain",
+    "packages/i18n",
+    "packages/image-size-safe",
+    "packages/observability",
+    "packages/typescript-config"
+  ],
+  "routes": [
+    "/(customer)/customer-home",
+    "/(customer)/customer-requests",
+    "/(customer)/customer-messages",
+    "/(customer)/customer-account",
+    "/(provider)/provider-home",
+    "/(provider)/provider-feed",
+    "/(provider)/provider-jobs",
+    "/(provider)/provider-messages",
+    "/(provider)/provider-account",
+    "/request/new",
+    "/jobs",
+    "/offers",
+    "/messages",
+    "/support",
+    "/admin",
+    "/admin/providers",
+    "/admin/moderation",
+    "/admin/support"
+  ],
+  "roles": [
+    "customer",
+    "provider",
+    "operations_admin",
+    "verification_reviewer",
+    "support_agent",
+    "finance_reviewer",
+    "privacy_reviewer",
+    "analyst",
+    "super_admin"
+  ],
+  "ciResults": [
+    { "source": "parent", "pushRun": 33062076893, "status": "failed-known-defects-remediated" },
+    {
+      "source": "parent",
+      "pullRequestRun": 33062080697,
+      "status": "failed-known-defects-remediated"
+    },
+    { "source": "git:HEAD", "status": "resolve-after-publication" }
+  ],
+  "validationCounts": [
+    { "gate": "completion-idempotency", "passed": 41 },
+    { "gate": "push", "passed": 66 },
+    { "gate": "mobile-trust", "passed": 49 },
+    { "gate": "mobile-route-ui", "passed": 28 },
+    { "gate": "ui-handoff-policies", "passed": 9 },
+    { "gate": "database-files", "passed": 33 },
+    { "gate": "edge-deno", "passed": 134 },
+    { "gate": "edge-memory", "passed": 8 },
+    { "gate": "web-playwright", "passed": 10, "skipped": 4 },
+    { "gate": "load-smoke-checks", "passed": 200 },
+    { "gate": "expo-doctor", "passed": 21 }
+  ],
+  "validationIdentities": {
+    "codexSecurityScanId": "sallah-finalization-diff-20260828T040000Z",
+    "codexSecurityRepositoryScanId": "sallah-final-repository-security-20260828T040500Z",
+    "migrationSetSha256": "99c924443da56f5d7fca1fa60ed575ffefebf103a58b4e61986b88572678309d",
+    "databaseTypesSha256": "9572a6ca5bd15d2c25003a791a389a98c6db870d1a1a7f455146883045fff5a7",
+    "lockfileSha256": "ad13ed60948d0d4abe37cbfd52cca9384e05a232f974c491499e96c74f670db5",
+    "repositorySbomSha256": "df8f5fc563274f6b7ec100a15f54232c9a8e34262156117f8178bc36d089eb12",
+    "containerSbomSha256": "5cb35ac47181f5277908eec79d2a573eb311e0f94c244ccaf7a8013e046efd5d",
+    "scannerImage": "sha256:e78971f29baeb6f9405239d9e05563bc547813bc04470c9aceeec08e9c967330"
+  },
+  "externalGates": [
+    "production:not-run",
+    "stores:not-run",
+    "physical-device:not-run",
+    "ios-signing:human-input-required",
+    "legal-privacy:human-input-required"
+  ],
+  "allowedUiPaths": [
+    "apps/mobile/src/components/**",
+    "apps/mobile/src/design-system/**",
+    "apps/mobile/src/features/**/presentation-only",
+    "apps/web/src/components/**",
+    "packages/i18n/**",
+    "docs/design/**"
+  ],
+  "deniedPaths": [
+    "supabase/migrations/**",
+    "supabase/functions/**",
+    "supabase/tests/database/**",
+    "services/media-scanner/**",
+    "packages/domain/**",
+    "packages/database/**",
+    ".github/**"
+  ],
+  "firstFilesByTool": [
+    "Codex:AGENTS.md",
+    "Claude:CLAUDE.md",
+    "Figma:docs/handoff/FIGMA_HANDOFF.md",
+    "Canva:docs/handoff/CANVA_HANDOFF.md",
+    "Notion-Linear:docs/handoff/NOTION_LINEAR_HANDOFF.md"
+  ]
+}
