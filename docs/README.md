@@ -20,6 +20,7 @@ status, and audience.
 | [المساهمة](../CONTRIBUTING.md)                       | بوابة ثنائية اللغة لقواعد المساهمة    | CURRENT SOURCE OF TRUTH     | المساهمون          |
 | [الأمن](../SECURITY.md)                              | بوابة الإبلاغ والسياسة الأمنية        | CURRENT SOURCE OF TRUTH     | الجميع             |
 | [عقد هندسة المستودع](../AGENTS.md)                   | قواعد معمارية وأمنية ملزمة للوكلاء    | CURRENT SOURCE OF TRUTH     | المطورون والوكلاء  |
+| [عقد Claude Code](../CLAUDE.md)                      | حدود تنفيذ الواجهة للأداة التالية     | CURRENT SOURCE OF TRUTH     | Claude والمراجعون  |
 | [إشعارات الجهات الخارجية](../THIRD_PARTY_NOTICES.md) | تراخيص وإشعارات التبعيات              | CURRENT SUPPORTING DOCUMENT | القانون والمساهمون |
 
 ## الحالة والبداية | Status and onboarding
@@ -106,23 +107,68 @@ status, and audience.
 
 ## OSS والتصميم والأدلة | OSS, design, and evidence
 
-| المستند                                                                                            | الوصف العربي                                     | الحالة                      | الجمهور          |
-| -------------------------------------------------------------------------------------------------- | ------------------------------------------------ | --------------------------- | ---------------- |
-| [OSS evaluation](oss/OSS_EVALUATION.md)                                                            | قرارات قبول ورفض المصادر المفتوحة                | CURRENT SUPPORTING DOCUMENT | الهندسة والقانون |
-| [OSS inventory](oss/OSS_INVENTORY.md)                                                              | طريقة قراءة السجل المولد                         | CURRENT SUPPORTING DOCUMENT | الهندسة والقانون |
-| [مراجعة مراجع الواجهة](design/UI_REFERENCE_AUDIT.md)                                               | المصادر المقبولة والمرفوضة وحدود إعادة الاستخدام | CURRENT SUPPORTING DOCUMENT | التصميم والقانون |
-| [تدقيق خط الأساس](design/UI_BASELINE_AUDIT.md)                                                     | عيوب تجربة Preview قبل التحسين                   | CURRENT SUPPORTING DOCUMENT | التصميم والمنتج  |
-| [نظام تصميم صلح](design/SALLAH_DESIGN_SYSTEM.md)                                                   | اتجاه Saudi Premium Service Marketplace          | CURRENT SOURCE OF TRUTH     | التصميم والهندسة |
-| [خطة النسخة المهنية](superpowers/plans/2026-08-26-closed-beta-professional-ui.md)                  | تنفيذ الواجهات والخدمات والتحقق المركّز          | CURRENT SUPPORTING DOCUMENT | الهندسة والإصدار |
-| [M1 design](superpowers/specs/2026-08-20-marketplace-trust-ugc-safety-design.md)                   | تصميم الثقة وسلامة المحتوى المعتمد               | CURRENT SUPPORTING DOCUMENT | الأمن والهندسة   |
-| [M1 implementation plan](superpowers/plans/2026-08-20-marketplace-trust-ugc-safety.md)             | خطة تنفيذ M1 وأدلة المهام                        | CURRENT SUPPORTING DOCUMENT | الأمن والهندسة   |
-| [R1 implementation plan](superpowers/plans/2026-08-21-repository-bilingual-organization.md)        | خطة هذا التنظيم وحدود عدم تغيير المنتج           | CURRENT SUPPORTING DOCUMENT | المراجعون        |
-| [M2V architecture design](superpowers/specs/2026-08-21-media-scanning-v2-architecture-design.md)   | تصميم بنية الفحص غير المتزامنة المعتمد           | CURRENT SOURCE OF TRUTH     | الأمن والهندسة   |
-| [M2V remediation plan](superpowers/plans/2026-08-21-media-scanning-v2-remediation.md)              | خطة تنفيذ M2V والتحقق المحلي                     | CURRENT SUPPORTING DOCUMENT | الأمن والهندسة   |
-| [M2R focused remediation plan](superpowers/plans/2026-08-24-media-scanning-focused-remediation.md) | خطة معالجة نتائج M2C-R2 المحددة                  | CURRENT SUPPORTING DOCUMENT | الأمن والهندسة   |
-| [Media-scanner boundary map](security/MEDIA_SCANNER_TEST_BOUNDARY_MAP.md)                          | ربط حدود M2B القديمة باختبارات M2R               | CURRENT SUPPORTING DOCUMENT | الأمن والمراجعون |
-| [Superseded M2B design](superpowers/specs/2026-08-21-media-scanning-beta-design.md)                | دليل تاريخي للبنية المستبدلة؛ لا يُنفذ           | SUPERSEDED DESIGN EVIDENCE  | المراجعون        |
-| [Superseded M2B plan](superpowers/plans/2026-08-21-media-scanning-beta.md)                         | خطة مستبدلة محفوظة للتتبع                        | SUPERSEDED PLAN EVIDENCE    | المراجعون        |
+| المستند                                                                                                 | الوصف العربي                                     | الحالة                      | الجمهور          |
+| ------------------------------------------------------------------------------------------------------- | ------------------------------------------------ | --------------------------- | ---------------- |
+| [OSS evaluation](oss/OSS_EVALUATION.md)                                                                 | قرارات قبول ورفض المصادر المفتوحة                | CURRENT SUPPORTING DOCUMENT | الهندسة والقانون |
+| [OSS inventory](oss/OSS_INVENTORY.md)                                                                   | طريقة قراءة السجل المولد                         | CURRENT SUPPORTING DOCUMENT | الهندسة والقانون |
+| [مراجعة مراجع الواجهة](design/UI_REFERENCE_AUDIT.md)                                                    | المصادر المقبولة والمرفوضة وحدود إعادة الاستخدام | CURRENT SUPPORTING DOCUMENT | التصميم والقانون |
+| [تدقيق خط الأساس](design/UI_BASELINE_AUDIT.md)                                                          | عيوب تجربة Preview قبل التحسين                   | CURRENT SUPPORTING DOCUMENT | التصميم والمنتج  |
+| [نظام تصميم صلح](design/SALLAH_DESIGN_SYSTEM.md)                                                        | اتجاه Saudi Premium Service Marketplace          | CURRENT SOURCE OF TRUTH     | التصميم والهندسة |
+| [خطة النسخة المهنية](superpowers/plans/2026-08-26-closed-beta-professional-ui.md)                       | تنفيذ الواجهات والخدمات والتحقق المركّز          | CURRENT SUPPORTING DOCUMENT | الهندسة والإصدار |
+| [M1 design](superpowers/specs/2026-08-20-marketplace-trust-ugc-safety-design.md)                        | تصميم الثقة وسلامة المحتوى المعتمد               | CURRENT SUPPORTING DOCUMENT | الأمن والهندسة   |
+| [M1 implementation plan](superpowers/plans/2026-08-20-marketplace-trust-ugc-safety.md)                  | خطة تنفيذ M1 وأدلة المهام                        | CURRENT SUPPORTING DOCUMENT | الأمن والهندسة   |
+| [R1 implementation plan](superpowers/plans/2026-08-21-repository-bilingual-organization.md)             | خطة هذا التنظيم وحدود عدم تغيير المنتج           | CURRENT SUPPORTING DOCUMENT | المراجعون        |
+| [M2V architecture design](superpowers/specs/2026-08-21-media-scanning-v2-architecture-design.md)        | تصميم بنية الفحص غير المتزامنة المعتمد           | CURRENT SOURCE OF TRUTH     | الأمن والهندسة   |
+| [M2V remediation plan](superpowers/plans/2026-08-21-media-scanning-v2-remediation.md)                   | خطة تنفيذ M2V والتحقق المحلي                     | CURRENT SUPPORTING DOCUMENT | الأمن والهندسة   |
+| [M2R focused remediation plan](superpowers/plans/2026-08-24-media-scanning-focused-remediation.md)      | خطة معالجة نتائج M2C-R2 المحددة                  | CURRENT SUPPORTING DOCUMENT | الأمن والهندسة   |
+| [Finalization design](superpowers/specs/2026-08-27-repository-finalization-multitool-handoff-design.md) | تصميم الإغلاق وحزمة التسليم متعددة الأدوات       | CURRENT SOURCE OF TRUTH     | الهندسة والإصدار |
+| [Finalization plan](superpowers/plans/2026-08-27-repository-finalization-multitool-handoff.md)          | خطة التنفيذ والتحقق والنشر المرجعي               | CURRENT SOURCE OF TRUTH     | الهندسة والإصدار |
+| [Media-scanner boundary map](security/MEDIA_SCANNER_TEST_BOUNDARY_MAP.md)                               | ربط حدود M2B القديمة باختبارات M2R               | CURRENT SUPPORTING DOCUMENT | الأمن والمراجعون |
+| [Superseded M2B design](superpowers/specs/2026-08-21-media-scanning-beta-design.md)                     | دليل تاريخي للبنية المستبدلة؛ لا يُنفذ           | SUPERSEDED DESIGN EVIDENCE  | المراجعون        |
+| [Superseded M2B plan](superpowers/plans/2026-08-21-media-scanning-beta.md)                              | خطة مستبدلة محفوظة للتتبع                        | SUPERSEDED PLAN EVIDENCE    | المراجعون        |
+
+## التسليم متعدد الأدوات | Multi-tool handoff
+
+ابدأ من [بوابة التسليم](handoff/README.md). الملفات التالية هي العقود الحالية
+للتسليم الهندسي والتصميم والتنفيذ، وليست إعلان Production أو Store readiness:
+
+- [Codex starting baseline](handoff/CODEX_STARTING_BASELINE.md)
+- [Current state](handoff/CURRENT_STATE.md)
+- [Repository map](handoff/REPOSITORY_MAP.md)
+- [Product scope](handoff/PRODUCT_SCOPE.md)
+- [Architecture summary](handoff/ARCHITECTURE_SUMMARY.md)
+- [User roles](handoff/USER_ROLES.md)
+- [User journeys](handoff/USER_JOURNEYS.md)
+- [Screen inventory](handoff/SCREEN_INVENTORY.md)
+- [Route catalog](handoff/ROUTE_CATALOG.md)
+- [UI state matrix](handoff/UI_STATE_MATRIX.md)
+- [API contracts](handoff/API_CONTRACTS.md)
+- [View-model catalog](handoff/VIEW_MODEL_CATALOG.md)
+- [Domain invariants](handoff/DOMAIN_INVARIANTS.md)
+- [Security boundaries](handoff/SECURITY_BOUNDARIES.md)
+- [Privacy boundaries](handoff/PRIVACY_BOUNDARIES.md)
+- [Accessibility and i18n](handoff/ACCESSIBILITY_AND_I18N.md)
+- [Design-token contract](handoff/DESIGN_TOKEN_CONTRACT.md)
+- [Asset and license rules](handoff/ASSET_AND_LICENSE_RULES.md)
+- [Mock and fixture guide](handoff/MOCK_AND_FIXTURE_GUIDE.md)
+- [Tool ownership matrix](handoff/TOOL_OWNERSHIP_MATRIX.md)
+- [Multi-tool backlog](handoff/MULTI_TOOL_BACKLOG.md)
+- [Claude Code handoff](handoff/CLAUDE_CODE_HANDOFF.md)
+- [Claude start prompt](handoff/CLAUDE_START_PROMPT.md)
+- [Figma handoff](handoff/FIGMA_HANDOFF.md)
+- [Figma screen brief](handoff/FIGMA_SCREEN_BRIEF.md)
+- [Canva handoff](handoff/CANVA_HANDOFF.md)
+- [Notion/Linear handoff](handoff/NOTION_LINEAR_HANDOFF.md)
+- [UI allowlist](handoff/UI_ALLOWLIST.md)
+- [UI denylist](handoff/UI_DENYLIST.md)
+- [UI contract change process](handoff/UI_CONTRACT_CHANGE_PROCESS.md)
+- [External gates](handoff/EXTERNAL_GATES.md)
+- [Human inputs remaining](handoff/HUMAN_INPUTS_REMAINING.md)
+- [Known limitations](handoff/KNOWN_LIMITATIONS.md)
+- [Validation evidence](handoff/VALIDATION_EVIDENCE.md)
+- [Handoff checklist](handoff/HANDOFF_CHECKLIST.md)
+- [Git ancestry and PR chain](handoff/GIT_ANCESTRY_AND_PR_CHAIN.md)
+- [Machine-readable manifest](handoff/handoff-manifest.json)
 
 ## أدلة تاريخية | Historical evidence
 

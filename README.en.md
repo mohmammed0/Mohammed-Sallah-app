@@ -16,11 +16,12 @@ description, but it does not approve a provider, publish a request, or execute a
 
 The repository is preparing for a **controlled closed beta**, not a public or production launch:
 
-- M1 — Marketplace Trust and UGC Safety: **complete and frozen** at
-  `46e8c8cd5bc85dcbd24efad50ab0d22cd39eb31b`.
-- M2 — Production-quality media scanning: **architecture selected; implementation not started**.
-- Physical-device evidence, store accounts, legal approvals, public support identity, and real
-  service credentials remain separate human gates.
+- The stacked Draft PR chain contains trust, media scanning, AI, Preview Push/Maps configuration,
+  customer/provider/admin journeys, and a runnable beta reference UI.
+- Supabase Preview, Storage, the outbound scanner, and OpenAI canaries are active according to
+  current beta evidence; Production has not been touched.
+- The repository is being consolidated into one engineering handoff branch. Physical devices,
+  iOS, Production, legal, formal backup/alerts, and stores remain separate external gates.
 
 See [closed-beta status](docs/status/CLOSED_BETA.md) and
 [Master Tracker #23](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/23) for the current
@@ -84,11 +85,12 @@ device with the app installed. See the [testing guide](docs/TESTING.md) for resu
 - Beta branch: closed-beta integration.
 - Milestone child branches: bounded work based on an approved beta head.
 
-This organization change does not merge a branch, deploy an application, or start M2.
+This finalization does not merge a branch or deploy Production or stores.
 
 ## Key links
 
 - [Documentation map](docs/README.md)
+- [Multi-tool handoff](docs/handoff/README.md)
 - [Arabic project overview](docs/ar/PROJECT_OVERVIEW.md)
 - [Closed-beta status](docs/status/CLOSED_BETA.md)
 - [Required human inputs](docs/HUMAN_INPUTS.md)
