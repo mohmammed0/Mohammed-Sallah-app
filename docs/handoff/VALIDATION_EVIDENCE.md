@@ -33,9 +33,9 @@ must be refreshed after final bytes stabilize and hosted workflow URLs are known
 - Repository SBOM SHA-256:
   `df8f5fc563274f6b7ec100a15f54232c9a8e34262156117f8178bc36d089eb12`.
 - Scanner container SBOM SHA-256:
-  `5cb35ac47181f5277908eec79d2a573eb311e0f94c244ccaf7a8013e046efd5d`.
+  `7e2763232b1ba661920fe089a6bd512d487a89cb528b58f18e55ab1d53390dc7`.
 - Scanner image identity:
-  `sha256:e78971f29baeb6f9405239d9e05563bc547813bc04470c9aceeec08e9c967330`.
+  `sha256:55de78aa53c9c75e4bb7b2caedb1815786a473a76fd07f2807636f1140d85b55`.
 - Migration-set SHA-256: `99c924443da56f5d7fca1fa60ed575ffefebf103a58b4e61986b88572678309d`.
 - Generated database types SHA-256:
   `9572a6ca5bd15d2c25003a791a389a98c6db870d1a1a7f455146883045fff5a7`.
@@ -57,6 +57,11 @@ must be refreshed after final bytes stabilize and hosted workflow URLs are known
 - Codex Security final exact-byte diff scan:
   `sallah-finalization-exact-bytes-20260828T041500Z`; complete final-branch
   coverage after the last documentation formatting normalization, P0/P1/P2/P3 =
+  0/0/0/0 with no deferred security coverage.
+- Codex Security hosted-remediation diff scan:
+  `sallah-finalization-hosted-remediation-20260828T041848Z`; complete focused
+  review of the capability upload-stream lifecycle and regression, supported by
+  the preceding complete repository and exact-byte scans. P0/P1/P2/P3 =
   0/0/0/0 with no deferred security coverage.
 
 ## Environment-specific limitation

@@ -168,8 +168,15 @@ describe('exact signed Storage capabilities', () => {
         expectedSize: 1,
         expectedSha256: '4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a',
         contentType: 'image/png',
-        fetchImpl: () => Promise.resolve(new Response(null, { status: 307 })),
+        fetchImpl: (_url, init) => {
+          expect((init?.body as unknown as { pending: boolean }).pending).toBe(false);
+          return Promise.resolve(new Response(null, { status: 307 }));
+        },
       }),
     ).rejects.toThrowError('capability_redirect_forbidden');
+
+    await rm(directory, { recursive: true, force: true });
+    temporary.splice(temporary.indexOf(directory), 1);
+    await new Promise<void>((resolve) => setImmediate(resolve));
   });
 });

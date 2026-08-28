@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { once } from 'node:events';
 import { createReadStream } from 'node:fs';
 import { open, stat, unlink } from 'node:fs/promises';
 
@@ -200,6 +201,7 @@ export async function uploadCapability(options: UploadCapabilityOptions): Promis
   }
   const body = createReadStream(options.sourcePath);
   try {
+    await once(body, 'open');
     const init: RequestInit & { duplex: 'half' } = {
       method: 'PUT',
       redirect: 'manual',
@@ -214,6 +216,8 @@ export async function uploadCapability(options: UploadCapabilityOptions): Promis
     const response = await (options.fetchImpl ?? fetch)(options.url, init);
     assertHttpSuccess(response);
   } finally {
+    const closed = body.closed ? undefined : once(body, 'close').catch(() => undefined);
     body.destroy();
+    await closed;
   }
 }

@@ -88,12 +88,13 @@
     "codexSecurityScanId": "sallah-finalization-diff-20260828T040000Z",
     "codexSecurityRepositoryScanId": "sallah-final-repository-security-20260828T040500Z",
     "codexSecurityExactBytesScanId": "sallah-finalization-exact-bytes-20260828T041500Z",
+    "codexSecurityHostedRemediationScanId": "sallah-finalization-hosted-remediation-20260828T041848Z",
     "migrationSetSha256": "99c924443da56f5d7fca1fa60ed575ffefebf103a58b4e61986b88572678309d",
     "databaseTypesSha256": "9572a6ca5bd15d2c25003a791a389a98c6db870d1a1a7f455146883045fff5a7",
     "lockfileSha256": "ad13ed60948d0d4abe37cbfd52cca9384e05a232f974c491499e96c74f670db5",
     "repositorySbomSha256": "df8f5fc563274f6b7ec100a15f54232c9a8e34262156117f8178bc36d089eb12",
-    "containerSbomSha256": "5cb35ac47181f5277908eec79d2a573eb311e0f94c244ccaf7a8013e046efd5d",
-    "scannerImage": "sha256:e78971f29baeb6f9405239d9e05563bc547813bc04470c9aceeec08e9c967330"
+    "containerSbomSha256": "7e2763232b1ba661920fe089a6bd512d487a89cb528b58f18e55ab1d53390dc7",
+    "scannerImage": "sha256:55de78aa53c9c75e4bb7b2caedb1815786a473a76fd07f2807636f1140d85b55"
   },
   "externalGates": [
     "production:not-run",
