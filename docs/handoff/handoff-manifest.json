@@ -87,6 +87,7 @@
   "validationIdentities": {
     "codexSecurityScanId": "sallah-finalization-diff-20260828T040000Z",
     "codexSecurityRepositoryScanId": "sallah-final-repository-security-20260828T040500Z",
+    "codexSecurityExactBytesScanId": "sallah-finalization-exact-bytes-20260828T041500Z",
     "migrationSetSha256": "99c924443da56f5d7fca1fa60ed575ffefebf103a58b4e61986b88572678309d",
     "databaseTypesSha256": "9572a6ca5bd15d2c25003a791a389a98c6db870d1a1a7f455146883045fff5a7",
     "lockfileSha256": "ad13ed60948d0d4abe37cbfd52cca9384e05a232f974c491499e96c74f670db5",

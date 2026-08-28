@@ -54,6 +54,10 @@ must be refreshed after final bytes stabilize and hosted workflow URLs are known
   privacy, marketplace trust, privacy/export/deletion, OpenAI and prompt
   injection, mobile/client secrets, logs, dependencies, licenses, and SBOM
   evidence. P0/P1/P2/P3 = 0/0/0/0 with no deferred security-critical coverage.
+- Codex Security final exact-byte diff scan:
+  `sallah-finalization-exact-bytes-20260828T041500Z`; complete final-branch
+  coverage after the last documentation formatting normalization, P0/P1/P2/P3 =
+  0/0/0/0 with no deferred security coverage.
 
 ## Environment-specific limitation
 

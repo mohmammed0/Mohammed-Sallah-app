@@ -1,6 +1,6 @@
 # Repository finalization and multi-tool handoff design
 
-Date: 2026-08-27  
+Date: 2026-08-27
 Status: approved by the user's finalization brief
 
 ## Objective
