@@ -24,23 +24,23 @@ must be refreshed after final bytes stabilize and hosted workflow URLs are known
   typecheck, workspace tests, mobile/web production builds, and Android export.
 - Web Playwright: 10 PASS and 4 intentional mobile-project admin skips; Chromium
   exercises the authoritative administration flows.
-- Load smoke: 200/200 checks PASS with zero failed requests and p95 5.11 ms.
+- Load smoke: 200/200 checks PASS with zero failed requests and p95 4.41 ms.
 - Expo Doctor: 21/21 PASS with explicit local environment selection.
 - Production configuration: correctly FAILS CLOSED when required Production
   values are absent.
 - Licenses, high-severity dependency audit, and repository secret helper: PASS;
   no known high-severity dependency vulnerability and no repository secret hit.
 - Repository SBOM SHA-256:
-  `df8f5fc563274f6b7ec100a15f54232c9a8e34262156117f8178bc36d089eb12`.
+  `ec0d26323c975bc3ae0cff2bb450d98fe9f753bd6bfc4f2f77da5a2d669b16a9`.
 - Scanner container SBOM SHA-256:
-  `7e2763232b1ba661920fe089a6bd512d487a89cb528b58f18e55ab1d53390dc7`.
+  `38abd07483bacd53eb466c2dde94e470894fecae1f26ec5a2b5af96c930b97d6`.
 - Scanner image identity:
-  `sha256:55de78aa53c9c75e4bb7b2caedb1815786a473a76fd07f2807636f1140d85b55`.
+  `sha256:06b4737c25ed15f9f178adec160a87e0bb115eacaba6b6f191b34bc214467b5c`.
 - Migration-set SHA-256: `99c924443da56f5d7fca1fa60ed575ffefebf103a58b4e61986b88572678309d`.
 - Generated database types SHA-256:
   `9572a6ca5bd15d2c25003a791a389a98c6db870d1a1a7f455146883045fff5a7`.
 - Lockfile SHA-256: `ad13ed60948d0d4abe37cbfd52cca9384e05a232f974c491499e96c74f670db5`.
-- Handoff policy: 3/3 PASS.
+- Handoff policy: 5/5 PASS.
 - UI boundary policy: 3/3 PASS and repository scan PASS.
 - UI catalog policy: 3/3 PASS; 28 synthetic states validated.
 - Codex Security final diff scan:
@@ -63,6 +63,11 @@ must be refreshed after final bytes stabilize and hosted workflow URLs are known
   review of the capability upload-stream lifecycle and regression, supported by
   the preceding complete repository and exact-byte scans. P0/P1/P2/P3 =
   0/0/0/0 with no deferred security coverage.
+- Codex Security main-finalization diff scan:
+  `sallah-main-finalization-final-diff-20260828T073900Z`; complete 16-file review of
+  the canonical-`main` policy, final integration contract, validation identity,
+  and external release-gate ledger. The canonical artifacts are sealed and the
+  SARIF projection validates; P0/P1/P2/P3 = 0/0/0/0 with no deferred coverage.
 
 ## Environment-specific limitation
 

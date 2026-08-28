@@ -3,13 +3,16 @@ import test from 'node:test';
 import { validateHandoffManifest } from './handoff-policy.mjs';
 
 const completeManifest = () => ({
-  schemaVersion: '1.0.0',
+  schemaVersion: '1.1.0',
   repository: 'mohmammed0/Mohammed-Sallah-app',
-  canonicalBranch: 'codex/repository-finalization-multitool-handoff-v1',
+  canonicalBranch: 'main',
   exactSha: 'git:HEAD',
   exactShaCommand: 'git rev-parse HEAD',
+  sourceCommit: 'git:HEAD',
+  finalMainSha: 'reported-externally-after-merge',
+  releaseTag: 'sallah-multitool-handoff-v1',
   generatedAt: '2026-08-27T00:00:00.000Z',
-  draftPr: { status: 'draft' },
+  finalIntegrationPr: { number: 33, base: 'main', status: 'final-integration-gate' },
   versions: { node: '24.19.0' },
   apps: ['mobile'],
   packages: ['domain'],
@@ -25,6 +28,18 @@ const completeManifest = () => ({
 
 test('accepts a complete non-stale handoff manifest', () => {
   assert.deepEqual(validateHandoffManifest(completeManifest()), []);
+});
+
+test('rejects a parallel handoff branch after main becomes canonical', () => {
+  const manifest = completeManifest();
+  manifest.canonicalBranch = 'codex/repository-finalization-multitool-handoff-v1';
+  assert.match(validateHandoffManifest(manifest).join('\n'), /canonicalBranch must be main/u);
+});
+
+test('rejects a manifest that omits the immutable release tag contract', () => {
+  const manifest = completeManifest();
+  delete manifest.releaseTag;
+  assert.match(validateHandoffManifest(manifest).join('\n'), /releaseTag/u);
 });
 
 test('rejects a literal SHA because a tracked manifest cannot self-reference its commit', () => {

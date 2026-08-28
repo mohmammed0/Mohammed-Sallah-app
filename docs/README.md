@@ -88,6 +88,7 @@ status, and audience.
 | [EAS Preview bootstrap](release/EAS_PREVIEW_BOOTSTRAP.md)                 | إعداد Preview بلا ادعاء إنتاج      | CURRENT SUPPORTING DOCUMENT | الإصدار          |
 | [Android startup recovery](release/ANDROID_STARTUP_RECOVERY.md)           | تعافي جلسة بدء Android             | CURRENT SUPPORTING DOCUMENT | الجوال           |
 | [Customer device scenarios](release/CUSTOMER_DEVICE_SCENARIOS.md)         | بوابات تجربة العميل الفعلية        | CURRENT SOURCE OF TRUTH     | QA والجوال       |
+| [External release gates](release/EXTERNAL_RELEASE_GATES.md)               | سجل البوابات الخارجية غير المنفذة  | CURRENT SOURCE OF TRUTH     | الإصدار والملاك  |
 | [Store release checklist](store/RELEASE_CHECKLIST.md)                     | بوابات المتاجر والموافقات          | CURRENT SOURCE OF TRUTH     | الإصدار          |
 | [Review accounts](store/REVIEW_ACCOUNTS.md)                               | متطلبات حسابات المراجعة الحقيقية   | CURRENT SUPPORTING DOCUMENT | الإصدار          |
 | [Screenshot plan](store/SCREENSHOT_PLAN.md)                               | خطة لقطات المتجر والجهاز           | CURRENT SUPPORTING DOCUMENT | التصميم والإصدار |
@@ -123,6 +124,7 @@ status, and audience.
 | [M2R focused remediation plan](superpowers/plans/2026-08-24-media-scanning-focused-remediation.md)      | خطة معالجة نتائج M2C-R2 المحددة                  | CURRENT SUPPORTING DOCUMENT | الأمن والهندسة   |
 | [Finalization design](superpowers/specs/2026-08-27-repository-finalization-multitool-handoff-design.md) | تصميم الإغلاق وحزمة التسليم متعددة الأدوات       | CURRENT SOURCE OF TRUTH     | الهندسة والإصدار |
 | [Finalization plan](superpowers/plans/2026-08-27-repository-finalization-multitool-handoff.md)          | خطة التنفيذ والتحقق والنشر المرجعي               | CURRENT SOURCE OF TRUTH     | الهندسة والإصدار |
+| [Main finalization plan](superpowers/plans/2026-08-28-main-finalization.md)                             | دمج المرجع النهائي في main وإغلاق GitHub         | CURRENT SOURCE OF TRUTH     | الهندسة والإصدار |
 | [Media-scanner boundary map](security/MEDIA_SCANNER_TEST_BOUNDARY_MAP.md)                               | ربط حدود M2B القديمة باختبارات M2R               | CURRENT SUPPORTING DOCUMENT | الأمن والمراجعون |
 | [Superseded M2B design](superpowers/specs/2026-08-21-media-scanning-beta-design.md)                     | دليل تاريخي للبنية المستبدلة؛ لا يُنفذ           | SUPERSEDED DESIGN EVIDENCE  | المراجعون        |
 | [Superseded M2B plan](superpowers/plans/2026-08-21-media-scanning-beta.md)                              | خطة مستبدلة محفوظة للتتبع                        | SUPERSEDED PLAN EVIDENCE    | المراجعون        |
@@ -155,6 +157,7 @@ status, and audience.
 - [Multi-tool backlog](handoff/MULTI_TOOL_BACKLOG.md)
 - [Claude Code handoff](handoff/CLAUDE_CODE_HANDOFF.md)
 - [Claude start prompt](handoff/CLAUDE_START_PROMPT.md)
+- [Tools must start from](handoff/TOOLS_MUST_START_FROM.md)
 - [Figma handoff](handoff/FIGMA_HANDOFF.md)
 - [Figma screen brief](handoff/FIGMA_SCREEN_BRIEF.md)
 - [Canva handoff](handoff/CANVA_HANDOFF.md)

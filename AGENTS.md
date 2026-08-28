@@ -1,5 +1,15 @@
 # Repository engineering contract
 
+## Canonical source
+
+- Start every new tool or development session from a clean checkout of `main`.
+- Resolve and record the exact source with `git rev-parse HEAD`; the immutable handoff tag is
+  `sallah-multitool-handoff-v1`.
+- Historical `codex/*` branches and stacked pull requests are evidence only, never an alternative
+  source of truth.
+- Read `docs/handoff/TOOLS_MUST_START_FROM.md` before handing work to Codex, Claude Code, Figma,
+  Canva, Notion, Linear, or another delivery tool.
+
 ## Architecture
 
 - Keep a modular monolith: mobile and web clients depend on shared contracts; Supabase is the authoritative backend.

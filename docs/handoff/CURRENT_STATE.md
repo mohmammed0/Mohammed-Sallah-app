@@ -2,19 +2,22 @@
 
 ## Repository
 
-- Canonical branch: `codex/repository-finalization-multitool-handoff-v1`.
-- Exact source identity: run `git rev-parse HEAD` in the canonical checkout.
-- Parent source: PR #32 head `f8bce88065b8c9b4ab23521c9bd312d1a9e2b080`.
-- Final Draft PR: resolved from the canonical branch after publication.
+- Canonical/default integration branch: `main`.
+- Exact source identity: run `git rev-parse HEAD` in a clean `main` checkout.
+- Immutable handoff tag: `sallah-multitool-handoff-v1` after final verified merge.
+- Final integration gate: PR #33 from
+  `codex/repository-finalization-multitool-handoff-v1` directly to `main`.
+- Final `main` SHA: reported externally after merge because a tracked file cannot embed the SHA of
+  the commit that contains itself.
 - Production and store submission: **NOT RUN**.
 
 ## Product and hosted Preview
 
 The repository contains customer, provider, administration, AI, protected
 media, scanner, push, location, privacy, and closed-beta operations flows.
-Supabase Preview and the outbound-only DigitalOcean scanner were read-only
-verified during the starting baseline. No hosted mutation is part of this
-finalization branch unless explicitly recorded in validation evidence.
+Supabase Preview and the outbound-only DigitalOcean scanner were verified in
+the recorded Preview evidence. The final integration performs no hosted mutation,
+Production action, or store submission.
 
 ## Readiness meanings
 
@@ -26,5 +29,6 @@ finalization branch unless explicitly recorded in validation evidence.
 | Store               | Requires legal, policy, signing, screenshots, and store review.               |
 | Physical device     | Must be reported only from an actual device run.                              |
 
-See [known limitations](KNOWN_LIMITATIONS.md), [external gates](EXTERNAL_GATES.md),
-and [human inputs](HUMAN_INPUTS_REMAINING.md).
+See [tool starting rules](TOOLS_MUST_START_FROM.md), [known limitations](KNOWN_LIMITATIONS.md),
+[external gates](../release/EXTERNAL_RELEASE_GATES.md), and
+[human inputs](HUMAN_INPUTS_REMAINING.md).

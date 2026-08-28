@@ -1,7 +1,7 @@
 # Claude start prompt
 
-Use this prompt after replacing `<EXACT_SHA>` with the output of `git rev-parse
-HEAD` from `codex/repository-finalization-multitool-handoff-v1`:
+Use this prompt after checking out `main`, verifying a clean tree, and replacing
+`<EXACT_SHA>` with the output of `git rev-parse HEAD`:
 
 > Create a new UI-only branch from `<EXACT_SHA>`. Read `CLAUDE.md`,
 > `docs/handoff/CLAUDE_CODE_HANDOFF.md`, `UI_ALLOWLIST.md`, `UI_DENYLIST.md`,
@@ -18,4 +18,5 @@ HEAD` from `codex/repository-finalization-multitool-handoff-v1`:
 > secrets, deploy, submit stores, force-push, or merge.
 
 The `<EXACT_SHA>` replacement is intentionally external: a tracked document
-cannot contain its own enclosing commit hash without becoming stale.
+cannot contain its own enclosing commit hash without becoming stale. Use tag
+`sallah-multitool-handoff-v1` when the task must start from the immutable handoff baseline.

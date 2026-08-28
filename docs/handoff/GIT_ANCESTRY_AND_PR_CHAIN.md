@@ -1,19 +1,29 @@
-# Git ancestry and PR chain
+# Git ancestry and final integration
 
-Starting ancestry was verified with Git merge-base/ancestor checks. Every listed
-head is contained by PR #32 head `f8bce88065b8c9b4ab23521c9bd312d1a9e2b080`,
-which is the parent of the final handoff branch.
+The final integration source is branch
+`codex/repository-finalization-multitool-handoff-v1`. PR #33 is the sole merge
+gate from that complete source directly to `main`. After the verified merge,
+`main` is the only canonical/default integration branch and tag
+`sallah-multitool-handoff-v1` identifies the immutable handoff baseline.
 
-| PR    | Base → head                  | Head       | Status                  | Included | Disposition after final PR                     |
-| ----- | ---------------------------- | ---------- | ----------------------- | -------- | ---------------------------------------------- |
-| #7    | `main` → release candidate   | `f23616b`  | Open Draft              | Yes      | Superseded; close only after final green proof |
-| #17   | #7 → closed-beta readiness   | `46e8c8c`  | Open Draft              | Yes      | Superseded                                     |
-| #24   | #17 → bilingual organization | `3218d55`  | Open Draft              | Yes      | Superseded                                     |
-| #25   | #24 → Expo alignment         | `bc8afd9`  | Open Draft              | Yes      | Superseded                                     |
-| #26   | #25 → media scanning         | `03c3525`  | Open Draft              | Yes      | Parent milestone; link final PR                |
-| #31   | #26 → feature complete       | `268491a`  | Open Draft              | Yes      | Parent milestone; link final PR                |
-| #32   | #31 → professional beta      | `f8bce88`  | Open Draft              | Yes      | Direct parent; link final PR                   |
-| Final | #32 → canonical handoff      | `git:HEAD` | Draft after publication | Yes      | Sole engineering handoff reference             |
+| PR  | Included head | Contained in final source | Final disposition                                           |
+| --- | ------------- | ------------------------- | ----------------------------------------------------------- |
+| #7  | `f23616b`     | Yes                       | Close as superseded after final `main` proof.               |
+| #17 | `46e8c8c`     | Yes                       | Close as superseded after final `main` proof.               |
+| #24 | `3218d55`     | Yes                       | Close as superseded after final `main` proof.               |
+| #25 | `bc8afd9`     | Yes                       | Close as superseded after final `main` proof.               |
+| #26 | `03c3525`     | Yes                       | Close as contained after final `main` proof.                |
+| #31 | `268491a`     | Yes                       | Close as contained after final `main` proof.                |
+| #32 | `f8bce88`     | Yes                       | Close as contained after final `main` proof.                |
+| #33 | `git:HEAD`    | Final integration source  | Merge to `main` with a merge commit after exact-head gates. |
 
-No known milestone commit is missing. No branch is deleted, history rewritten,
-or merged by this task. Exact final PR number and URLs are resolved at publication.
+`origin/main` at the start of this finalization was
+`26eec9688df5979fa7ebaa0eaf121ef1a150116e` and was proven to be an ancestor
+of the final source. Every listed stacked head was also proven to be an
+ancestor of the final source. The final merge commit and final `main` SHA are
+reported externally after merge; no tracked file self-references its enclosing
+commit.
+
+Remote branches are deleted only when their exact heads are ancestors of the
+verified final `main`. A divergent temporary or bot branch is retained and
+reported rather than deleted or force-updated.

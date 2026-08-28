@@ -1,13 +1,17 @@
 # External gates
 
-| Gate                         | Status               | Required evidence                                                            |
-| ---------------------------- | -------------------- | ---------------------------------------------------------------------------- |
-| Production Supabase/Edge     | NOT RUN              | approved project, domains, secrets, migration plan, rollback, smoke          |
-| Production scanner           | NOT RUN              | region/TLS/private network, secrets, monitoring, load/canary, legal approval |
-| Physical Android device      | NOT RUN              | install, Push receipt/tap, GPS, camera/audio/media, restart/offline matrix   |
-| iOS build/device             | HUMAN INPUT REQUIRED | active Apple team/signing and available device/TestFlight access             |
-| Google Play / App Store      | NOT RUN              | legal/privacy/store metadata, screenshots, review accounts, owner submission |
-| Legal/privacy                | HUMAN INPUT REQUIRED | entity, terms/privacy, retention, subprocessors, GPL and store disclosures   |
-| Production monitoring/backup | HUMAN INPUT REQUIRED | destinations, ownership, RPO/RTO approval, restore and alert drills          |
+The complete authoritative register is
+[`docs/release/EXTERNAL_RELEASE_GATES.md`](../release/EXTERNAL_RELEASE_GATES.md).
+This short handoff index intentionally does not duplicate gate details.
 
-No engineering check may convert these gates to PASS without the named external evidence.
+| Boundary                     | Current classification | Authoritative evidence                                         |
+| ---------------------------- | ---------------------- | -------------------------------------------------------------- |
+| Physical Android and sensors | NOT RUN                | [External release gates](../release/EXTERNAL_RELEASE_GATES.md) |
+| Apple/iOS/TestFlight         | HUMAN INPUT REQUIRED   | [Human inputs](HUMAN_INPUTS_REMAINING.md)                      |
+| Legal/privacy/OSS/store      | HUMAN INPUT REQUIRED   | [External release gates](../release/EXTERNAL_RELEASE_GATES.md) |
+| Backup/monitoring drills     | NOT RUN                | [Operations documents](../operations/BACKUP_AND_RECOVERY.md)   |
+| Production rollout           | HUMAN INPUT REQUIRED   | [Deployment contract](../DEPLOYMENT.md)                        |
+
+Closing GitHub issues, merging PR #33, or creating the handoff tag does not
+convert any row to `PASS`. Only evidence from the named target and approving
+owner may change a gate status.

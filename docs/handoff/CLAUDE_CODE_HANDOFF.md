@@ -13,7 +13,8 @@ own backend, database, authorization, infrastructure, or deployment.
 5. [Domain invariants](DOMAIN_INVARIANTS.md) and [privacy boundaries](PRIVACY_BOUNDARIES.md)
 6. Approved Figma specification
 
-Create a new UI branch from `git rev-parse HEAD` of the canonical handoff branch.
+Create a new UI branch from `git rev-parse HEAD` of a clean `main` checkout.
+Use `sallah-multitool-handoff-v1` when the immutable integrated baseline is required.
 Preserve existing behavior and routes. If a design needs new data, status,
 permission, RPC, or transition, stop that slice and submit a UI contract request.
 

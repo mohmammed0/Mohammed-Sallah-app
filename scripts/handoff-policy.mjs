@@ -22,6 +22,7 @@ export const REQUIRED_HANDOFF_FILES = [
   'MULTI_TOOL_BACKLOG.md',
   'CLAUDE_CODE_HANDOFF.md',
   'CLAUDE_START_PROMPT.md',
+  'TOOLS_MUST_START_FROM.md',
   'FIGMA_HANDOFF.md',
   'FIGMA_SCREEN_BRIEF.md',
   'CANVA_HANDOFF.md',
@@ -53,18 +54,27 @@ const REQUIRED_ARRAYS = [
 
 export function validateHandoffManifest(manifest) {
   const errors = [];
-  if (manifest?.schemaVersion !== '1.0.0') errors.push('schemaVersion must be 1.0.0');
+  if (manifest?.schemaVersion !== '1.1.0') errors.push('schemaVersion must be 1.1.0');
   if (manifest?.repository !== 'mohmammed0/Mohammed-Sallah-app') {
     errors.push('repository must identify the Sallah repository');
   }
-  if (manifest?.canonicalBranch !== 'codex/repository-finalization-multitool-handoff-v1') {
-    errors.push('canonicalBranch must identify the handoff branch');
+  if (manifest?.canonicalBranch !== 'main') {
+    errors.push('canonicalBranch must be main');
   }
   if (manifest?.exactSha !== 'git:HEAD') {
     errors.push('exactSha must use the non-stale git:HEAD resolver');
   }
   if (manifest?.exactShaCommand !== 'git rev-parse HEAD') {
     errors.push('exactShaCommand must resolve the checkout identity');
+  }
+  if (manifest?.sourceCommit !== 'git:HEAD') {
+    errors.push('sourceCommit must use the non-stale git:HEAD resolver');
+  }
+  if (manifest?.finalMainSha !== 'reported-externally-after-merge') {
+    errors.push('finalMainSha must be reported externally after merge');
+  }
+  if (manifest?.releaseTag !== 'sallah-multitool-handoff-v1') {
+    errors.push('releaseTag must identify the immutable handoff tag');
   }
   if (!manifest?.generatedAt || Number.isNaN(Date.parse(manifest.generatedAt))) {
     errors.push('generatedAt must be an ISO timestamp');
@@ -77,8 +87,15 @@ export function validateHandoffManifest(manifest) {
       errors.push(`${field} must be a non-empty array`);
     }
   }
-  if (!manifest?.draftPr || typeof manifest.draftPr !== 'object') {
-    errors.push('draftPr must be an object');
+  if (!manifest?.finalIntegrationPr || typeof manifest.finalIntegrationPr !== 'object') {
+    errors.push('finalIntegrationPr must be an object');
+  } else {
+    if (manifest.finalIntegrationPr.number !== 33) {
+      errors.push('finalIntegrationPr.number must be 33');
+    }
+    if (manifest.finalIntegrationPr.base !== 'main') {
+      errors.push('finalIntegrationPr.base must be main');
+    }
   }
   return errors;
 }

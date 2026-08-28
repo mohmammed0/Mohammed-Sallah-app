@@ -9,7 +9,8 @@ Claude Code. `AGENTS.md` and repository security rules take precedence.
 Use Node 24.19.0 and pnpm 11.19.0. Install with `pnpm install --frozen-lockfile`.
 Read `docs/handoff/CLAUDE_CODE_HANDOFF.md`, `UI_ALLOWLIST.md`, and
 `UI_DENYLIST.md` before changing code. Use the exact starting SHA from
-`git rev-parse HEAD` on the canonical handoff branch.
+`git rev-parse HEAD` on a clean checkout of `main`. The immutable handoff
+baseline is tagged `sallah-multitool-handoff-v1`.
 
 After an approved UI slice run its focused rendering tests, affected package
 lint/typecheck, `pnpm i18n:check`, `pnpm ui:boundaries`, and
