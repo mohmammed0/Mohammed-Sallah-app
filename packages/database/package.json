@@ -14,11 +14,11 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@supabase/supabase-js": "2.112.3"
+    "@supabase/supabase-js": "2.112.4"
   },
   "devDependencies": {
     "@sallah/typescript-config": "workspace:*",
     "typescript": "6.0.3",
-    "vitest": "4.1.10"
+    "vitest": "4.1.11"
   }
 }

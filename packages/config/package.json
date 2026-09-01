@@ -15,11 +15,11 @@
     "test": "vitest run --exclude dist/**"
   },
   "dependencies": {
-    "zod": "4.4.3"
+    "zod": "4.5.2"
   },
   "devDependencies": {
     "@sallah/typescript-config": "workspace:*",
     "typescript": "6.0.3",
-    "vitest": "4.1.10"
+    "vitest": "4.1.11"
   }
 }
