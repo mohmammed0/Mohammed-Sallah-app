@@ -11,13 +11,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@napi-rs/image": "1.13.0",
-    "zod": "4.4.3"
+    "@napi-rs/image": "1.14.0",
+    "zod": "4.5.4"
   },
   "devDependencies": {
     "@sallah/typescript-config": "workspace:*",
     "@types/node": "24.3.0",
     "typescript": "6.0.3",
-    "vitest": "4.1.10"
+    "vitest": "4.1.11"
   }
 }
