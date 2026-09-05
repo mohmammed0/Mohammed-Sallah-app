@@ -5,6 +5,11 @@ repository engineering baseline. It survives GitHub issue closure and prevents
 an unexecuted physical, account, legal, store, operational, or Production gate
 from being represented as `PASS`.
 
+The [2026-09-05 launch packet](../validation/LAUNCH_READINESS_2026-09-05.md) adds current repository,
+hosted disposable database, browser and native Preview evidence. These results do not close the
+physical/production gates below. The new reviewed-consent migrations and twelve approved policy
+documents still require the coordinated [publication procedure](../operations/LEGAL_PUBLICATION.md).
+
 Allowed statuses in this register are `NOT RUN`, `HUMAN INPUT REQUIRED`, and
 `DEFERRED`. A future owner may change a row to `PASS` only after attaching
 target-specific evidence to a new reviewed change.
@@ -37,8 +42,9 @@ target-specific evidence to a new reviewed change.
 ## Closure rule
 
 GitHub issue closure records completion of the repository-finalization phase,
-not completion of these gates. The final merge commit and
-`sallah-multitool-handoff-v1` tag are engineering handoff evidence only. A
+not completion of these gates. If a future authorized merge commit and
+`sallah-multitool-handoff-v1` tag are created and verified, they will be engineering
+handoff evidence only. Neither is claimed by the current launch packet. A
 future release owner must reopen work through a new reviewed change, attach the
 named external evidence, and update this register without rewriting historical
 evidence.

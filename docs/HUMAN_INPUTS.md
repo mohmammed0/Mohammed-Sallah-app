@@ -4,6 +4,11 @@
 
 These values cannot be safely invented. Development placeholders deliberately make production validation fail.
 
+For the 2026-09-05 release, start with the [launch packet](validation/LAUNCH_READINESS_2026-09-05.md).
+The immediate legal publication input is twelve reviewed documents: privacy, terms and community
+rules in Arabic, English, Urdu and Hindi, with actual approval records. The
+[publication procedure](operations/LEGAL_PUBLICATION.md) specifies their exact fields and deployment order.
+
 | Input                                                                                                                       | Owner                   | Required before                   | Safe fallback                                            |
 | --------------------------------------------------------------------------------------------------------------------------- | ----------------------- | --------------------------------- | -------------------------------------------------------- |
 | Final public brand and Arabic/English spelling                                                                              | Business                | Store metadata/domain             | `SALLAH` codename                                        |
@@ -99,4 +104,5 @@ for build evidence.
 Physical-device customer UX evidence is also outstanding: real GPS and map tiles, permission
 denial and settings re-enable, camera, gallery, microphone/transcription, keyboard behavior,
 foreground/background transitions, large text and screen-reader traversal. Keep each item NOT
-RUN until a device artifact and evidence exist. This redesign does not start an EAS build.
+RUN until physical-device evidence exists. The current launch packet records authorized free EAS
+Preview builds and emulator observations separately; they do not establish physical-device results.

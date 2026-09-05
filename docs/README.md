@@ -58,6 +58,8 @@ status, and audience.
 
 ## الأمن والخصوصية | Security and privacy
 
+- [Launch security review](validation/SECURITY_LAUNCH_2026-09-05.md) — المراجعة الأمنية المقفلة وحدودها وبصماتها، CURRENT SUPPORTING DOCUMENT، الأمن والإصدار.
+
 - [Store listing drafts](store/STORE_LISTING_DRAFTS.md) — مسودات وصف المتاجر بأربع لغات، CURRENT SUPPORTING DOCUMENT، ملاك الإصدار.
 - [Data disclosure worksheet](store/DATA_DISCLOSURE_WORKSHEET.md) — حقول إفصاحات البيانات والأدلة المطلوبة، CURRENT SUPPORTING DOCUMENT، الخصوصية والإصدار.
 

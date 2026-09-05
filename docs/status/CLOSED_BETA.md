@@ -3,9 +3,26 @@
 [العربية](../ar/CLOSED_BETA.md) · [Documentation map](../README.md)
 
 **التصنيف | Classification:** CURRENT SOURCE OF TRUTH
-**آخر تحقق مرجعي | Reference date:** 2026-08-27
+**آخر تحقق مرجعي | Reference date:** 2026-09-05
 
 ## الحالة المختصرة | Summary
+
+- Current launch preparation is [draft PR #36](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/36),
+  based on UI PR #35. Application source `cd79e2be459f65b0470f617f187780c627b1065b` passes local
+  `pnpm validate` with 631 workspace tests and one documented Windows skip.
+- The [launch verification packet](../validation/LAUNCH_READINESS_2026-09-05.md) records exact hosted
+  CI, signed Android Preview/emulator evidence, reviewed consent, four-language entry/policy UX,
+  Codex Security scope and remaining physical/production/store gates.
+- Hosted Preview has not received the new legal migrations or approved policy packet. Follow the
+  [read-only migration mapping](../validation/PREVIEW_MIGRATION_RECONCILIATION_2026-09-05.md) and
+  [publication order](../operations/LEGAL_PUBLICATION.md); never blindly replay historical migrations.
+- **Public launch: HUMAN INPUT REQUIRED.** Final legal entity, domain/support address, reviewed
+  policies, production/store accounts, physical-device and operational evidence remain outstanding.
+  The original working tree is preserved; PRs were not merged and production was not deployed.
+
+## سجل المراحل السابق | Earlier milestone record
+
+The following describes the August checkpoint, not the current launch source or fresh provider proof.
 
 - Draft PRs #7, #17, #24, #25, #26, #31, and #32 form one verified stacked chain. PR #32 head
   `f8bce88065b8c9b4ab23521c9bd312d1a9e2b080` contains every listed milestone head.
@@ -14,7 +31,7 @@
   scanner now have clean image/audio and EICAR evidence.
 - **Feature complete / professional beta:** customer, provider, admin, OpenAI text/image/audio/
   translation, Maps emulator, and Android Preview artifact evidence are recorded in PRs #31/#32.
-- **Current work:** repository finalization and multi-tool engineering handoff. PR #32's two known
+- **Work at that checkpoint:** repository finalization and multi-tool engineering handoff. PR #32's two known
   CI defects are repaired locally and require exact-head hosted confirmation before handoff PASS.
 
 No Production, public-store, paid-plan, merge, or physical-device action occurred. Preview Push is

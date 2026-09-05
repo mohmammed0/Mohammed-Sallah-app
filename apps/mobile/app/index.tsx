@@ -52,7 +52,8 @@ export default function Welcome() {
   const { locale, dir, setLocale, t } = useLocale();
   const textDirection = {
     writingDirection: dir,
-    textAlign: dir === 'rtl' ? ('right' as const) : ('left' as const),
+    // Let the native paragraph direction choose its leading edge.
+    textAlign: 'auto' as const,
   };
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: branding.colors.sand }}>
