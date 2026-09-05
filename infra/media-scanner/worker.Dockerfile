@@ -4,7 +4,9 @@ WORKDIR /workspace
 COPY . .
 RUN corepack pnpm install --frozen-lockfile --ignore-scripts --filter @sallah/media-scanner...
 RUN ./services/media-scanner/node_modules/.bin/tsc -p services/media-scanner/tsconfig.build.json
-RUN corepack pnpm --filter @sallah/media-scanner deploy --legacy --prod --ignore-scripts /opt/media-scanner
+# The scanner production graph does not use the mobile query-string patch.
+# Permit unused metadata only during this pruned deploy; actual patch failures still fail.
+RUN corepack pnpm --config.allow-unused-patches=true --filter @sallah/media-scanner deploy --legacy --prod --ignore-scripts /opt/media-scanner
 
 FROM node:24.19.0-bookworm-slim@sha256:65932751ed4073ed02f5c04e494e4b2572a891b7dbea0568a863dc80341bf848 AS runtime
 

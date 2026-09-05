@@ -53,6 +53,10 @@ canonical main or a published handoff tag.
   context-export regression test checks both selections and that declared patches are present
   while synthetic environment files, dependency folders and unrelated patches are excluded.
   It explicitly skips locally when the Docker daemon is unavailable.
+- Scanner packaging permits unused workspace patch metadata only on its pruned
+  legacy deploy command. The scanner production graph has no `query-string`
+  consumer. Full-workspace and frozen install settings remain strict, and actual
+  patch application failures still fail. No audit finding is suppressed.
 - A pre-existing secure-upload test used an August date that expired after the
   seven-day retention window. Its clock is now fixed and restored between tests;
   production retention behavior was not altered.
@@ -127,6 +131,16 @@ tokens including 4,272,896 cached input tokens; this is tool accounting, not a c
   ignore file overrides the root rules. The next correction includes that
   effective allowlist and exercises the actual worker Dockerfile selection as
   well as the root selection. A passing generic context check alone is insufficient.
+- The third [hosted run](https://github.com/mohmammed0/Mohammed-Sallah-app/actions/runs/33947160893)
+  passed repository, mobile, web, Supabase, both actual Docker context selections,
+  frozen worker installation and TypeScript compilation. Pruned legacy packaging
+  then failed on unused mobile patch metadata. A reduced 54-file worker-context
+  reproduction confirmed that failure locally; the command-scoped
+  `--config.allow-unused-patches=true` candidate passed and exported the scanner's
+  runtime dependencies without `query-string`. This leaves global patch checks
+  intact; see [pnpm patch behavior](https://pnpm.io/cli/patch#allowunusedpatches).
+  Local reproduction is in `artifacts/worker-context-repro-20260905/REPRODUCTION.md`;
+  subsequent Linux/container evidence is recorded on PR #35.
 
 - PR #33 is mergeable but draft/unstable, with no submitted review. Its
   [push run](https://github.com/mohmammed0/Mohammed-Sallah-app/actions/runs/33152404429)
