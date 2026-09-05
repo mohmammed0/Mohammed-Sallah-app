@@ -32,7 +32,7 @@ function linuxShell(command, cwd) {
     : spawnSync('/bin/sh', ['-c', command], { cwd, encoding: 'utf8', shell: false });
 }
 
-test('scanner Docker context includes declared patches without unrelated files', async (t) => {
+test('root and worker Docker contexts include declared patches without unrelated files', async (t) => {
   const workspace = await source('pnpm-workspace.yaml');
   const patchBlock = /^patchedDependencies:\r?\n(?<entries>(?:[ \t]+[^\r\n]+\r?\n?)*)/mu.exec(
     workspace,
@@ -59,7 +59,8 @@ test('scanner Docker context includes declared patches without unrelated files',
 
   const temp = await mkdtemp(join(tmpdir(), 'sallah-docker-context-'));
   const context = join(temp, 'context');
-  const output = join(temp, 'export');
+  const workerDockerfile = 'infra/media-scanner/worker.Dockerfile';
+  const workerIgnore = `${workerDockerfile}.dockerignore`;
   const excluded = [
     '.env',
     '.git/config',
@@ -75,6 +76,8 @@ test('scanner Docker context includes declared patches without unrelated files',
     const fixtures = new Map([
       ['.dockerignore', await source('.dockerignore')],
       ['Dockerfile', 'FROM scratch\nCOPY . /\n'],
+      [workerDockerfile, 'FROM scratch\nCOPY . /\n'],
+      [workerIgnore, await source(workerIgnore)],
       ['package.json', '{"name":"synthetic-scanner-context","private":true}\n'],
       ['pnpm-workspace.yaml', workspace],
       ['pnpm-lock.yaml', 'lockfileVersion: 9.0\n'],
@@ -86,23 +89,34 @@ test('scanner Docker context includes declared patches without unrelated files',
       await mkdir(dirname(destination), { recursive: true });
       await writeFile(destination, contents);
     }
-    const build = spawnSync('docker', ['build', '--output', `type=local,dest=${output}`, context], {
-      encoding: 'utf8',
-      shell: false,
-      timeout: 30_000,
-      maxBuffer: 256 * 1024,
-    });
-    assert.ifError(build.error);
-    assert.equal(build.status, 0, build.stderr);
-    for (const path of ['pnpm-workspace.yaml', 'pnpm-lock.yaml', ...patches]) {
-      assert.equal(
-        await readFile(join(output, path), 'utf8'),
-        fixtures.get(path),
-        `required pnpm input missing from Docker context: ${path}`,
+    for (const [name, fileArguments] of [
+      ['root', []],
+      ['worker', ['--file', workerDockerfile]],
+    ]) {
+      const output = join(temp, `export-${name}`);
+      const build = spawnSync(
+        'docker',
+        ['build', ...fileArguments, '--output', `type=local,dest=${output}`, '.'],
+        {
+          cwd: context,
+          encoding: 'utf8',
+          shell: false,
+          timeout: 30_000,
+          maxBuffer: 256 * 1024,
+        },
       );
-    }
-    for (const path of excluded) {
-      await assert.rejects(readFile(join(output, path)), { code: 'ENOENT' }, path);
+      assert.ifError(build.error);
+      assert.equal(build.status, 0, `${name} Docker context: ${build.stderr}`);
+      for (const path of ['pnpm-workspace.yaml', 'pnpm-lock.yaml', ...patches]) {
+        assert.equal(
+          await readFile(join(output, path), 'utf8'),
+          fixtures.get(path),
+          `required pnpm input missing from ${name} Docker context: ${path}`,
+        );
+      }
+      for (const path of excluded) {
+        await assert.rejects(readFile(join(output, path)), { code: 'ENOENT' }, `${name}: ${path}`);
+      }
     }
   } finally {
     await rm(temp, { recursive: true, force: true });

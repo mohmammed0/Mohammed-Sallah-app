@@ -49,7 +49,8 @@ canonical main or a published handoff tag.
 - Dependabot scheduled minor/patch updates no longer mix SDK-managed runtime
   versions into the generic update group. Security update eligibility remains.
 - The media-scanner Docker build context includes the exact reviewed pnpm patch.
-  A Docker context-export regression test checks that declared patches are present
+  Both root and worker-specific ignore rules include the patch. A Docker
+  context-export regression test checks both selections and that declared patches are present
   while synthetic environment files, dependency folders and unrelated patches are excluded.
   It explicitly skips locally when the Docker daemon is unavailable.
 - A pre-existing secure-upload test used an August date that expired after the
@@ -121,6 +122,11 @@ tokens including 4,272,896 cached input tokens; this is tool accounting, not a c
   Docker allowlist omitted the required pnpm patch. The follow-up includes the
   narrow context fix and its regression check. Subsequent exact-head results are
   recorded on PR #35; this initial failure is not a billing/account rejection.
+- The second [hosted run](https://github.com/mohmammed0/Mohammed-Sallah-app/actions/runs/33946868052)
+  passed the root-context export test but found that Docker's worker-specific
+  ignore file overrides the root rules. The next correction includes that
+  effective allowlist and exercises the actual worker Dockerfile selection as
+  well as the root selection. A passing generic context check alone is insufficient.
 
 - PR #33 is mergeable but draft/unstable, with no submitted review. Its
   [push run](https://github.com/mohmammed0/Mohammed-Sallah-app/actions/runs/33152404429)
