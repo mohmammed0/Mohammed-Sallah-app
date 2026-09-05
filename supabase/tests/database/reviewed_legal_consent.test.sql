@@ -1,6 +1,20 @@
 begin;
 select no_plan();
 
+-- The shared publication trigger must resolve only fields belonging to its table.
+select lives_ok($$insert into public.system_settings(key,value) values('test.legal.trigger','{}')$$,
+  'unrelated setting insert does not resolve legal document fields');
+select lives_ok($$update public.system_settings set value='{"test":true}' where key='test.legal.trigger'$$,
+  'unrelated setting update does not resolve legal document fields');
+select lives_ok($$delete from public.system_settings where key='test.legal.trigger'$$,
+  'unrelated setting delete does not resolve legal document fields');
+select lives_ok($$delete from public.system_settings where key='legal.consent'$$,
+  'consent setting deletion locks publication without reading document fields');
+select lives_ok($$insert into public.system_settings(key,value) values('legal.consent','{"enabled":false}')$$,
+  'consent setting insertion locks publication without reading document fields');
+select lives_ok($$update public.system_settings set value='{"enabled":false,"test":true}' where key='legal.consent'$$,
+  'consent setting update locks publication without reading document fields');
+
 select has_function('public','get_legal_consent_context',array['text'],'public reader has no arbitrary user parameter');
 select has_function('public','accept_current_legal_documents',array['text','jsonb','text'],'acceptance uses a versioned idempotent command');
 select ok(not has_table_privilege('authenticated','public.legal_acceptances','INSERT'),'clients cannot forge acceptance rows');
@@ -52,6 +66,8 @@ select is(jsonb_array_length(public.get_legal_consent_context('ar')->'documents'
 select throws_ok($$select public.get_legal_consent_context('xx')$$,'P0001','INVALID_LOCALE','unsupported locales are rejected');
 select throws_ok($$update public.legal_documents set body='changed after approval' where version='test-v1' and locale='ar'$$,
   'P0001','APPROVED_LEGAL_DOCUMENT_IMMUTABLE','approved bytes cannot be replaced under an accepted ID');
+select throws_ok($$delete from public.legal_documents where version='test-v1' and locale='ar'$$,
+  'P0001','APPROVED_LEGAL_DOCUMENT_IMMUTABLE','approved documents cannot be deleted through the shared trigger');
 
 select set_config('request.jwt.claims','{"sub":"d5000000-0000-4000-8000-000000000001","role":"authenticated"}',true);
 set local role authenticated;

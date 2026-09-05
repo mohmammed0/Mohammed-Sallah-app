@@ -35,8 +35,9 @@ withdrawal because an earlier approved version can become current again.
 1. Review the migration mapping before touching an existing database. The audited Preview ledger
    matched historical filenames but used different version numbers; never run an unreviewed bulk
    `db push` against it.
-2. Apply the forward migration `20260905070000_reviewed_legal_consent.sql` after existing migrations
-   have been reconciled. It enables enforcement by default and leaves drafts unapproved. Missing
+2. Apply the forward migrations `20260905070000_reviewed_legal_consent.sql` and
+   `20260905073000_isolate_legal_publication_trigger_records.sql` after existing migrations
+   have been reconciled. They enable enforcement by default and leave drafts unapproved. Missing
    policies intentionally block content creation. Account/privacy controls and support remain available.
 3. Deploy the matching Edge Functions. Diagnostic and transcription endpoints check authoritative
    consent before external processing. Deploy mobile/web readers from the same reviewed release.
