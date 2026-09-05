@@ -9,16 +9,19 @@
 SALLAH is an Arabic-first Saudi local-services marketplace with an Expo mobile app, a public and
 operations Next.js web app, shared TypeScript contracts, and an authoritative Supabase backend.
 
-> **الحالة الحالية:** مرشح نسخة تجريبية مغلقة يعمل في Preview ويخضع الآن لإغلاق هندسي وحزمة
-> تسليم متعددة الأدوات. اكتملت عقود الثقة، وفحص الوسائط، والذكاء الاصطناعي، ورحلات العميل
-> ومقدم الخدمة والإدارة في فروع Draft المتسلسلة. لا يعني ذلك جاهزية Production أو المتاجر أو
-> الجهاز الفعلي. راجع [حالة النسخة التجريبية](docs/status/CLOSED_BETA.md) و
-> [حزمة التسليم](docs/handoff/README.md).
+> **الحالة الحالية:** تجهيز الكود وGitHub قبل الإطلاق في
+> [PR #36](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/36) إلى `main` مباشرة.
+> المرجع الحالي هو رأس الطلب وتشغيل CI المطابق له؛ تبقى الطلبات السابقة أدلة تاريخية محفوظة.
+> راجع [دليل ما قبل الإطلاق](docs/release/PRELAUNCH.md) و
+> [حالة النسخة التجريبية](docs/status/CLOSED_BETA.md). تبقى موافقات الإنتاج والمتاجر
+> والتحقق على الأجهزة الفعلية بوابات منفصلة.
 >
-> **Current status:** an operational Preview closed-beta candidate is undergoing engineering
-> finalization and multi-tool handoff. Trust, media scanning, AI, and customer/provider/admin
-> repository journeys are implemented in the stacked Draft PR chain. This does not establish
-> Production, store, or physical-device readiness.
+> **Current status:** code and GitHub prelaunch preparation is in
+> [PR #36](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/36), directly to `main`.
+> Use its current head and matching CI run; earlier pull requests remain preserved historical evidence.
+> See the [prelaunch guide](docs/release/PRELAUNCH.md) and
+> [closed-beta status](docs/status/CLOSED_BETA.md). Production and store approvals and
+> physical-device validation remain separate gates.
 
 ## الأسطح الرئيسية
 
@@ -40,6 +43,7 @@ operations Next.js web app, shared TypeScript contracts, and an authoritative Su
 - [الدليل العربي الكامل](README.ar.md)
 - [Full English guide](README.en.md)
 - [فهرس التوثيق | Documentation map](docs/README.md)
+- [تجهيز الكود وGitHub قبل الإطلاق | Prelaunch guide](docs/release/PRELAUNCH.md)
 - [حزمة التسليم متعددة الأدوات](docs/handoff/README.md)
 - [التطوير المحلي](docs/ar/LOCAL_DEVELOPMENT.md)
 - [الاختبارات](docs/ar/TESTING.md)

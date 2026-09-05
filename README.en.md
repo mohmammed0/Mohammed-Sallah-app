@@ -14,14 +14,17 @@ description, but it does not approve a provider, publish a request, or execute a
 
 ## Repository status
 
-The repository is preparing for a **controlled closed beta**, not a public or production launch:
+The repository is in **code and GitHub prelaunch preparation**:
 
-- The stacked Draft PR chain contains trust, media scanning, AI, Preview Push/Maps configuration,
-  customer/provider/admin journeys, and a runnable beta reference UI.
-- Supabase Preview, Storage, the outbound scanner, and OpenAI canaries are active according to
-  current beta evidence; Production has not been touched.
-- The repository is being consolidated into one engineering handoff branch. Physical devices,
-  iOS, Production, legal, formal backup/alerts, and stores remain separate external gates.
+- [PR #36](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/36) is the current integration
+  candidate directly to `main`. Use its current head and matching CI run for current results;
+  earlier pull requests and their history remain preserved evidence.
+- The [prelaunch gate](docs/release/PRELAUNCH.md) combines code validation, Android/iOS exports,
+  consent-enabled HTTP journeys in a disposable test environment, and a source/migration/artifact packet.
+- Earlier Supabase Preview, Storage, outbound scanner, and OpenAI evidence retains its recorded
+  date and scope; Preview has not received the new consent migrations or approved policies.
+- Physical devices, a native iOS build, Production, legal approval, formal backup/alert drills,
+  and stores remain separate external gates.
 
 See [closed-beta status](docs/status/CLOSED_BETA.md) and
 [Master Tracker #23](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/23) for the current
@@ -80,16 +83,16 @@ device with the app installed. See the [testing guide](docs/TESTING.md) for resu
 
 ## Branch model
 
-- `main`: stable or released work only.
-- RC branch: parent release-candidate integration.
-- Beta branch: closed-beta integration.
-- Milestone child branches: bounded work based on an approved beta head.
+- `main`: canonical integration branch; new work starts from its clean head under the [starting rules](docs/handoff/TOOLS_MUST_START_FROM.md).
+- `codex/launch-readiness-v1`: PR #36 candidate to `main`; resolve its current head when reviewing the PR.
+- Earlier RC, beta, and milestone branches: historical evidence, not parallel integration sources.
 
 This finalization does not merge a branch or deploy Production or stores.
 
 ## Key links
 
 - [Documentation map](docs/README.md)
+- [Code and GitHub prelaunch guide](docs/release/PRELAUNCH.md)
 - [Multi-tool handoff](docs/handoff/README.md)
 - [Arabic project overview](docs/ar/PROJECT_OVERVIEW.md)
 - [Closed-beta status](docs/status/CLOSED_BETA.md)

@@ -4,6 +4,11 @@
 `codex/*` branches, stacked pull requests, local backups, and old worktrees are
 evidence only and must not be selected as a parallel source of truth.
 
+The current prelaunch candidate is [PR #36](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/36)
+directly to `main`. When explicitly assigned to review that candidate, resolve its current GitHub
+head and record `git rev-parse HEAD` from the matching clean checkout. This review scope does not
+replace `main` as the canonical branch. See the [prelaunch guide](../release/PRELAUNCH.md).
+
 ## Required start sequence
 
 1. Fetch remote metadata without merging or rebasing.
@@ -13,9 +18,10 @@ evidence only and must not be selected as a parallel source of truth.
 5. Read the first file for the selected tool before changing anything.
 6. Create a normal task branch from that exact SHA; never commit feature work directly to `main`.
 
-The immutable handoff baseline is tag `sallah-multitool-handoff-v1`. The final
-verified `main` SHA is reported externally after merge because a tracked file
-cannot embed the SHA of the commit that contains itself.
+The immutable handoff tag `sallah-multitool-handoff-v1` is planned and has not been created.
+It may be created after a separately authorized, verified merge. The final verified `main` SHA
+is reported externally after merge because a tracked file cannot embed the SHA of the commit
+that contains itself.
 
 ## Tool entry points
 

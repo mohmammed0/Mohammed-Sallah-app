@@ -3,11 +3,16 @@
 هذه الحزمة هي بوابة التسليم المرجعية بعد انتهاء أعمال Codex. العربية هي لغة المنتج
 الأولى، وتُكتب العقود التقنية الدقيقة بالإنجليزية لتفادي الغموض بين الأدوات.
 
+مرشح التكامل الحالي هو [PR #36](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/36)
+إلى `main` مباشرة. وسم `sallah-multitool-handoff-v1` مخطط بعد دمج مصرح به والتحقق منه، ولم يُنشأ بعد.
+
 This directory is the canonical handoff gateway for Figma, Claude Code, Canva,
 and delivery tooling. Every tool starts from a clean checkout of `main` and
-resolves the exact checkout with `git rev-parse HEAD`. The immutable integrated
-baseline is tagged `sallah-multitool-handoff-v1`; a tracked file cannot safely
-embed the hash of the commit that contains itself.
+resolves the exact checkout with `git rev-parse HEAD`. The current integration
+candidate is [PR #36](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/36), directly to `main`;
+resolve its current head when reviewing that PR. The immutable handoff tag
+`sallah-multitool-handoff-v1` is planned after an authorized, verified merge and has not been created.
+A tracked file cannot safely embed the hash of the commit that contains itself.
 
 ## Start here
 
@@ -25,6 +30,7 @@ embed the hash of the commit that contains itself.
 ## Evidence
 
 - [Starting baseline](CODEX_STARTING_BASELINE.md)
+- [Code and GitHub prelaunch guide](../release/PRELAUNCH.md)
 - [Validation evidence](VALIDATION_EVIDENCE.md)
 - [Git ancestry and PR chain](GIT_ANCESTRY_AND_PR_CHAIN.md)
 - [External release gates](../release/EXTERNAL_RELEASE_GATES.md)
