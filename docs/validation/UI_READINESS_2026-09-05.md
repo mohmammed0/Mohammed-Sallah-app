@@ -48,6 +48,10 @@ canonical main or a published handoff tag.
   and notices are recorded; no audit finding is suppressed.
 - Dependabot scheduled minor/patch updates no longer mix SDK-managed runtime
   versions into the generic update group. Security update eligibility remains.
+- The media-scanner Docker build context includes the exact reviewed pnpm patch.
+  A Docker context-export regression test checks that declared patches are present
+  while synthetic environment files, dependency folders and unrelated patches are excluded.
+  It explicitly skips locally when the Docker daemon is unavailable.
 - A pre-existing secure-upload test used an August date that expired after the
   seven-day retention window. Its clock is now fixed and restored between tests;
   production retention behavior was not altered.
@@ -110,6 +114,13 @@ because its connector was not connected. The tool reported 4,337,646 scan-accoun
 tokens including 4,272,896 cached input tokens; this is tool accounting, not a cost estimate.
 
 ## مراجعة GitHub والمدخلات المتبقية | GitHub and release gates
+
+- The first hosted [PR #35 run](https://github.com/mohmammed0/Mohammed-Sallah-app/actions/runs/33946408752)
+  on `35c602acd7cec0bcbaa0461af251b4c2b474e249` passed repository, mobile, web and
+  Supabase jobs. The media-scanner job failed before runtime probes because the
+  Docker allowlist omitted the required pnpm patch. The follow-up includes the
+  narrow context fix and its regression check. Subsequent exact-head results are
+  recorded on PR #35; this initial failure is not a billing/account rejection.
 
 - PR #33 is mergeable but draft/unstable, with no submitted review. Its
   [push run](https://github.com/mohmammed0/Mohammed-Sallah-app/actions/runs/33152404429)

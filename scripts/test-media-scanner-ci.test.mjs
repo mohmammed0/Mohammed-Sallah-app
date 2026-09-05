@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { localTestFunctionEnvironment } from './test-local-supabase.mjs';
 
@@ -31,6 +31,83 @@ function linuxShell(command, cwd) {
       })
     : spawnSync('/bin/sh', ['-c', command], { cwd, encoding: 'utf8', shell: false });
 }
+
+test('scanner Docker context includes declared patches without unrelated files', async (t) => {
+  const workspace = await source('pnpm-workspace.yaml');
+  const patchBlock = /^patchedDependencies:\r?\n(?<entries>(?:[ \t]+[^\r\n]+\r?\n?)*)/mu.exec(
+    workspace,
+  )?.groups?.entries;
+  assert.ok(patchBlock, 'workspace patch declarations missing');
+  const patches = patchBlock
+    .trim()
+    .split(/\r?\n/u)
+    .map((entry) => {
+      const match = /^[^:]+:\s+(patches\/[A-Za-z0-9@._+-]+\.patch)$/u.exec(entry.trim());
+      assert.ok(match, `unsupported patch declaration: ${entry}`);
+      return match[1];
+    });
+  const daemon = spawnSync('docker', ['version', '--format', '{{.Server.Version}}'], {
+    encoding: 'utf8',
+    shell: false,
+    timeout: 5_000,
+    maxBuffer: 16 * 1024,
+  });
+  if (daemon.error || daemon.status !== 0) {
+    t.skip('Docker daemon unavailable; context export not run');
+    return;
+  }
+
+  const temp = await mkdtemp(join(tmpdir(), 'sallah-docker-context-'));
+  const context = join(temp, 'context');
+  const output = join(temp, 'export');
+  const excluded = [
+    '.env',
+    '.git/config',
+    'apps/mobile/.env',
+    'node_modules/private-package/index.js',
+    'patches/.env',
+    'patches/unrelated.patch',
+    'patches/private/note.txt',
+    'services/media-scanner/node_modules/private-package/index.js',
+    'services/media-scanner/dist/old.js',
+  ];
+  try {
+    const fixtures = new Map([
+      ['.dockerignore', await source('.dockerignore')],
+      ['Dockerfile', 'FROM scratch\nCOPY . /\n'],
+      ['package.json', '{"name":"synthetic-scanner-context","private":true}\n'],
+      ['pnpm-workspace.yaml', workspace],
+      ['pnpm-lock.yaml', 'lockfileVersion: 9.0\n'],
+      ...patches.map((path) => [path, `synthetic declared patch: ${path}\n`]),
+      ...excluded.map((path) => [path, 'synthetic excluded fixture\n']),
+    ]);
+    for (const [path, contents] of fixtures) {
+      const destination = join(context, path);
+      await mkdir(dirname(destination), { recursive: true });
+      await writeFile(destination, contents);
+    }
+    const build = spawnSync('docker', ['build', '--output', `type=local,dest=${output}`, context], {
+      encoding: 'utf8',
+      shell: false,
+      timeout: 30_000,
+      maxBuffer: 256 * 1024,
+    });
+    assert.ifError(build.error);
+    assert.equal(build.status, 0, build.stderr);
+    for (const path of ['pnpm-workspace.yaml', 'pnpm-lock.yaml', ...patches]) {
+      assert.equal(
+        await readFile(join(output, path), 'utf8'),
+        fixtures.get(path),
+        `required pnpm input missing from Docker context: ${path}`,
+      );
+    }
+    for (const path of excluded) {
+      await assert.rejects(readFile(join(output, path)), { code: 'ENOENT' }, path);
+    }
+  } finally {
+    await rm(temp, { recursive: true, force: true });
+  }
+});
 
 test('workspace Vitest exclusions survive Linux shell tokenization and preserve scanner discovery', async () => {
   const temp = await mkdtemp(join(tmpdir(), 'sallah-vitest-argv-'));
