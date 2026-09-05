@@ -8,7 +8,7 @@
 ## الحالة المختصرة | Summary
 
 - Current launch preparation is [draft PR #36](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/36),
-  based on UI PR #35. Application source `cd79e2be459f65b0470f617f187780c627b1065b` passes local
+  based on UI PR #35. Application source `de2b64813a7e61682d86f3528393d85c0f81dddb` passes local
   `pnpm validate` with 631 workspace tests and one documented Windows skip.
 - The [launch verification packet](../validation/LAUNCH_READINESS_2026-09-05.md) records exact hosted
   CI, signed Android Preview/emulator evidence, reviewed consent, four-language entry/policy UX,

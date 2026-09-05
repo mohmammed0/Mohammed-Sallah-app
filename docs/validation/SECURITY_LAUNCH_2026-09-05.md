@@ -102,3 +102,33 @@ No application execution, package command, database mutation, cloud change,
 commit or publication was performed by this scan. Later implementation changes
 are outside these fingerprints; subsequent evidence-only documentation must be
 identified separately.
+
+## Post-seal display review — outside the sealed scan
+
+Commit `de2b64813a7e61682d86f3528393d85c0f81dddb` adds one application change
+after the sealed supplement `cd79e2be459f65b0470f617f187780c627b1065b`:
+`apps/mobile/app/index.tsx` changes welcome-text alignment from conditional
+left/right to `auto`, retaining the shared locale direction. Other changed
+paths contain delivery documentation and two browser screenshots.
+
+Separate static inspection found no new authorization, network, storage or HTML
+sink and no security candidate. This is **outside** scan
+`1f4bdb95-36da-4d0a-9697-ce8b446cae96`; no new scan was started, and the original
+native RANGE, supplement, seal and runtime-at-seal record remain unchanged.
+
+Immutable Git-object receipts and before/after bytes are retained separately in
+`artifacts/security-launch-2026-09-05/post-seal/de2b64813a7e/`:
+
+- Application-only diff SHA-256:
+  `1bfb71e918c9112e17a6bef78a48f20f62fe221612ad82326669a7d07892e7b2`.
+- Full commit diff SHA-256, including documentation/screenshots:
+  `982b85b0c4881cef2060633e8dcfa24f8701dd7561150be3d6d6b743b760d470`.
+- Review receipt SHA-256:
+  `327862943416ad303c2d6fe05f22fd0e1511bc6d261ccacbe8d9dfb77018dee1`.
+
+The coordinator reported local validation **631 PASS, one Windows skip**.
+Native Preview version 19, build `179f33ed-d596-4a3c-95fd-8172ef1362f0`, was
+queued from this exact commit and remained in progress when this note was
+written. This static review does not prove native paragraph alignment; record
+the actual APK/emulator and hosted CI outcomes in the launch verification
+packet.
