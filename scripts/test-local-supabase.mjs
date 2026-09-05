@@ -1,9 +1,11 @@
 import { spawn, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { resolveTool, spawnTool } from './resolve-tool.mjs';
+import { assertDisposableLocalTarget, withDisposableLegalFixture } from './local-legal-fixture.mjs';
 
 function fail(message) {
   throw new Error(message);
@@ -84,6 +86,8 @@ function windowsToWslPath(value) {
 
 function runLocalDatabaseFixture(sql) {
   const args = [
+    '--host',
+    'unix:///var/run/docker.sock',
     'exec',
     '-i',
     'supabase_db_sallah',
@@ -103,8 +107,9 @@ function runLocalDatabaseFixture(sql) {
           encoding: 'utf8',
           input: sql,
           shell: false,
+          timeout: 15_000,
         })
-      : spawnSync('docker', args, { encoding: 'utf8', input: sql, shell: false });
+      : spawnSync('docker', args, { encoding: 'utf8', input: sql, shell: false, timeout: 15_000 });
   if (result.status !== 0) {
     fail(`LOCAL_DATABASE_FIXTURE_FAILED:${result.stderr ?? ''}`);
   }
@@ -724,6 +729,113 @@ async function runConcurrentIdempotencyFlow(config, owner, provider) {
   if (conflict.ok || !JSON.stringify(conflictBody).includes('IDEMPOTENCY_KEY_CONFLICT')) {
     fail('completion_rejection_idempotency_conflict_not_enforced');
   }
+  // The supported rework path requires an operations decision; providers cannot bypass a dispute.
+  const operations = await signInUser(config, 'admin.demo@example.invalid', 'LocalE2E-Only!2026');
+  const disputedJob = await expectOk(
+    await userRequest(config, owner, `jobs?id=eq.${jobId}&select=status,version`),
+    'rework_current_job_version',
+  );
+  if (
+    disputedJob?.length !== 1 ||
+    disputedJob[0]?.status !== 'disputed' ||
+    !Number.isInteger(disputedJob[0].version)
+  ) {
+    fail('rework_disputed_job_required');
+  }
+  const resolution = await expectOk(
+    await rpc(config, operations, 'resolve_dispute', {
+      p_dispute_id: rejectionResults[0].disputeId,
+      p_action: 'no_financial_action',
+      p_amount_minor: 0,
+      p_job_outcome: 'resume',
+      p_reason: 'TEST ONLY: synthetic operations review authorizes corrected work.',
+      p_expected_job_version: disputedJob[0].version,
+      p_idempotency_key: `rework-resolution-${crypto.randomUUID()}`,
+    }),
+    'rework_operations_resolution',
+  );
+  if (resolution?.status !== 'resolved' || resolution.financialActionRequired !== false) {
+    fail('rework_resolution_did_not_close_dispute_without_financial_action');
+  }
+  const resumed = await expectOk(
+    await userRequest(config, provider, `jobs?id=eq.${jobId}&select=status`),
+    'rework_resumed_job',
+  );
+  if (resumed?.length !== 1 || resumed[0]?.status !== 'in_progress')
+    fail('rework_not_authoritatively_resumed');
+  const correctedProof = await createCleanCompletionProof(config, provider, jobId);
+  const corrected = await expectOk(
+    await rpc(config, provider, 'submit_completion', {
+      p_job_id: jobId,
+      p_proofs: [{ ...correctedProof, description: 'TEST ONLY: corrected completion evidence.' }],
+      p_idempotency_key: `corrected-completion-${crypto.randomUUID()}`,
+    }),
+    'corrected_completion_submission',
+  );
+  if (corrected?.status !== 'completion_submitted' || corrected.attemptNumber !== 2) {
+    fail('corrected_completion_attempt_not_preserved');
+  }
+  const acceptance = {
+    p_job_id: jobId,
+    p_accept: true,
+    p_reason: 'TEST ONLY: customer accepts corrected work.',
+    p_score: 5,
+    p_review: 'TEST ONLY: corrected successfully.',
+    p_evidence_upload_ids: [],
+    p_idempotency_key: `corrected-acceptance-${crypto.randomUUID()}`,
+  };
+  const outcomes = await Promise.all(
+    (
+      await Promise.all([
+        rpc(config, owner, 'accept_completion', acceptance),
+        rpc(config, owner, 'accept_completion', acceptance),
+      ])
+    ).map((response) => expectOk(response, 'corrected_customer_acceptance')),
+  );
+  if (
+    !outcomes[0]?.acceptanceId ||
+    outcomes.some(
+      (outcome) =>
+        outcome.status !== 'completed' ||
+        outcome.acceptanceId !== outcomes[0].acceptanceId ||
+        outcome.completionAttemptId !== corrected.completionAttemptId,
+    )
+  ) {
+    fail('corrected_acceptance_did_not_replay_one_completed_result');
+  }
+  const [completedJobs, decisions, attempts, ratings, terminalEffects] = await Promise.all(
+    [
+      ['jobs', `id=eq.${jobId}&select=status,completed_at`],
+      ['customer_acceptances', `job_id=eq.${jobId}&select=accepted`],
+      [
+        'completion_attempts',
+        `job_id=eq.${jobId}&select=status,attempt_number&order=attempt_number`,
+      ],
+      ['ratings', `job_id=eq.${jobId}&select=score,review,customer_id,provider_id`],
+      ['job_terminal_effects', `job_id=eq.${jobId}&select=outcome`],
+    ].map(async ([table, filter]) =>
+      expectOk(await userRequest(config, owner, `${table}?${filter}`), `corrected_${table}`),
+    ),
+  );
+  if (
+    completedJobs?.length !== 1 ||
+    completedJobs[0]?.status !== 'completed' ||
+    !completedJobs[0]?.completed_at ||
+    decisions?.length !== 2 ||
+    decisions.filter((decision) => decision.accepted).length !== 1 ||
+    attempts?.length !== 2 ||
+    attempts[0]?.status !== 'rejected' ||
+    attempts[1]?.status !== 'accepted' ||
+    ratings?.length !== 1 ||
+    ratings[0]?.score !== 5 ||
+    ratings[0]?.review !== acceptance.p_review ||
+    ratings[0]?.customer_id !== owner.id ||
+    ratings[0]?.provider_id !== provider.id ||
+    terminalEffects?.length !== 1 ||
+    terminalEffects[0]?.outcome !== 'completed'
+  ) {
+    fail('corrected_completion_authoritative_history_or_rating_invalid');
+  }
 }
 
 async function runSavedLocationDefaultFlow(config, owner) {
@@ -789,7 +901,243 @@ async function runSavedLocationDefaultFlow(config, owner) {
   }
 }
 
+async function expectLegalRejection(response, label, expected = 'LEGAL_ACCEPTANCE_REQUIRED') {
+  const body = await readBody(response);
+  if (response.ok || body?.code !== 'P0001' || body.message !== expected) {
+    fail(`${label}:expected_${expected}:HTTP_${response.status}`);
+  }
+}
+
+async function runLegalConsentJourney(config, owner, provider, outsider, fixture, journey) {
+  // Verify exclusion against PostgreSQL itself, not a simulated lock or a time-based guess.
+  let overlapRejected = false;
+  try {
+    await withDisposableLegalFixture(config, runLocalDatabaseFixture, () =>
+      fail('overlapping_fixture_entered'),
+    );
+  } catch (error) {
+    overlapRejected =
+      error instanceof Error && error.message.includes('LOCAL_LEGAL_FIXTURE_ALREADY_ACTIVE');
+  }
+  if (!overlapRejected) fail('legal_fixture_overlap_not_rejected');
+  const expectEdgeConsentRejection = async (phase) => {
+    for (const [name, input] of [
+      [
+        'ai-diagnostic',
+        {
+          locale: 'en',
+          clientMessageId: `legal-${phase}-${crypto.randomUUID()}`,
+          confirmedCategorySlug: 'general-handyman',
+          categoryHints: ['general-handyman'],
+          messages: [{ role: 'user', text: 'TEST ONLY: a synthetic sink leak.' }],
+        },
+      ],
+      [
+        'transcribe',
+        {
+          uploadId: crypto.randomUUID(),
+          locale: 'en',
+          clientMessageId: `legal-${phase}-${crypto.randomUUID()}`,
+        },
+      ],
+    ]) {
+      const response = await invoke(config, owner, name, input);
+      const body = await readBody(response);
+      if (
+        response.status !== 400 ||
+        body?.error !== 'invalid_request' ||
+        body.code !== 'LEGAL_ACCEPTANCE_REQUIRED' ||
+        typeof body.correlationId !== 'string' ||
+        Object.keys(body).sort().join(',') !== 'code,correlationId,error'
+      ) {
+        fail(`legal_${phase}_${name}_did_not_reject_before_provider_or_upload_access`);
+      }
+    }
+  };
+  const context = async (user, locale, status, rotated = false) => {
+    const result = await expectOk(
+      await rpc(config, user, 'get_legal_consent_context', { p_locale: locale }),
+      `legal_context_${locale}`,
+    );
+    if (
+      result?.status !== status ||
+      result.documents?.length !== 3 ||
+      result.missingRequiredTypes?.length !== 0
+    ) {
+      fail(`legal_context_${locale}_expected_${status}`);
+    }
+    const types = new Set();
+    for (const document of result.documents) {
+      types.add(document.documentType);
+      const version =
+        rotated && document.documentType === 'terms' ? fixture.nextVersion : fixture.version;
+      if (
+        document.locale !== locale ||
+        document.version !== version ||
+        typeof document.body !== 'string' ||
+        !document.body.startsWith('TEST ONLY: synthetic ') ||
+        createHash('sha256').update(document.body, 'utf8').digest('hex') !== document.contentHash
+      ) {
+        fail('legal_displayed_document_contract_invalid');
+      }
+    }
+    if (['privacy', 'terms', 'community'].some((kind) => !types.has(kind)))
+      fail('legal_document_types_incomplete');
+    return result.documents.map(({ id, contentHash }) => ({ id, contentHash }));
+  };
+  const accept = (user, locale, documents, key) =>
+    rpc(config, user, 'accept_current_legal_documents', {
+      p_locale: locale,
+      p_documents: documents,
+      p_idempotency_key: key,
+    });
+  const acceptOnce = async (user, locale, documents, key) => {
+    const accepted = await expectOk(
+      await accept(user, locale, documents, key),
+      'legal_explicit_acceptance',
+    );
+    if (accepted?.status !== 'accepted') fail('legal_acceptance_did_not_unlock');
+  };
+  const publication = () => ({
+    title: 'TEST ONLY: legal consent HTTP journey',
+    original_text: 'Synthetic air-conditioning request for disposable integration only.',
+    structured_description: 'Synthetic air-conditioning request for disposable integration only.',
+    urgency: 'normal',
+    locale: 'en',
+    selected_category_slug: 'air-conditioning',
+    suggested_category_slug: null,
+    category_confirmed_by_user: true,
+    category_selection_source: 'manual',
+    city_code: 'riyadh',
+    exact_location: { latitude: 24.7136, longitude: 46.6753 },
+    media: [],
+    customer_approved: true,
+    idempotency_key: `legal-publish-${crypto.randomUUID()}`,
+  });
+  const publish = (payload) => rpc(config, owner, 'publish_service_request', { payload });
+  const updateProvider = (bio) =>
+    userRequest(config, provider, `provider_profiles?user_id=eq.${provider.id}`, {
+      method: 'PATCH',
+      headers: { prefer: 'return=representation' },
+      body: JSON.stringify({ bio }),
+    });
+  const assertProviderUpdate = async (bio) => {
+    const rows = await expectOk(await updateProvider(bio), 'legal_provider_content_resumes');
+    if (rows?.length !== 1 || rows[0]?.bio !== bio) fail('legal_provider_content_not_persisted');
+  };
+  const readiness = await expectOk(
+    await fetch(`${config.apiUrl}/rest/v1/rpc/get_legal_release_readiness`, {
+      method: 'POST',
+      headers: headers(config.secretKey, config.secretKey, { 'content-type': 'application/json' }),
+      body: '{}',
+    }),
+    'test_only_legal_matrix',
+  );
+  if (
+    !readiness?.ready ||
+    !readiness.consentEnabled ||
+    !readiness.versionsAligned ||
+    readiness.missingDocuments?.length !== 0
+  ) {
+    fail('test_only_legal_matrix_incomplete');
+  }
+  for (const locale of ['ar', 'en', 'ur', 'hi']) await context(owner, locale, 'required');
+  const ownerDocuments = await context(owner, 'en', 'required');
+  const providerDocuments = await context(provider, 'ur', 'required');
+  const pendingPublication = publication();
+  await expectLegalRejection(await publish(pendingPublication), 'legal_customer_before_consent');
+  await expectEdgeConsentRejection('before-consent');
+  const providerBio = `TEST ONLY: consent ${fixture.version}`;
+  await expectLegalRejection(await updateProvider(providerBio), 'legal_provider_before_consent');
+  const changed = ownerDocuments.map((document, index) =>
+    index === 0
+      ? {
+          ...document,
+          contentHash: document.contentHash === 'a'.repeat(64) ? 'b'.repeat(64) : 'a'.repeat(64),
+        }
+      : document,
+  );
+  await expectLegalRejection(
+    await accept(owner, 'en', changed, `wrong-hash-${crypto.randomUUID()}`),
+    'legal_displayed_hash_required',
+    'LEGAL_DOCUMENTS_CHANGED',
+  );
+  const ownerKey = `legal-owner-${crypto.randomUUID()}`;
+  await acceptOnce(owner, 'en', ownerDocuments, ownerKey);
+  await acceptOnce(owner, 'en', ownerDocuments, ownerKey);
+  const acceptedRows = await expectOk(
+    await userRequest(config, owner, 'legal_acceptances?select=legal_document_id'),
+    'legal_idempotent_rows',
+  );
+  if (
+    acceptedRows?.length !== 3 ||
+    new Set(acceptedRows.map((row) => row.legal_document_id)).size !== 3
+  ) {
+    fail('legal_retry_duplicated_acceptance');
+  }
+  await context(provider, 'ur', 'required');
+  await context(outsider, 'ar', 'required');
+  const outsiderRows = await expectOk(
+    await userRequest(config, outsider, 'legal_acceptances?select=legal_document_id'),
+    'legal_other_actor_rows',
+  );
+  if (outsiderRows?.length !== 0) fail('legal_acceptance_cross_actor_leak');
+  await expectLegalRejection(
+    await updateProvider(providerBio),
+    'legal_customer_acceptance_does_not_unlock_provider',
+  );
+  await acceptOnce(provider, 'ur', providerDocuments, `legal-provider-${crypto.randomUUID()}`);
+  for (const locale of ['ar', 'en', 'ur', 'hi']) {
+    await context(owner, locale, 'accepted');
+    await context(provider, locale, 'accepted');
+  }
+  if (
+    typeof (await expectOk(await publish(pendingPublication), 'legal_customer_content_resumes')) !==
+    'string'
+  ) {
+    fail('legal_customer_publication_id_invalid');
+  }
+  await assertProviderUpdate(providerBio);
+  // Existing real authenticated Storage, Edge and customer/provider commands run with consent ON.
+  await journey();
+  fixture.rotate();
+  await expectEdgeConsentRejection('after-rotation');
+  const replay = await expectOk(
+    await accept(owner, 'en', ownerDocuments, ownerKey),
+    'legal_old_acceptance_replay',
+  );
+  if (replay?.status !== 'required') fail('legal_rotation_replayed_stale_success');
+  await expectLegalRejection(
+    await accept(owner, 'en', ownerDocuments, `stale-set-${crypto.randomUUID()}`),
+    'legal_rotation_rejects_old_set',
+    'LEGAL_DOCUMENTS_CHANGED',
+  );
+  const rotatedPublication = publication();
+  const rotatedBio = `TEST ONLY: consent ${fixture.nextVersion}`;
+  await expectLegalRejection(await publish(rotatedPublication), 'legal_rotation_regates_customer');
+  await expectLegalRejection(await updateProvider(rotatedBio), 'legal_rotation_regates_provider');
+  for (const [user, locale] of [
+    [owner, 'en'],
+    [provider, 'ur'],
+  ]) {
+    const current = await context(user, locale, 'required', true);
+    await acceptOnce(user, locale, current, `renewed-${crypto.randomUUID()}`);
+    await context(user, locale, 'accepted', true);
+  }
+  if (
+    typeof (await expectOk(await publish(rotatedPublication), 'legal_rotated_customer_resumes')) !==
+    'string'
+  ) {
+    fail('legal_rotated_publication_id_invalid');
+  }
+  await assertProviderUpdate(rotatedBio);
+  console.log(
+    'Disposable legal HTTP journey: PASS (12 TEST ONLY documents, per-account consent, hash/idempotency, enforced customer/provider journey, rotation and renewed consent)',
+  );
+}
+
 export async function runLocalSupabaseFlows(config) {
+  assertDisposableLocalTarget(config);
   const owner = await createUser(config, 'local-owner');
   const outsider = await createUser(config, 'local-outsider');
   const provider = await signInUser(
@@ -797,10 +1145,14 @@ export async function runLocalSupabaseFlows(config) {
     'provider.demo@example.invalid',
     'LocalProviderE2E-Only!2026',
   );
-  await runSavedLocationDefaultFlow(config, owner);
-  await runStorageFlow(config, owner, outsider);
-  await runAiPublicationFlow(config, owner);
-  await runConcurrentIdempotencyFlow(config, owner, provider);
+  await withDisposableLegalFixture(config, runLocalDatabaseFixture, (fixture) =>
+    runLegalConsentJourney(config, owner, provider, outsider, fixture, async () => {
+      await runSavedLocationDefaultFlow(config, owner);
+      await runStorageFlow(config, owner, outsider);
+      await runAiPublicationFlow(config, owner);
+      await runConcurrentIdempotencyFlow(config, owner, provider);
+    }),
+  );
   console.log(
     'Local Supabase integration: PASS (location authority + storage + AI + true concurrent idempotency)',
   );
@@ -808,6 +1160,7 @@ export async function runLocalSupabaseFlows(config) {
 
 export async function runLocalSupabaseIntegration(options = {}) {
   const config = localEnvironment();
+  assertDisposableLocalTarget(config);
   let generatedEnvironmentDirectory;
   let functionServer;
   try {

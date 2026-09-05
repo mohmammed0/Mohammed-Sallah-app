@@ -12,6 +12,6 @@ This short handoff index intentionally does not duplicate gate details.
 | Backup/monitoring drills     | NOT RUN                | [Operations documents](../operations/BACKUP_AND_RECOVERY.md)   |
 | Production rollout           | HUMAN INPUT REQUIRED   | [Deployment contract](../DEPLOYMENT.md)                        |
 
-Closing GitHub issues, merging PR #33, or creating the handoff tag does not
+Closing GitHub issues, merging an integration PR, or creating the handoff tag does not
 convert any row to `PASS`. Only evidence from the named target and approving
 owner may change a gate status.

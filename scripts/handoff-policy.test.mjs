@@ -12,7 +12,7 @@ const completeManifest = () => ({
   finalMainSha: 'reported-externally-after-merge',
   releaseTag: 'sallah-multitool-handoff-v1',
   generatedAt: '2026-08-27T00:00:00.000Z',
-  finalIntegrationPr: { number: 33, base: 'main', status: 'final-integration-gate' },
+  finalIntegrationPr: { number: 36, base: 'main', status: 'final-integration-gate' },
   versions: { node: '24.19.0' },
   apps: ['mobile'],
   packages: ['domain'],

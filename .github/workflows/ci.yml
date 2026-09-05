@@ -34,6 +34,7 @@ jobs:
       - run: pnpm ui:boundaries
       - run: pnpm ui:catalog:check
       - run: pnpm test:production-build
+      - run: pnpm test:prelaunch
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
@@ -126,6 +127,13 @@ jobs:
       - run: pnpm --filter @sallah/mobile typecheck
       - run: pnpm --filter @sallah/mobile test
       - run: pnpm mobile:expo-check
+      - name: Preserve Android and iOS validation exports
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mobile-validation-export
+          path: apps/mobile/.expo-check/
+          include-hidden-files: true
+          if-no-files-found: error
       - name: Validate Expo production config rejects placeholders
         run: if EXPO_PUBLIC_APP_ENV=production pnpm --filter @sallah/mobile exec expo config --type public; then exit 1; else echo 'mobile fail-closed verified'; fi
 
@@ -198,9 +206,58 @@ jobs:
           PGPASSWORD: postgres
       - run: supabase db lint --local --schema public,private --level error --fail-on error
       - run: pnpm test:local-supabase
+        env:
+          SALLAH_DISPOSABLE_DB_CONFIRMED: '1'
       - name: Verify generated types current
         run: supabase gen types typescript --local --schema public > /tmp/database.types.ts && pnpm exec prettier --config .prettierrc.json --write /tmp/database.types.ts && diff -u packages/database/src/database.types.ts /tmp/database.types.ts
       - run: deno fmt --check --config supabase/functions/deno.json supabase/functions
       - run: deno lint --config supabase/functions/deno.json supabase/functions
       - run: deno check --config supabase/functions/deno.json supabase/functions/ai-diagnostic/index.ts supabase/functions/media-access/index.ts supabase/functions/notification-worker/index.ts supabase/functions/privacy-worker/index.ts supabase/functions/reauthenticate/index.ts supabase/functions/scan-upload/index.ts supabase/functions/scanner-control/index.ts supabase/functions/transcribe/index.ts supabase/functions/translate-provider-brief/index.ts
       - run: deno test --config supabase/functions/deno.json --allow-env --allow-read supabase/functions
+
+  prelaunch:
+    needs: [repository, mobile, web, supabase, media-scanner]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { ref: '${{ github.sha }}', fetch-depth: 0 }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version-file: .nvmrc }
+      - run: corepack enable && corepack prepare pnpm@11.19.0 --activate
+      - run: pnpm install --frozen-lockfile
+      - name: Download validation artifacts from this run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          gh run download "$RUN_ID" --name sbom --dir artifacts/prelaunch-inputs/sbom
+          gh run download "$RUN_ID" --name mobile-validation-export --dir artifacts/prelaunch-inputs/mobile
+      - name: Bind and verify the prelaunch packet
+        env:
+          CHECKOUT_SHA: ${{ github.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}
+          CI_EVENT: ${{ github.event_name }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          args=(--out artifacts/prelaunch/current --expect-head "$CHECKOUT_SHA"
+            --mobile-export artifacts/prelaunch-inputs/mobile
+            --sbom artifacts/prelaunch-inputs/sbom/sbom.cdx.json
+            --artifact-source-sha "$CHECKOUT_SHA" --ci-event "$CI_EVENT"
+            --ci-checkout-sha "$CHECKOUT_SHA" --ci-run-id "$RUN_ID")
+          if [ -n "$PR_HEAD_SHA" ]; then args+=(--ci-pr-head-sha "$PR_HEAD_SHA"); fi
+          node scripts/prelaunch-packet.mjs generate "${args[@]}"
+          node scripts/prelaunch-packet.mjs verify --packet artifacts/prelaunch/current/packet.json
+      - name: Preserve source-bound prelaunch evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: prelaunch-packet
+          path: |
+            artifacts/prelaunch/
+            artifacts/prelaunch-inputs/
+          if-no-files-found: error
+          retention-days: 30

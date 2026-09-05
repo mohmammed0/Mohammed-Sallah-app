@@ -1,5 +1,8 @@
 # Deployment
 
+This is the rollout procedure after the [code and GitHub prelaunch gate](release/PRELAUNCH.md).
+Prepare the candidate and its evidence before applying changes to a hosted environment.
+
 ## Order
 
 1. Provision separate preview/production Supabase projects and backups.
@@ -27,7 +30,10 @@ The repository/local M2V test uses real local Supabase Storage/PostgreSQL/Edge, 
 worker, exact signed capabilities, and ClamD. Edge carries metadata only; the worker downloads and
 uploads exact opaque attempt objects directly with Storage. The test proves the local contract but
 does not provision a hosted scanner, private network, certificate, signature-update service, alerts,
-or capacity. Hosted deployment, EAS, emulator, and physical-device validation remain **NOT RUN**.
+or capacity. The [September launch checkpoint](validation/LAUNCH_READINESS_2026-09-05.md) records
+observed hosted CI and [Android Preview 19/EAS/emulator evidence](validation/NATIVE_LAUNCH_2026-09-05.md).
+Production deployment, physical devices and native iOS remain **NOT RUN**. An iOS JavaScript export
+is build preparation only; current code validation comes from the exact candidate CI and packet.
 Here, "Edge carries metadata only" is scoped to `scan-upload`, `scanner-control`, promotion, and scan
 cleanup. `media-access` remains a live-authorized streaming broker. Provider transport in
 `ai-diagnostic` and `transcribe` is an explicit M3 review gate before live provider activation.

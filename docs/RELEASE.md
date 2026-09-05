@@ -1,5 +1,9 @@
 # Release process
 
+Start with the [code and GitHub prelaunch gate](release/PRELAUNCH.md) and PR #36 to `main`.
+Its six CI jobs produce a verifiable source/migration/artifact packet. Actual rollout follows only
+after that engineering gate and the environment-specific checks below.
+
 Create a signed/reviewed release commit, freeze migrations, and complete `docs/store/RELEASE_CHECKLIST.md`. Run every command in the final validation report from a clean clone with frozen lockfile. Produce SBOM, web artifact, EAS preview artifacts, migration manifest, and screenshots tied to the commit SHA.
 
 Use EAS channels `development`, `preview`, and `production`; runtime version uses the Expo fingerprint policy and build numbers auto-increment remotely. Promotion requires a release owner, security sign-off for high-risk changes, legal approval for policies/store disclosures, operations review of provider verification/support, and finance approval if payment mode changes.
@@ -23,8 +27,11 @@ JPEG/PNG/WebP require full decode/re-encode and reopened validation. Approved M4
 completion MP4 video require bounded actual remux plus FFprobe reopen; WebM and PDFs fail closed.
 ClamAV's GPL-2.0-only container and the Debian FFmpeg GPL-2.0-or-later runtime are
 local repository evidence only until legal/operator approval and source-offer obligations are resolved.
-Hosted provisioning/deployment, hosted Actions, EAS, emulator, and physical-device validation are
-**NOT RUN**.
+Hosted Actions and Android Preview 19/EAS/emulator evidence are recorded at their exact checkpoints
+in [launch validation](validation/LAUNCH_READINESS_2026-09-05.md) and the
+[native report](validation/NATIVE_LAUNCH_2026-09-05.md). Resolve current CI from the candidate PR
+and its prelaunch packet. Production deployment, physical devices and native iOS remain **NOT RUN**;
+repository test configuration and iOS JavaScript export do not satisfy those gates.
 
 The release gate also requires autonomous 24-hour aging through the Vault-backed privacy-worker
 schedule, bounded cleanup dead-letter handling, owner-isolated journal pruning, capability lifetimes

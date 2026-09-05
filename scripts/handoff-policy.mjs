@@ -90,8 +90,8 @@ export function validateHandoffManifest(manifest) {
   if (!manifest?.finalIntegrationPr || typeof manifest.finalIntegrationPr !== 'object') {
     errors.push('finalIntegrationPr must be an object');
   } else {
-    if (manifest.finalIntegrationPr.number !== 33) {
-      errors.push('finalIntegrationPr.number must be 33');
+    if (manifest.finalIntegrationPr.number !== 36) {
+      errors.push('finalIntegrationPr.number must be 36');
     }
     if (manifest.finalIntegrationPr.base !== 'main') {
       errors.push('finalIntegrationPr.base must be main');

@@ -5,7 +5,7 @@
   "main": "expo-router/entry",
   "scripts": {
     "dev": "expo start",
-    "build": "expo export --platform android --output-dir dist",
+    "build": "expo export --platform android --platform ios --output-dir dist",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "lint": "eslint app src app.config.ts",

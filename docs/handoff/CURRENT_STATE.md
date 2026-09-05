@@ -3,13 +3,16 @@
 ## Repository
 
 - Canonical/default integration branch: `main`.
-- Exact source identity: run `git rev-parse HEAD` in a clean `main` checkout.
+- Exact candidate source identity: run `git rev-parse HEAD` in a clean PR #36 checkout.
+  After an authorized merge, resolve the integrated identity separately from clean `main`.
 - Immutable handoff tag: `sallah-multitool-handoff-v1` after final verified merge.
-- Final integration gate: PR #33 from
-  `codex/repository-finalization-multitool-handoff-v1` directly to `main`.
+- Final integration gate: PR #36 from
+  `codex/launch-readiness-v1` directly to `main`.
 - Final `main` SHA: reported externally after merge because a tracked file cannot embed the SHA of
   the commit that contains itself.
 - Production and store submission: **NOT RUN**.
+
+See the current [code and GitHub prelaunch gate](../release/PRELAUNCH.md).
 
 ## Product and hosted Preview
 

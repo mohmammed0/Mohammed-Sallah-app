@@ -7,20 +7,20 @@
   "sourceCommit": "git:HEAD",
   "finalMainSha": "reported-externally-after-merge",
   "releaseTag": "sallah-multitool-handoff-v1",
-  "generatedAt": "2026-08-28T01:24:36-05:00",
+  "generatedAt": "2026-09-05T16:33:30.007Z",
   "finalIntegrationPr": {
-    "number": 33,
-    "status": "final-integration-gate",
+    "number": 36,
+    "status": "prelaunch-review-candidate",
     "base": "main",
-    "head": "codex/repository-finalization-multitool-handoff-v1",
-    "url": "https://github.com/mohmammed0/Mohammed-Sallah-app/pull/33"
+    "head": "codex/launch-readiness-v1",
+    "url": "https://github.com/mohmammed0/Mohammed-Sallah-app/pull/36"
   },
   "versions": {
     "node": "24.19.0",
     "pnpm": "11.19.0",
     "supabaseCli": "2.114.0",
     "deno": "2.9.5",
-    "expo": "57.0.17",
+    "expo": "57.0.20",
     "reactNative": "0.86.3",
     "next": "16.3.1"
   },
@@ -67,7 +67,11 @@
     "super_admin"
   ],
   "ciResults": [
-    { "source": "parent", "pushRun": 33062076893, "status": "failed-known-defects-remediated" },
+    {
+      "source": "parent",
+      "pushRun": 33062076893,
+      "status": "failed-known-defects-remediated"
+    },
     {
       "source": "parent",
       "pullRequestRun": 33062080697,
@@ -83,20 +87,37 @@
       "pullRequestRun": 33141630504,
       "status": "passed-before-main-base-change"
     },
-    { "source": "git:HEAD", "status": "resolve-from-github-for-exact-head" }
+    {
+      "source": "9e9f6b2155b6fd5995fc124da0a25f3fc71e4356",
+      "pushRun": 33957016118,
+      "pullRequestRun": 33957018071,
+      "status": "passed-before-main-base-change"
+    },
+    {
+      "source": "git:HEAD",
+      "status": "resolve-from-github-for-exact-head"
+    }
   ],
   "validationCounts": [
-    { "gate": "completion-idempotency", "passed": 41 },
-    { "gate": "push", "passed": 66 },
-    { "gate": "mobile-trust", "passed": 49 },
-    { "gate": "mobile-route-ui", "passed": 28 },
-    { "gate": "ui-handoff-policies", "passed": 9 },
-    { "gate": "database-files", "passed": 33 },
-    { "gate": "edge-deno", "passed": 134 },
-    { "gate": "edge-memory", "passed": 8 },
-    { "gate": "web-playwright", "passed": 10, "skipped": 4 },
-    { "gate": "load-smoke-checks", "passed": 200 },
-    { "gate": "expo-doctor", "passed": 21 }
+    {
+      "gate": "workspace-tests",
+      "passed": 631,
+      "skipped": 1
+    },
+    {
+      "gate": "database-pgtap",
+      "passed": 1269,
+      "files": 34
+    },
+    {
+      "gate": "edge-deno",
+      "passed": 136
+    },
+    {
+      "gate": "web-playwright",
+      "passed": 18,
+      "skipped": 4
+    }
   ],
   "validationIdentities": {
     "codexSecurityScanId": "sallah-finalization-diff-20260828T040000Z",
@@ -141,5 +162,6 @@
     "Figma:docs/handoff/FIGMA_HANDOFF.md",
     "Canva:docs/handoff/CANVA_HANDOFF.md",
     "Notion-Linear:docs/handoff/NOTION_LINEAR_HANDOFF.md"
-  ]
+  ],
+  "validationCountsSource": "Historical 9e9f6b2155b6fd5995fc124da0a25f3fc71e4356 checkpoint; resolve current candidate CI and prelaunch packet separately."
 }

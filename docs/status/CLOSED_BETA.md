@@ -7,9 +7,12 @@
 
 ## الحالة المختصرة | Summary
 
-- Current launch preparation is [draft PR #36](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/36),
-  based on UI PR #35. Application source `de2b64813a7e61682d86f3528393d85c0f81dddb` passes local
-  `pnpm validate` with 631 workspace tests and one documented Windows skip.
+- Current code/GitHub prelaunch integration is [PR #36](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/36)
+  directly to `main`, preserving the earlier PR #33/#35 history. The [prelaunch gate](../release/PRELAUNCH.md)
+  requires six current CI jobs, including Android/iOS exports, consent-enabled authenticated HTTP
+  journeys and a source/migration/artifact packet. Use the PR head and run identities for current results.
+- The preceding application checkpoint `de2b64813a7e61682d86f3528393d85c0f81dddb` passed local
+  `pnpm validate` with 631 workspace tests and one documented Windows skip; that count is historical.
 - The [launch verification packet](../validation/LAUNCH_READINESS_2026-09-05.md) records exact hosted
   CI, signed Android Preview/emulator evidence, reviewed consent, four-language entry/policy UX,
   Codex Security scope and remaining physical/production/store gates.

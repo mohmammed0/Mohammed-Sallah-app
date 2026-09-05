@@ -1,8 +1,13 @@
 # Launch preparation — 2026-09-05
 
-Status: CURRENT SUPPORTING DOCUMENT. Audience: release owner and reviewers.
+Status: HISTORICAL EVIDENCE. Audience: release owner and reviewers.
 
-**Public production/store release: HUMAN INPUT REQUIRED.** Implementation is in
+This report preserves the morning application and delivery checkpoints through `9e9f6b2`.
+The subsequent code/GitHub prelaunch work retargeted PR #36 directly to `main` and added verification
+tooling. See the [current prelaunch gate](../release/PRELAUNCH.md); results below retain their original
+source identity and do not claim to validate later tooling changes or the new main-based PR checkout.
+
+**Public production/store release: HUMAN INPUT REQUIRED.** At this checkpoint, implementation was in
 [draft PR #36](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/36), based on
 `bbfe7f2d54f998124574334c7d98900389b01bfa` / PR #35. The final application source is
 `de2b64813a7e61682d86f3528393d85c0f81dddb` on `codex/launch-readiness-v1`.
