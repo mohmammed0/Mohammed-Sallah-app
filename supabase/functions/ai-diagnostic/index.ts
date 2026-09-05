@@ -1,4 +1,5 @@
 import OpenAI from 'npm:openai@7.5.0';
+import { assertActorLegalConsent } from '../_shared/legal-consent.ts';
 import { z } from 'npm:zod@4.4.3';
 import { authenticatedUser, serviceClient } from '../_shared/auth.ts';
 import { corsHeaders, json, safeError } from '../_shared/http.ts';
@@ -119,6 +120,9 @@ Deno.serve(async (request) => {
     const user = await authenticatedUser(request);
     const input = inputSchema.parse(await request.json());
     const db = serviceClient();
+    await assertActorLegalConsent(() =>
+      db.rpc('assert_actor_legal_consent', { p_user_id: user.id })
+    );
     const windowStart = new Date();
     windowStart.setUTCMinutes(0, 0, 0);
     const key = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(user.id));

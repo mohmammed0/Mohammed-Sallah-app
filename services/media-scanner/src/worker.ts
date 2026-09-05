@@ -12,7 +12,7 @@ import {
 import type { ScanClaim } from './control-client.js';
 import type { AcceptedMediaMimeType } from './contracts.js';
 import { AttemptDeadline, DeadlineError } from './deadline.js';
-import type { ClamdVersionEvidence } from './clamd.js';
+import { ClamdClientError, type ClamdVersionEvidence } from './clamd.js';
 import {
   fingerprintAttestation,
   parseAttestation,
@@ -109,12 +109,21 @@ export interface ScannerWorkerControl {
   }>;
 }
 
-export type WorkerRunResult =
+export type WorkerFailureCategory =
+  | 'signature_stale'
+  | 'signature_invalid'
+  | 'readiness_unavailable'
+  | 'control_unavailable'
+  | 'processing_failed'
+  | 'processing_timeout';
+
+export type WorkerRunResult = (
   | { readonly status: 'idle' }
   | { readonly status: 'clean'; readonly attemptId: string }
   | { readonly status: 'rejected'; readonly attemptId: string }
   | { readonly status: 'retryable_failure'; readonly attemptId?: string }
-  | { readonly status: 'terminal_failure'; readonly attemptId: string };
+  | { readonly status: 'terminal_failure'; readonly attemptId: string }
+) & { readonly category?: WorkerFailureCategory };
 
 export interface MediaScannerWorkerOptions {
   readonly workerId: string;
@@ -134,7 +143,16 @@ export interface MediaScannerWorkerOptions {
 }
 
 export interface MediaScannerWorker {
-  runOne(): Promise<WorkerRunResult>;
+  runOne(this: void, onReady?: () => void): Promise<WorkerRunResult>;
+}
+
+async function cleanupAttemptDirectory(path: string | undefined): Promise<void> {
+  if (!path) return;
+  try {
+    await rm(path, { recursive: true, force: true });
+  } catch {
+    throw new Error('scanner_cleanup_failed');
+  }
 }
 
 function prepareFingerprint(processed: ProcessedMedia): string {
@@ -184,24 +202,27 @@ export function createMediaScannerWorker(options: MediaScannerWorkerOptions): Me
   let active = false;
 
   return {
-    async runOne(): Promise<WorkerRunResult> {
+    async runOne(onReady?: () => void): Promise<WorkerRunResult> {
       if (active) return { status: 'retryable_failure' };
       active = true;
       let claim: ScanClaim | undefined;
       let deadline: AttemptDeadline | undefined;
       let attemptDirectory: string | undefined;
+      let stage: 'readiness' | 'control' | 'processing' = 'readiness';
       try {
         const ready = await options.readiness();
-        if (
-          ready.signatureAgeSeconds < 0 ||
-          ready.signatureAgeSeconds > options.signatureMaxAgeSeconds
-        )
-          return { status: 'retryable_failure' };
+        if (!Number.isSafeInteger(ready.signatureAgeSeconds) || ready.signatureAgeSeconds < 0)
+          return { status: 'retryable_failure', category: 'signature_invalid' };
+        if (ready.signatureAgeSeconds > options.signatureMaxAgeSeconds)
+          return { status: 'retryable_failure', category: 'signature_stale' };
+        stage = 'control';
         const claimed = await options.control.claim({
           workerId: options.workerId,
           signatureTimestamp: ready.signatureTimestamp,
           signatureMaxAgeSeconds: options.signatureMaxAgeSeconds,
         });
+        stage = 'processing';
+        onReady?.();
         if (claimed.status === 'idle') return claimed;
         claim = claimed;
         try {
@@ -212,7 +233,11 @@ export function createMediaScannerWorker(options: MediaScannerWorkerOptions): Me
           });
         } catch (error) {
           if (error instanceof DeadlineError) {
-            return { status: 'retryable_failure', attemptId: claim.attemptId };
+            return {
+              status: 'retryable_failure',
+              category: 'processing_timeout',
+              attemptId: claim.attemptId,
+            };
           }
           throw error;
         }
@@ -359,10 +384,27 @@ export function createMediaScannerWorker(options: MediaScannerWorkerOptions): Me
         });
         return { status: result.status, attemptId: result.attemptId };
       } catch (error) {
-        if (!claim || !deadline) return { status: 'retryable_failure' };
+        if (!claim || !deadline) {
+          const category: WorkerFailureCategory =
+            stage === 'readiness'
+              ? error instanceof ClamdClientError && error.code === 'signature_stale'
+                ? 'signature_stale'
+                : error instanceof ClamdClientError &&
+                    (error.code === 'signature_future' || error.code === 'signature_unparseable')
+                  ? 'signature_invalid'
+                  : 'readiness_unavailable'
+              : stage === 'control'
+                ? 'control_unavailable'
+                : 'processing_failed';
+          return { status: 'retryable_failure', category };
+        }
         const category = safeFailureCategory(error);
         if (deadline.remainingMs() <= 0 || deadline.signal.aborted) {
-          return { status: 'retryable_failure', attemptId: claim.attemptId };
+          return {
+            status: 'retryable_failure',
+            category: 'processing_timeout',
+            attemptId: claim.attemptId,
+          };
         }
         if (
           error instanceof ScannerPipelineError &&
@@ -376,7 +418,11 @@ export function createMediaScannerWorker(options: MediaScannerWorkerOptions): Me
             });
             return result;
           } catch {
-            return { status: 'retryable_failure', attemptId: claim.attemptId };
+            return {
+              status: 'retryable_failure',
+              category: 'control_unavailable',
+              attemptId: claim.attemptId,
+            };
           }
         }
         try {
@@ -385,14 +431,21 @@ export function createMediaScannerWorker(options: MediaScannerWorkerOptions): Me
             attemptToken: claim.attemptToken,
             failureCategory: category,
           });
-          return result;
+          return { ...result, category: 'processing_failed' };
         } catch {
-          return { status: 'retryable_failure', attemptId: claim.attemptId };
+          return {
+            status: 'retryable_failure',
+            category: 'control_unavailable',
+            attemptId: claim.attemptId,
+          };
         }
       } finally {
         deadline?.dispose();
-        if (attemptDirectory) await rm(attemptDirectory, { recursive: true, force: true });
-        active = false;
+        try {
+          await cleanupAttemptDirectory(attemptDirectory);
+        } finally {
+          active = false;
+        }
       }
     },
   };

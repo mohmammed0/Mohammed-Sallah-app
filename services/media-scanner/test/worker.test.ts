@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { FileDigest } from '../src/capability-http.js';
+import { ClamdClientError } from '../src/clamd.js';
 import {
   type ProcessedMedia,
   type ScannerPipeline,
@@ -107,6 +108,83 @@ function control(overrides: Partial<ScannerWorkerControl> = {}): ScannerWorkerCo
 }
 
 describe('one-job no-credential pull worker', () => {
+  it.each([
+    ['stale returned evidence', 3_601, undefined, 'signature_stale'],
+    ['future returned evidence', -1, undefined, 'signature_invalid'],
+    ['nonfinite returned evidence', Number.POSITIVE_INFINITY, undefined, 'signature_invalid'],
+    ['stale ClamD response', 60, new ClamdClientError('signature_stale'), 'signature_stale'],
+    [
+      'unavailable ClamD',
+      60,
+      new Error('https://private.example/?token=secret'),
+      'readiness_unavailable',
+    ],
+  ] as const)('reports %s safely without claiming work', async (_name, age, error, category) => {
+    const scannerControl = control();
+    const onReady = vi.fn();
+    const worker = createMediaScannerWorker({
+      workerId: 'scanner-worker-1',
+      storageOrigin: 'https://storage.example',
+      allowHttp: false,
+      signatureMaxAgeSeconds: 3_600,
+      attestationSecret: 'a'.repeat(32),
+      tempRoot: '/unused',
+      control: scannerControl,
+      pipeline: { process: vi.fn() },
+      readiness: () =>
+        error
+          ? Promise.reject(error)
+          : Promise.resolve({
+              engineVersion: '1.4.6',
+              signatureVersion: '28000',
+              signatureTimestamp: new Date(Date.now() - 60_000).toISOString(),
+              signatureAgeSeconds: age,
+            }),
+    });
+    await expect(worker.runOne(onReady)).resolves.toEqual({
+      status: 'retryable_failure',
+      category,
+    });
+    expect(onReady).not.toHaveBeenCalled();
+    expect(scannerControl.claim).not.toHaveBeenCalled();
+  });
+
+  it('requires fresh signatures and reachable control before reporting readiness, then recovers', async () => {
+    let unavailable = true;
+    const scannerControl = control({
+      claim: () =>
+        unavailable
+          ? Promise.reject(new Error('Bearer secret /scan-input/private-object'))
+          : Promise.resolve({ status: 'idle' }),
+    });
+    const onReady = vi.fn();
+    const worker = createMediaScannerWorker({
+      workerId: 'scanner-worker-1',
+      storageOrigin: 'https://storage.example',
+      allowHttp: false,
+      signatureMaxAgeSeconds: 3_600,
+      attestationSecret: 'a'.repeat(32),
+      tempRoot: '/unused',
+      control: scannerControl,
+      pipeline: { process: vi.fn() },
+      readiness: () =>
+        Promise.resolve({
+          engineVersion: '1.4.6',
+          signatureVersion: '28000',
+          signatureTimestamp: new Date(Date.now() - 60_000).toISOString(),
+          signatureAgeSeconds: 60,
+        }),
+    });
+    await expect(worker.runOne(onReady)).resolves.toEqual({
+      status: 'retryable_failure',
+      category: 'control_unavailable',
+    });
+    expect(onReady).not.toHaveBeenCalled();
+    unavailable = false;
+    await expect(worker.runOne(onReady)).resolves.toEqual({ status: 'idle' });
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
   it('pulls metadata, streams capabilities, scans twice before output authorization, verifies readback, attests, and cleans temp data', async () => {
     const root = await mkdtemp(join(tmpdir(), 'sallah-worker-'));
     temporary.push(root);
@@ -355,6 +433,7 @@ describe('one-job no-credential pull worker', () => {
 
       await expect(worker.runOne()).resolves.toEqual({
         status: 'retryable_failure',
+        category: 'control_unavailable',
         attemptId,
       });
       expect(disposition).toHaveBeenCalledTimes(1);

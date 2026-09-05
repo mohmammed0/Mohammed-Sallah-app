@@ -1,4 +1,5 @@
 import OpenAI from 'npm:openai@7.5.0';
+import { assertActorLegalConsent } from '../_shared/legal-consent.ts';
 import { z } from 'npm:zod@4.4.3';
 import { authenticatedUser, serviceClient } from '../_shared/auth.ts';
 import { corsHeaders, json, safeError } from '../_shared/http.ts';
@@ -124,6 +125,9 @@ export async function handleTranscribe(request: Request): Promise<Response> {
     const user = await authenticatedUser(request);
     const input = schema.parse(await request.json());
     const db = serviceClient();
+    await assertActorLegalConsent(() =>
+      db.rpc('assert_actor_legal_consent', { p_user_id: user.id })
+    );
     const uploadResult = await db.from('file_uploads').select(
       'id,user_id,purpose,status,target_bucket,final_path,declared_mime_type,detected_mime_type,size_bytes,sanitized',
     ).eq('id', input.uploadId).eq('user_id', user.id).maybeSingle();

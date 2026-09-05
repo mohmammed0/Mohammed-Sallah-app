@@ -41,6 +41,8 @@ import {
   type ConversationMessage,
 } from './conversation-state';
 import { ConversationTimeline } from './conversation-timeline';
+import { AiDataConsentPanel } from './ai-data-consent-panel';
+import { AiDataConsentRequiredError, createAiDataConsentGate } from './ai-data-consent';
 import {
   appendTemporaryFallback,
   clearAiIntakeAbandonment,
@@ -178,6 +180,10 @@ export function RequestComposer() {
   const [activeVoiceMediaId, setActiveVoiceMediaId] = useState<string | null>(null);
   const [requestMediaUploadIds, setRequestMediaUploadIds] = useState<string[]>([]);
   const [restored, setRestored] = useState(false);
+  const [aiConsentGranted, setAiConsentGranted] = useState(false);
+  const [manualIntake, setManualIntake] = useState(false);
+  const aiConsentGate = useRef(createAiDataConsentGate()).current;
+  const recordingStartedRef = useRef(false);
   const sessionIdRef = useRef<string | null>(null);
   const replayingRef = useRef(false);
   const replaySignatureRef = useRef('');
@@ -581,16 +587,45 @@ export function RequestComposer() {
   function invalidateApproval() {
     setApproved(false);
   }
+  useEffect(() => () => aiConsentGate.withdraw(), [aiConsentGate]);
+  function allowAiData() {
+    aiConsentGate.grant();
+    setAiConsentGranted(true);
+    setManualIntake(false);
+    replaySignatureRef.current = '';
+    setError('');
+  }
+  function withdrawAiData() {
+    aiConsentGate.withdraw();
+    if (recordingStartedRef.current || recorderState.isRecording) {
+      void stopRecording().catch(() => setError(t('publishOrUploadFailed')));
+    }
+    setAiConsentGranted(false);
+    replaySignatureRef.current = '';
+  }
+  function continueManually() {
+    if (busy || pendingTurns.length > 0) return;
+    withdrawAiData();
+    setManualIntake(true);
+    if (description.trim()) {
+      if (!title.trim()) setTitle(description.trim().slice(0, 120));
+      if (!summary.trim()) setSummary(description.trim());
+    } else if (summary.trim()) setDescription(summary.trim());
+    invalidateApproval();
+  }
   async function uploadPrivate(
     uri: string,
     filename: string,
     mimeType: string,
     purpose: 'request_media' | 'request_audio',
     recoveryKey: string,
+    forAi: boolean,
   ) {
+    if (forAi) aiConsentGate.assertAllowed();
     const response = await fetch(uri);
     if (!response.ok) throw new Error('LOCAL_MEDIA_READ_FAILED');
     const bytes = new Uint8Array(await response.arrayBuffer());
+    if (forAi) aiConsentGate.assertAllowed();
     return await secureUpload({ bytes, filename, mimeType, purpose, recoveryKey });
   }
   async function pickImage(source: 'camera' | 'library') {
@@ -682,20 +717,37 @@ export function RequestComposer() {
     }
   }
   async function startRecording() {
-    const permission = await AudioModule.requestRecordingPermissionsAsync();
-    if (!permission.granted) {
-      setError(t('microphonePermissionDenied'));
-      return;
+    try {
+      aiConsentGate.assertAllowed();
+      const permission = await AudioModule.requestRecordingPermissionsAsync();
+      aiConsentGate.assertAllowed();
+      if (!permission.granted) {
+        setError(t('microphonePermissionDenied'));
+        return;
+      }
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+        allowsBackgroundRecording: false,
+      });
+      aiConsentGate.assertAllowed();
+      await recorder.prepareToRecordAsync();
+      aiConsentGate.assertAllowed();
+      recorder.record();
+      recordingStartedRef.current = true;
+    } catch (caught) {
+      await setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
+      setError(
+        t(
+          caught instanceof AiDataConsentRequiredError
+            ? 'aiConsentRequired'
+            : 'publishOrUploadFailed',
+        ),
+      );
     }
-    await setAudioModeAsync({
-      allowsRecording: true,
-      playsInSilentMode: true,
-      allowsBackgroundRecording: false,
-    });
-    await recorder.prepareToRecordAsync();
-    recorder.record();
   }
   async function stopRecording() {
+    recordingStartedRef.current = false;
     await recorder.stop();
     await setAudioModeAsync({ allowsRecording: false });
     if (!recorder.uri || !userId) return;
@@ -726,7 +778,11 @@ export function RequestComposer() {
     }
   }
 
-  async function prepareQueuedTurn(turn: PendingCustomerTurn): Promise<PendingCustomerTurn> {
+  async function prepareQueuedTurn(
+    turn: PendingCustomerTurn,
+    forAi = true,
+  ): Promise<PendingCustomerTurn> {
+    if (forAi) aiConsentGate.assertAllowed();
     const bindings =
       turn.mediaBindings.length > 0
         ? [...turn.mediaBindings]
@@ -755,6 +811,7 @@ export function RequestComposer() {
           media.mimeType,
           media.kind === 'image' ? 'request_media' : 'request_audio',
           `request-media:${media.id}`,
+          forAi,
         ));
       bindings[index] = { ...binding, upload };
       if (!uploads.includes(upload.uploadId)) uploads.push(upload.uploadId);
@@ -777,7 +834,9 @@ export function RequestComposer() {
   async function invokeQueuedTurn(
     queuedTurn: PendingCustomerTurn,
   ): Promise<{ diagnostic: AiDiagnostic; turn: PendingCustomerTurn }> {
+    aiConsentGate.assertAllowed();
     let turn = await prepareQueuedTurn(queuedTurn);
+    aiConsentGate.assertAllowed();
     if (turn.inputKind === 'voice') {
       if (turn.transcriptionStatus === 'review') throw new TranscriptReviewRequiredError();
       const voiceUploadId = turn.mediaBindings.find((binding) => binding.kind === 'voice')?.upload
@@ -810,6 +869,7 @@ export function RequestComposer() {
         throw new TranscriptReviewRequiredError();
       }
     }
+    aiConsentGate.assertAllowed();
     const raw: unknown = await supabase.functions.invoke<unknown>('ai-diagnostic', {
       body: {
         sessionId: sessionIdRef.current ?? undefined,
@@ -826,6 +886,7 @@ export function RequestComposer() {
     });
     const invoked = functionResultSchema.parse(raw);
     if (invoked.error) throw new Error('AI_TURN_FAILED');
+    aiConsentGate.assertAllowed();
     const result = aiDiagnosticSchema.parse(invoked.data);
     if (result.metadata.sessionId) {
       sessionIdRef.current = result.metadata.sessionId;
@@ -835,6 +896,10 @@ export function RequestComposer() {
   }
 
   async function confirmActiveTranscriptReview(turn: PendingCustomerTurn) {
+    if (!aiConsentGranted) {
+      setError(t('aiConsentRequired'));
+      return;
+    }
     if (!online) {
       setError(t('offline'));
       return;
@@ -855,6 +920,7 @@ export function RequestComposer() {
     setBusy(true);
     setError('');
     try {
+      aiConsentGate.assertAllowed();
       const raw: unknown = await supabase.functions.invoke<unknown>('transcribe', {
         body: {
           action: 'confirm',
@@ -864,6 +930,7 @@ export function RequestComposer() {
           transcript: confirmed.transcript,
         },
       });
+      aiConsentGate.assertAllowed();
       const response = functionResultSchema.parse(raw);
       if (response.error) throw new Error('TRANSCRIPT_CONFIRMATION_FAILED');
       const persisted = transcriptionConfirmationSchema.parse(response.data);
@@ -922,7 +989,8 @@ export function RequestComposer() {
       replaySignatureRef.current = '';
       return;
     }
-    if (!restored || busy || !pendingTurns.length || replayingRef.current) return;
+    if (!aiConsentGranted || !restored || busy || !pendingTurns.length || replayingRef.current)
+      return;
     if (pendingTurns[0]?.transcriptionStatus === 'review') return;
     const signature = pendingTurns
       .map((turn) => `${turn.clientMessageId}:${turn.transcriptionStatus}`)
@@ -954,11 +1022,14 @@ export function RequestComposer() {
             ),
           );
           setError(
-            replayed.pending.some(
-              (turn) => turn.inputKind === 'voice' && turn.transcriptionStatus !== 'completed',
-            )
-              ? t('transcriptionFailed')
-              : t('aiUnavailableDraftCreated'),
+            replayed.error instanceof AiDataConsentRequiredError
+              ? t('aiConsentRequired')
+              : replayed.pending.some(
+                    (turn) =>
+                      turn.inputKind === 'voice' && turn.transcriptionStatus !== 'completed',
+                  )
+                ? t('transcriptionFailed')
+                : t('aiUnavailableDraftCreated'),
           );
         } else setError('');
       })
@@ -966,7 +1037,7 @@ export function RequestComposer() {
         replayingRef.current = false;
         setBusy(false);
       });
-  }, [restored, online, busy, pendingTurns]);
+  }, [restored, online, busy, pendingTurns, aiConsentGranted]);
 
   function retryPendingTurn(clientMessageId?: string) {
     if (!online) {
@@ -1007,6 +1078,10 @@ export function RequestComposer() {
   }
 
   async function analyze(summaryRequested = false) {
+    if (!aiConsentGranted) {
+      setError(t('aiConsentRequired'));
+      return;
+    }
     const activeBindings = bindingsForActiveTurn({
       retainedMedia,
       activeImageMediaId,
@@ -1113,6 +1188,10 @@ export function RequestComposer() {
       );
       setDescription('');
     } catch (caught) {
+      if (caught instanceof AiDataConsentRequiredError) {
+        setError(t('aiConsentRequired'));
+        return;
+      }
       if (isTranscriptReviewRequiredError(caught)) {
         setDescription('');
         setError('');
@@ -1181,20 +1260,23 @@ export function RequestComposer() {
         imageUpload,
         voiceUpload,
       });
-      const publicationMedia = await prepareQueuedTurn({
-        clientMessageId: `publication-media:${userId}`,
-        text: 'publication media',
-        inputKind: 'text',
-        mediaUploadIds: requestMediaUploadIds,
-        localMediaIds: activeBindings.map((binding) => binding.localMediaId),
-        mediaBindings: activeBindings,
-        transcript: null,
-        transcriptionStatus: 'none',
-        confirmedCategorySlug: selectedCategorySlug,
-        confirmedSubcategorySlug: selectedSubcategorySlug || null,
-        summaryRequested: false,
-        createdAt: new Date().toISOString(),
-      });
+      const publicationMedia = await prepareQueuedTurn(
+        {
+          clientMessageId: `publication-media:${userId}`,
+          text: 'publication media',
+          inputKind: 'text',
+          mediaUploadIds: requestMediaUploadIds,
+          localMediaIds: activeBindings.map((binding) => binding.localMediaId),
+          mediaBindings: activeBindings,
+          transcript: null,
+          transcriptionStatus: 'none',
+          confirmedCategorySlug: selectedCategorySlug,
+          confirmedSubcategorySlug: selectedSubcategorySlug || null,
+          summaryRequested: false,
+          createdAt: new Date().toISOString(),
+        },
+        false,
+      );
       const media = [...new Set(publicationMedia.mediaUploadIds)].map((uploadId) => ({
         upload_id: uploadId,
       }));
@@ -1255,6 +1337,7 @@ export function RequestComposer() {
       setRequestMediaUploadIds([]);
       if (activeLocation?.savedAddressId === null) customerLocation.clearTransientLocation();
       setPublishedRequestId(requestId);
+      withdrawAiData();
       setJourneyStep('success');
     } catch {
       setError(t('publishOrUploadFailed'));
@@ -1306,6 +1389,8 @@ export function RequestComposer() {
       setSchedule('flexible');
       setApproved(false);
       setRetainedMedia([]);
+      withdrawAiData();
+      setManualIntake(false);
     } catch {
       setError(t('deleteDraftFailed'));
     } finally {
@@ -1588,11 +1673,23 @@ export function RequestComposer() {
           <ScrollView
             contentContainerStyle={journeyStyles.chatTimeline}
             keyboardShouldPersistTaps="handled"
-            onContentSizeChange={() => chatScrollRef.current?.scrollToEnd({ animated: true })}
+            onContentSizeChange={() => {
+              if (aiConsentGranted) chatScrollRef.current?.scrollToEnd({ animated: true });
+            }}
             ref={chatScrollRef}
             showsVerticalScrollIndicator={false}
             style={journeyStyles.chatScroll}
           >
+            <AiDataConsentPanel
+              granted={aiConsentGranted}
+              manual={manualIntake}
+              pending={busy}
+              hasQueuedWork={pendingTurns.length > 0}
+              onGrant={allowAiData}
+              onWithdraw={withdrawAiData}
+              onManual={continueManually}
+              onReport={() => router.push('/support')}
+            />
             <Notice>{t('aiDisclaimer')}</Notice>
             <ConversationTimeline
               assistantLabel={t('aiAssistantName')}
@@ -1634,6 +1731,7 @@ export function RequestComposer() {
                 </Text>
                 {!diagnostic.enoughInformation ? (
                   <ActionButton
+                    disabled={!aiConsentGranted || busy}
                     label={t('createSummaryNow')}
                     onPress={() => void analyze(true)}
                     variant="secondary"
@@ -1652,6 +1750,30 @@ export function RequestComposer() {
           </ScrollView>
 
           <View style={journeyStyles.composerDock}>
+            {manualIntake ? (
+              <Surface>
+                <Field
+                  label={t('requestTitlePlaceholder')}
+                  maxLength={120}
+                  onChangeText={(value) => {
+                    setTitle(value);
+                    invalidateApproval();
+                  }}
+                  value={title}
+                />
+                <Field
+                  label={t('aiManualDescription')}
+                  maxLength={8000}
+                  multiline
+                  onChangeText={(value) => {
+                    setSummary(value);
+                    setDescription(value);
+                    invalidateApproval();
+                  }}
+                  value={summary}
+                />
+              </Surface>
+            ) : null}
             {activeImageMediaId ? (
               <MediaPreview
                 imageSource={{
@@ -1699,16 +1821,16 @@ export function RequestComposer() {
                   value={transcriptReviewTurn.transcript ?? ''}
                 />
                 <ActionButton
-                  disabled={busy || !transcriptReviewTurn.transcript?.trim()}
+                  disabled={!aiConsentGranted || busy || !transcriptReviewTurn.transcript?.trim()}
                   label={t('confirmTranscript')}
                   loading={busy}
                   onPress={() => void confirmActiveTranscriptReview(transcriptReviewTurn)}
                 />
               </Surface>
-            ) : (
+            ) : !manualIntake ? (
               <ChatComposer
                 cameraLabel={t('cameraPhoto')}
-                disabled={busy}
+                disabled={busy || !aiConsentGranted || manualIntake}
                 galleryLabel={activeImageMediaId ? t('changePhoto') : t('galleryPhoto')}
                 onCamera={() => void pickImage('camera')}
                 onChangeText={(value) => {
@@ -1735,7 +1857,7 @@ export function RequestComposer() {
                     : t('recordVoice')
                 }
               />
-            )}
+            ) : null}
             <ActionButton
               disabled={
                 pendingTurns.length > 0 || title.trim().length < 3 || summary.trim().length < 10

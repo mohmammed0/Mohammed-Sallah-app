@@ -287,7 +287,7 @@ test('release readiness forwards every scanner production contract variable', as
   );
 
   const validatorStep =
-    /^\s*- run: pnpm config:validate:production\n(?<step>[\s\S]*?)(?=^\s*- run: pnpm build)/mu.exec(
+    /^\s*- run: pnpm config:validate:production\n(?<step>[\s\S]*?)(?=^\s*- run: pnpm build:production)/mu.exec(
       workflow,
     )?.groups?.step;
   assert.ok(validatorStep, 'production validator step missing');
@@ -297,7 +297,8 @@ test('release readiness forwards every scanner production contract variable', as
     /^\s+SALLAH_ANDROID_GOOGLE_MAPS_API_KEY:\s*\$\{\{ secrets\.SALLAH_ANDROID_GOOGLE_MAPS_API_KEY \}\}$/mu,
   );
 
-  const buildStep = /^\s*- run: pnpm build\n(?<step>[\s\S]*)$/mu.exec(workflow)?.groups?.step;
+  const buildStep = /^\s*- run: pnpm build:production\n(?<step>[\s\S]*)$/mu.exec(workflow)?.groups
+    ?.step;
   assert.ok(buildStep, 'production build step missing');
   for (const binding of [
     'NEXT_PUBLIC_APP_ENV: production',

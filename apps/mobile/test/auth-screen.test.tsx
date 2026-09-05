@@ -15,6 +15,7 @@ vi.mock('react-native', () => ({
   View: 'View',
 }));
 vi.mock('expo-linking', () => ({ createURL: (path: string) => `sallah://${path}` }));
+vi.mock('expo-router', () => ({ router: { push: vi.fn() } }));
 vi.mock('@/lib/supabase', () => ({ supabase: { auth } }));
 vi.mock('@/providers/locale-provider', () => ({
   useLocale: () => ({ ...localeState, t: (key: string) => key }),

@@ -149,7 +149,8 @@ describe('feature-complete beta smoke contracts', () => {
 
   it('lets the authoritative session context select the post-sign-in landing route', () => {
     expect(authScreen).not.toContain("router.replace('/home')");
-    expect(authScreen).not.toContain("from 'expo-router'");
+    expect(authScreen).not.toContain('router.replace(');
+    expect(authScreen).toContain("router.push('/legal')");
     expect(homeScreen).toContain('Redirect');
     expect(homeScreen).toContain('productLandingRoute(context)');
     expect(homeScreen).not.toContain('CustomerHome');

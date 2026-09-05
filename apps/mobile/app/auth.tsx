@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import * as Linking from 'expo-linking';
+import { router } from 'expo-router';
 import { z } from 'zod';
 import {
   ActionButton,
@@ -232,6 +233,11 @@ export default function Auth() {
           ) : null}
         </Surface>
       ) : null}
+      <ActionButton
+        label={t('legalDocuments')}
+        onPress={() => router.push('/legal')}
+        variant="ghost"
+      />
     </CustomerScreen>
   );
 }

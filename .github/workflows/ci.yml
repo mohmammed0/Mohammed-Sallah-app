@@ -33,6 +33,7 @@ jobs:
       - run: pnpm handoff:check
       - run: pnpm ui:boundaries
       - run: pnpm ui:catalog:check
+      - run: pnpm test:production-build
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
@@ -185,6 +186,15 @@ jobs:
       - run: pnpm test:legacy-upgrade
       - run: supabase db reset
       - run: supabase test db
+      - name: Verify policy publication concurrency
+        run: python3 scripts/test-legal-publication-race.py
+        env:
+          SALLAH_DISPOSABLE_DB_CONFIRMED: '1'
+          PGHOST: 127.0.0.1
+          PGPORT: '54322'
+          PGDATABASE: postgres
+          PGUSER: postgres
+          PGPASSWORD: postgres
       - run: supabase db lint --local --schema public,private --level error --fail-on error
       - run: pnpm test:local-supabase
       - name: Verify generated types current

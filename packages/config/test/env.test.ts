@@ -64,12 +64,12 @@ const productionGateBase = {
   SUPABASE_URL: 'https://project.supabase.co',
   SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test_only',
   SUPABASE_SECRET_KEY: 'test-service-secret-not-a-real-key',
-  SALLAH_PUBLIC_URL: 'https://sallah.test',
-  SALLAH_SUPPORT_EMAIL: 'support@sallah.test',
-  SALLAH_PRIVACY_URL: 'https://sallah.test/privacy',
-  SALLAH_TERMS_URL: 'https://sallah.test/terms',
+  SALLAH_PUBLIC_URL: 'https://sallah-fixture.com',
+  SALLAH_SUPPORT_EMAIL: 'support@sallah-fixture.com',
+  SALLAH_PRIVACY_URL: 'https://sallah-fixture.com/privacy',
+  SALLAH_TERMS_URL: 'https://sallah-fixture.com/terms',
   SALLAH_LEGAL_ENTITY: 'Sallah Test Entity',
-  EAS_PROJECT_ID: 'test-project-id',
+  EAS_PROJECT_ID: '11111111-1111-4111-8111-111111111111',
   SALLAH_IOS_BUNDLE_ID: 'sa.sallah.test',
   SALLAH_ANDROID_PACKAGE: 'sa.sallah.test',
   SALLAH_ANDROID_GOOGLE_MAPS_API_KEY: 'test-maps-key',
@@ -348,5 +348,30 @@ describe('environment safety', () => {
     expect(result.error?.message).toMatch(/timed out|ETIMEDOUT/i);
     expect(result.status).toBeNull();
     expect(process.env.APP_ENV).toBe(before);
+  });
+
+  it('rejects incomplete release identity and unsafe public policy addresses', () => {
+    for (const [key, value] of [
+      ['SALLAH_LEGAL_ENTITY', 'REQUIRES_LEGAL_ENTITY'],
+      ['SUPABASE_URL', 'https://project.supabase.co/auth/v1'],
+      ['SALLAH_LEGAL_ENTITY', '   '],
+      ['SALLAH_PRIVACY_URL', 'not-a-url'],
+      ['SALLAH_TERMS_URL', 'http://sallah.test/terms'],
+      ['SALLAH_PUBLIC_URL', 'https://localhost'],
+      ['SALLAH_PUBLIC_URL', 'https://127.0.0.1'],
+      ['SALLAH_PRIVACY_URL', 'https://user:secret@sallah.test/privacy'],
+      ['SALLAH_TERMS_URL', 'https://sallah.test/terms?token=sensitive-value'],
+      ['EAS_PROJECT_ID', 'test-project-id'],
+      ['SALLAH_IOS_BUNDLE_ID', 'not a bundle id'],
+      ['SALLAH_ANDROID_PACKAGE', 'sa.123.sallah'],
+      ['SUPABASE_SECRET_KEY', '   '],
+      ['OPENAI_API_KEY', 'REQUIRES_OPENAI_API_KEY'],
+    ] as const) {
+      const result = validateProductionConfiguration({ ...productionGateBase, [key]: value });
+      expect(result.ok, key).toBe(false);
+      expect(result.message, key).toContain(key);
+      expect(result.message).not.toContain('sensitive-value');
+      expect(result.message).not.toContain('user:secret');
+    }
   });
 });

@@ -4,6 +4,32 @@
   "tasks": {
     "dev": { "cache": false, "persistent": true },
     "build": { "dependsOn": ["^build"], "outputs": [".next/**", "dist/**", ".expo/**"] },
+    "@sallah/mobile#build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".expo/**"],
+      "env": [
+        "EXPO_PUBLIC_APP_ENV",
+        "EXPO_PUBLIC_SUPABASE_URL",
+        "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+        "EAS_PROJECT_ID",
+        "EAS_BUILD_PLATFORM",
+        "SALLAH_IOS_BUNDLE_ID",
+        "SALLAH_ANDROID_PACKAGE",
+        "SALLAH_ANDROID_GOOGLE_MAPS_API_KEY",
+        "GOOGLE_SERVICES_JSON"
+      ]
+    },
+    "@sallah/web#build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**"],
+      "env": [
+        "SALLAH_SUPPORT_EMAIL",
+        "NEXT_PUBLIC_SITE_URL",
+        "NEXT_PUBLIC_APP_ENV",
+        "NEXT_PUBLIC_SUPABASE_URL",
+        "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"
+      ]
+    },
     "lint": { "dependsOn": ["^lint"] },
     "typecheck": { "dependsOn": ["^typecheck"] },
     "test": { "dependsOn": ["^build"], "outputs": ["coverage/**"] }

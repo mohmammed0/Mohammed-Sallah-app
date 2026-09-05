@@ -1,7 +1,8 @@
 import type { ConfigContext, ExpoConfig } from 'expo/config';
 import { branding } from '@sallah/config/branding';
 import { appEnvironmentSchema } from '@sallah/config/env';
-import { translate } from '@sallah/i18n';
+import { nativeReleaseIdentitySchema } from '@sallah/config/release';
+import { supportedLocales, translate } from '@sallah/i18n';
 
 const defaultEasOwner = 'binmuhayas-team';
 const defaultEasProjectId = 'f098f941-ae73-4007-b582-ba6fb1b8aa7a';
@@ -45,6 +46,17 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   if (production && (!configuredAndroidPackage || !configuredIosBundleIdentifier)) {
     throw new Error('Production mobile build requires final Android and iOS identifiers');
   }
+  if (production) {
+    const identity = nativeReleaseIdentitySchema.safeParse({
+      EAS_PROJECT_ID: configuredProjectId,
+      SALLAH_ANDROID_PACKAGE: configuredAndroidPackage,
+      SALLAH_IOS_BUNDLE_ID: configuredIosBundleIdentifier,
+    });
+    if (!identity.success) {
+      const fields = [...new Set(identity.error.issues.map((issue) => issue.path.join('.')))];
+      throw new Error(`Invalid production native identity: ${fields.join(', ')}`);
+    }
+  }
   if (previewOrProduction && requiresAndroidMaps && !androidMapsApiKey) {
     throw new Error(
       'Preview and production mobile builds require a restricted Android Maps API key',
@@ -69,6 +81,20 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     orientation: 'portrait',
     scheme: branding.scheme,
     userInterfaceStyle: 'light',
+    locales: Object.fromEntries(
+      supportedLocales.map((locale) => [
+        locale,
+        {
+          ios: {
+            NSCameraUsageDescription: translate(locale, 'permissionCamera'),
+            NSPhotoLibraryUsageDescription: translate(locale, 'permissionPhotos'),
+            NSMicrophoneUsageDescription: translate(locale, 'permissionMicrophone'),
+            NSLocationWhenInUseUsageDescription: translate(locale, 'permissionLocation'),
+            NSFaceIDUsageDescription: translate(locale, 'permissionFaceId'),
+          },
+        },
+      ]),
+    ),
     runtimeVersion: { policy: 'fingerprint' },
     updates: {
       enabled: false,
@@ -81,7 +107,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       buildNumber: '1',
       icon: './assets/images/icon.png',
       config: { usesNonExemptEncryption: false },
-      infoPlist: { CFBundleAllowMixedLocalizations: true },
+      infoPlist: {
+        CFBundleAllowMixedLocalizations: true,
+        CFBundleLocalizations: [...supportedLocales],
+      },
     },
     android: {
       package: configuredAndroidPackage ?? branding.androidPackage,
@@ -111,7 +140,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         {
           photosPermission: translate('ar', 'permissionPhotos'),
           cameraPermission: translate('ar', 'permissionCamera'),
-          microphonePermission: false,
+          // false blocks RECORD_AUDIO for the whole Android app, including expo-audio.
+          microphonePermission: translate('ar', 'permissionMicrophone'),
         },
       ],
       [

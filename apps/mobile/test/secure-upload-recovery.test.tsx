@@ -54,7 +54,7 @@ describe('production secure-upload restart coordinator', () => {
   it('is mounted by the authenticated production root layout', () => {
     const layout = readFileSync(new URL('../app/_layout.tsx', import.meta.url), 'utf8');
     expect(layout).toContain('SecureUploadRecoveryCoordinator');
-    expect(layout).toContain('ownerId={session?.user.id ?? null}');
+    expect(layout).toContain('ownerId={legal.canEnter ? (session?.user.id ?? null) : null}');
   });
 
   it('resumes the authenticated owner journal when the production coordinator mounts', async () => {

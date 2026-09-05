@@ -165,4 +165,27 @@ describe('mobile Expo APP_ENV boundary', () => {
     process.env.SALLAH_IOS_BUNDLE_ID = 'sa.sallah.app';
     expect(build).toThrow(/Preview and production mobile builds require.*Maps/i);
   });
+
+  it.each([
+    ['EAS_PROJECT_ID', 'not-a-project-uuid'],
+    ['SALLAH_ANDROID_PACKAGE', 'sa.example.sallah'],
+    ['SALLAH_ANDROID_PACKAGE', 'sa.12invalid.app'],
+    ['SALLAH_IOS_BUNDLE_ID', 'sa.example.sallah'],
+    ['SALLAH_IOS_BUNDLE_ID', 'sa.invalid_bundle.app'],
+  ] as const)('rejects invalid production %s without echoing its value', (key, value) => {
+    configurePreview();
+    process.env.EXPO_PUBLIC_APP_ENV = 'production';
+    process.env.EAS_PROJECT_ID = 'f098f941-ae73-4007-b582-ba6fb1b8aa7a';
+    process.env.SALLAH_ANDROID_PACKAGE = 'sa.sallah.app';
+    process.env.SALLAH_IOS_BUNDLE_ID = 'sa.sallah.app';
+    process.env.SALLAH_ANDROID_GOOGLE_MAPS_API_KEY = 'restricted-preview-key';
+    process.env[key] = value;
+
+    expect(build).toThrow(`Invalid production native identity: ${key}`);
+    try {
+      build();
+    } catch (error) {
+      expect(String(error)).not.toContain(value);
+    }
+  });
 });

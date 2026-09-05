@@ -4,6 +4,11 @@ import { ClamdClient, type ClamdClientOptions } from './clamd.js';
 import { createScannerControlClient } from './control-client.js';
 import { createScannerPipeline } from './pipeline.js';
 import { createMediaScannerWorker, type MediaScannerWorker } from './worker.js';
+import {
+  createScannerHealthMonitor,
+  SCANNER_HEARTBEAT_INTERVAL_MS,
+  type ScannerHealthRecord,
+} from './operational-health.js';
 
 export interface MediaScannerRuntimeConfig {
   readonly workerId: string;
@@ -40,21 +45,57 @@ export function createMediaScannerRuntime(config: MediaScannerRuntimeConfig): Me
 
 export async function runMediaScannerPullLoop(
   worker: MediaScannerWorker,
-  options: { readonly idleDelayMs: number; readonly signal: AbortSignal },
+  options: {
+    readonly idleDelayMs: number;
+    readonly signal: AbortSignal;
+    readonly onHealth?: (record: ScannerHealthRecord) => void;
+  },
 ): Promise<void> {
   if (!Number.isSafeInteger(options.idleDelayMs) || options.idleDelayMs < 100) {
     throw new Error('invalid_pull_loop_configuration');
   }
-  while (!options.signal.aborted) {
-    const result = await worker.runOne();
-    if (options.signal.aborted) break;
-    if (result.status === 'idle' || result.status === 'retryable_failure') {
-      await delay(options.idleDelayMs, undefined, { signal: options.signal }).catch(
-        (error: unknown) => {
-          if (!options.signal.aborted) throw error;
-        },
-      );
+  const monitor = createScannerHealthMonitor();
+  let healthWriteFailed = false;
+  const publish = () => {
+    try {
+      options.onHealth?.(monitor.snapshot());
+    } catch {
+      healthWriteFailed = true;
     }
+  };
+  publish();
+  const timer = options.onHealth ? setInterval(publish, SCANNER_HEARTBEAT_INTERVAL_MS) : undefined;
+  try {
+    while (!options.signal.aborted) {
+      if (healthWriteFailed) throw new Error('scanner_health_write_failed');
+      let result;
+      try {
+        result = await worker.runOne(() => {
+          monitor.ready();
+          publish();
+        });
+      } catch (error) {
+        monitor.failed(error instanceof Error && error.message === 'scanner_cleanup_failed');
+        publish();
+      }
+      // The operational boundary retains only the allowlisted category, never a raw cause.
+      if (!result) throw new Error('scanner_worker_stopped');
+      monitor.result(result);
+      publish();
+      if (healthWriteFailed) throw new Error('scanner_health_write_failed');
+      if (options.signal.aborted) break;
+      if (result.status === 'idle' || result.status === 'retryable_failure') {
+        await delay(options.idleDelayMs, undefined, { signal: options.signal }).catch(
+          (error: unknown) => {
+            if (!options.signal.aborted) throw error;
+          },
+        );
+      }
+    }
+  } finally {
+    if (timer !== undefined) clearInterval(timer);
+    monitor.stop();
+    publish();
   }
 }
 
@@ -70,3 +111,4 @@ export * from './media-policy.js';
 export * from './isolated-sanitizer.js';
 export * from './pipeline.js';
 export * from './worker.js';
+export * from './operational-health.js';

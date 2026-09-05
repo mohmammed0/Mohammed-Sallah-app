@@ -294,6 +294,16 @@ export default function Account() {
             {t('privacy')}
           </Text>
         </View>
+        <ActionButton
+          label={t('legalDocuments')}
+          onPress={() => router.push('/legal')}
+          variant="ghost"
+        />
+        <ActionButton
+          label={t('support')}
+          onPress={() => router.push('/support')}
+          variant="ghost"
+        />
         <Text style={[customerStyles.bodyMuted, textDirection]}>{t('reauthLead')}</Text>
         <Field
           label={t('currentPassword')}

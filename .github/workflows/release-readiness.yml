@@ -34,6 +34,10 @@ jobs:
           SALLAH_IOS_BUNDLE_ID: ${{ vars.SALLAH_IOS_BUNDLE_ID }}
           SALLAH_ANDROID_PACKAGE: ${{ vars.SALLAH_ANDROID_PACKAGE }}
           SALLAH_ANDROID_GOOGLE_MAPS_API_KEY: ${{ secrets.SALLAH_ANDROID_GOOGLE_MAPS_API_KEY }}
+          PUSH_ENABLED: ${{ vars.PUSH_ENABLED }}
+          EXPO_ACCESS_TOKEN: ${{ secrets.EXPO_ACCESS_TOKEN }}
+          PUSH_TOKEN_ENCRYPTION_KEY: ${{ secrets.PUSH_TOKEN_ENCRYPTION_KEY }}
+          NOTIFICATION_WORKER_SECRET: ${{ secrets.NOTIFICATION_WORKER_SECRET }}
           UPLOAD_SCANNER_MODE: external
           UPLOAD_SCANNER_CONTROL_ORIGIN: ${{ vars.UPLOAD_SCANNER_CONTROL_ORIGIN }}
           UPLOAD_SCANNER_STORAGE_ORIGIN: ${{ vars.UPLOAD_SCANNER_STORAGE_ORIGIN }}
@@ -54,9 +58,15 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           PAYMENT_PROVIDER: offline
       - run: pnpm test:edge-memory
-      - run: pnpm build
+      - run: pnpm config:validate:backend
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      - run: pnpm build:production
         env:
           NEXT_PUBLIC_APP_ENV: production
+          NEXT_PUBLIC_SITE_URL: ${{ vars.SALLAH_PUBLIC_URL }}
+          SALLAH_SUPPORT_EMAIL: ${{ vars.SALLAH_SUPPORT_EMAIL }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           EXPO_PUBLIC_APP_ENV: production
@@ -66,3 +76,4 @@ jobs:
           SALLAH_IOS_BUNDLE_ID: ${{ vars.SALLAH_IOS_BUNDLE_ID }}
           SALLAH_ANDROID_PACKAGE: ${{ vars.SALLAH_ANDROID_PACKAGE }}
           SALLAH_ANDROID_GOOGLE_MAPS_API_KEY: ${{ secrets.SALLAH_ANDROID_GOOGLE_MAPS_API_KEY }}
+          GOOGLE_SERVICES_JSON_CONTENT: ${{ secrets.GOOGLE_SERVICES_JSON }}

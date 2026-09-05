@@ -89,3 +89,20 @@ deterministic translation, incomplete configuration for any explicitly selected 
 deterministic media scanning, incomplete scanner operations inputs, incomplete encrypted push-worker
 configuration, and fake/sandbox payment adapters cause a non-zero validator exit. Rotate a leaked
 key immediately, revoke affected sessions/tokens, review audit logs, and follow the incident runbook.
+
+## Production build and policy verification
+
+The release workflow maps every `productionRequiredKeys` entry into its validator step, including
+the encrypted push-worker contract. `pnpm config:validate:backend` makes one bounded, service-only
+read of `get_legal_release_readiness`; missing current policies, disabled enforcement or inconsistent
+translation versions fail the launch gate. It never publishes policies or changes settings.
+
+GitHub's `GOOGLE_SERVICES_JSON` secret holds Firebase **client JSON content**, while the EAS variable
+of that name is a **file**. The GitHub build passes content only to `pnpm build:production`, which
+validates the Android package, rejects server credential fields, writes a private temporary file,
+passes its path as `GOOGLE_SERVICES_JSON`, and removes the directory on success or failure. Do not
+pass raw JSON as an Expo file path. `NEXT_PUBLIC_SITE_URL` comes from `SALLAH_PUBLIC_URL` and the web
+build/runtime receives `SALLAH_SUPPORT_EMAIL`. Hosting must preserve those approved runtime values.
+
+See [Reviewed policy publication](operations/LEGAL_PUBLICATION.md) for the complete legal packet and
+forward-migration rollout. Production configuration checks do not authorize deployment or submission.

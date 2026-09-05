@@ -1,4 +1,5 @@
 import { validateServerEnvironment } from '../packages/config/src/env.ts';
+import { isReleasePlaceholder, validateReleaseIdentity } from '../packages/config/src/release.ts';
 
 export const productionRequiredKeys = [
   'APP_ENV',
@@ -36,20 +37,21 @@ export const productionRequiredKeys = [
   'UPLOAD_SCANNER_ALERTS_ENABLED',
 ];
 
-const placeholderPattern = /example\.|\.invalid|REQUIRES_HUMAN_INPUT|changeme|placeholder/i;
-
 export function validateProductionConfiguration(environment) {
-  const missing = productionRequiredKeys.filter((key) => !environment[key]);
+  const missing = productionRequiredKeys.filter((key) => !environment[key]?.trim());
   if (environment.APP_ENV && environment.APP_ENV !== 'production') {
     missing.push('APP_ENV(production)');
   }
   for (const key of productionRequiredKeys) {
     const value = environment[key];
-    if (value && placeholderPattern.test(value)) missing.push(`${key}(placeholder)`);
+    if (value && isReleasePlaceholder(value)) missing.push(`${key}(placeholder)`);
   }
   const ai = environment.AI_PROVIDER;
   if (ai !== 'openai') missing.push('AI_PROVIDER(openai)');
-  if (ai === 'openai' && !environment.OPENAI_API_KEY) missing.push('OPENAI_API_KEY');
+  if (ai === 'openai' && !environment.OPENAI_API_KEY?.trim()) missing.push('OPENAI_API_KEY');
+  if (environment.OPENAI_API_KEY && isReleasePlaceholder(environment.OPENAI_API_KEY)) {
+    missing.push('OPENAI_API_KEY(placeholder)');
+  }
   if ((environment.TRANSLATION_PROVIDER ?? 'disabled') !== 'disabled') {
     missing.push('TRANSLATION_PROVIDER(unsupported until privacy approval)');
   }
@@ -65,6 +67,7 @@ export function validateProductionConfiguration(environment) {
   }
 
   try {
+    validateReleaseIdentity(environment);
     validateServerEnvironment(environment);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Invalid production environment';

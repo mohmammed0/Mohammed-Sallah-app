@@ -10,6 +10,42 @@ export const localeNativeNames: Record<SupportedLocale, string> = {
 };
 
 const ar = {
+  legalDocuments: 'الخصوصية والشروط وقواعد المجتمع',
+  publicLegalUnavailable: 'هذه السياسة غير متاحة حاليًا. يرجى المحاولة لاحقًا.',
+  publicContactUnavailable: 'عنوان بريد الدعم غير متاح حاليًا. يرجى المحاولة لاحقًا.',
+  publicContactLead: 'تواصل مع فريق الدعم عبر البريد الإلكتروني.',
+  publicCommunityStandards: 'قواعد المجتمع',
+  publicContact: 'تواصل معنا',
+  publicNavigation: 'التنقل في الموقع',
+  publicHome: 'الرئيسية',
+  publicLegalLoading: 'جارٍ تحميل السياسة الحالية…',
+  publicDocumentLanguage: 'لغة المستند',
+  legalDocumentsLead:
+    'اقرأ السياسات الحالية المعتمدة. لا تتم الموافقة عليها تلقائيًا عند إنشاء حساب.',
+  legalUnavailable:
+    'السياسات المعتمدة غير متاحة حاليًا. أعد المحاولة أو تواصل مع الدعم من حسابك. تبقى إعدادات الحساب وطلب الحذف متاحة.',
+  legalAcceptanceRequired:
+    'قبل نشر محتوى أو إرساله، اقرأ المستندات المطلوبة وحدد موافقتك على كل منها.',
+  legalAccepted: 'تم حفظ موافقتك على السياسات الحالية.',
+  legalDocumentVersion: 'الإصدار {{version}} · {{language}}',
+  legalAcceptDocument: 'قرأت وأوافق على: {{title}}',
+  legalAcceptAndContinue: 'حفظ موافقتي',
+  legalAcceptanceFailed: 'تعذر حفظ الموافقة. راجع المستندات الحالية وحدد موافقتك ثم أعد المحاولة.',
+  aiDataConsentTitle: 'قبل استخدام المساعدة الآلية',
+  aiDataConsentBody:
+    'لإعداد مسودة طلبك، ترسل صلّح النص والصور التي تختارها والتسجيلات الصوتية إلى OpenAI عبر خوادمها لإعداد الملخص وتحويل الصوت إلى نص. لا تُرفق كلمات مرور أو وثائق هوية أو بيانات خاصة غير لازمة.',
+  aiDataConsentScope:
+    'موافقتك تخص هذه الجلسة. يمكنك إيقاف الإرسال اللاحق أو متابعة الطلب يدويًا. إيقاف الإرسال لا يحذف ما أُرسل سابقًا؛ يمكنك طلب الحذف من الحساب.',
+  aiDataConsentAllow: 'أوافق على إرسال المحتوى للمساعدة الآلية',
+  aiDataConsentWithdraw: 'إيقاف إرسال المحتوى للمساعدة الآلية',
+  aiContinueManually: 'متابعة الطلب دون مساعدة آلية',
+  aiManualDescription: 'وصف الطلب',
+  aiConsentRequired: 'راجع استخدام المحتوى ووافق عليه قبل إرساله للمساعدة الآلية.',
+  aiConsentQueuedWork:
+    'توجد رسائل محفوظة لم تُرسل بعد. يمكنك الموافقة لإرسالها أو حذف المسودة لبدء طلب يدوي جديد.',
+  reportAiSuggestion: 'الإبلاغ عن اقتراح آلي',
+  aiReportHelp:
+    'يفتح الإبلاغ نموذج الدعم. اكتب ما تريد مراجعته؛ لن نرفق المحادثة أو الصور تلقائيًا.',
   appName: 'صلّح',
   accountSettingsLead: 'خصّص تجربتك وتحكّم في إشعاراتك وخصوصية حسابك.',
   currentPassword: 'كلمة المرور الحالية',
@@ -586,10 +622,12 @@ const ar = {
   draftApproved: 'تمت الموافقة على المسودة',
   approveDraftPublish: 'أوافق على نشر هذه المسودة',
   permissionFaceId: 'السماح لصلّح باستخدام Face ID لحماية جلسة الحساب.',
-  permissionPhotos: 'نحتاج الوصول للصورة التي تختارها لإرفاقها بطلب الخدمة.',
+  permissionPhotos:
+    'نستخدم الصور التي تختارها لإرفاقها بالطلب أو المحادثة أو التحقق من مقدم الخدمة أو أدلة الإنجاز.',
   permissionCamera: 'نحتاج الكاميرا لالتقاط صورة للمشكلة.',
   permissionMicrophone: 'نحتاج الميكروفون فقط عند تسجيل وصف صوتي للمشكلة.',
-  permissionLocation: 'نستخدم موقعك أثناء إنشاء الطلب فقط لتحديد منطقة الخدمة.',
+  permissionLocation:
+    'نستخدم موقعك لتحديد عنوان الخدمة وحفظه، ولتحديث موقع مقدم الخدمة مؤقتًا للعميل أثناء العمل عند موافقته والتطبيق مفتوح.',
   jobActionSchedule: 'تأكيد الجدولة',
   jobActionEnRoute: 'بدء التوجه',
   jobActionArrived: 'تأكيد الوصول',
@@ -603,7 +641,7 @@ const ar = {
   locationSharedBody: 'التحديث متاح لطرفي العمل فقط وينتهي تلقائيًا خلال أربع ساعات.',
   foregroundLocationTitle: 'مشاركة موقع أمامية',
   foregroundLocationBody:
-    'سيُرسل موقعك الحالي مرة واحدة للعميل في هذا العمل. لا يعمل أي تتبع في الخلفية.',
+    'ستُرسل تحديثات موقعك للعميل في هذا العمل لمدة تصل إلى 30 دقيقة أثناء بقاء التطبيق مفتوحًا. يمكنك إيقاف المشاركة في أي وقت. تتوقف المشاركة عند مغادرة التطبيق أو انتهاء المدة؛ لا يعمل تتبع في الخلفية.',
   shareNow: 'مشاركة الآن',
   customerAcceptedCompletionReason: 'العميل قبل الإنجاز',
   completionNotAcceptedReason: 'الإنجاز غير مقبول',
@@ -617,7 +655,7 @@ const ar = {
   signInToLoadJobs: 'سجّل الدخول لتحميل أعمالك.',
   approvedTotal: 'الإجمالي المعتمد {{amount}}',
   jobRoleSummary: 'نسخة {{version}} · {{role}}',
-  shareLocationOnce: 'مشاركة موقعي الحالي مرة واحدة',
+  shareLocationOnce: 'مشاركة تحديثات موقعي مؤقتًا',
   openJobMaps: 'فتح وجهة العمل في خرائط الجهاز',
   latestLocationUpdate: 'آخر تحديث موقع مصرح: {{time}}',
   noProviderLocationUpdate: 'لم يشارك مقدم الخدمة تحديث موقع بعد.',
@@ -799,6 +837,44 @@ const ar = {
 
 type TranslationShape = { [K in keyof typeof ar]: string };
 const en: TranslationShape = {
+  legalDocuments: 'Privacy, terms and community rules',
+  publicLegalUnavailable: 'This policy is currently unavailable. Please try again later.',
+  publicContactUnavailable:
+    'The support email address is currently unavailable. Please try again later.',
+  publicContactLead: 'Contact the support team by email.',
+  publicCommunityStandards: 'Community standards',
+  publicContact: 'Contact us',
+  publicNavigation: 'Website navigation',
+  publicHome: 'Home',
+  publicLegalLoading: 'Loading the current policy…',
+  publicDocumentLanguage: 'Document language',
+  legalDocumentsLead:
+    'Read the current approved policies. Creating an account does not accept them automatically.',
+  legalUnavailable:
+    'Approved policies are currently unavailable. Retry or contact support from your account. Account settings and deletion requests remain available.',
+  legalAcceptanceRequired:
+    'Before posting or sending content, read the required documents and select your agreement to each.',
+  legalAccepted: 'Your acceptance of the current policies is saved.',
+  legalDocumentVersion: 'Version {{version}} · {{language}}',
+  legalAcceptDocument: 'I have read and agree to: {{title}}',
+  legalAcceptAndContinue: 'Save my agreement',
+  legalAcceptanceFailed:
+    'Your agreement could not be saved. Review the current documents, select your agreement and retry.',
+  aiDataConsentTitle: 'Before using AI assistance',
+  aiDataConsentBody:
+    'To prepare your request, SALLAH sends the text, photos and voice recordings you choose to OpenAI through its servers for a draft summary and transcription. Do not include passwords, identity documents or unnecessary private information.',
+  aiDataConsentScope:
+    'Your permission applies to this session. You can stop future transfers or continue manually. Stopping does not delete content already sent; you can request deletion from Account.',
+  aiDataConsentAllow: 'Allow content to be sent for AI assistance',
+  aiDataConsentWithdraw: 'Stop sending content for AI assistance',
+  aiContinueManually: 'Continue without AI assistance',
+  aiManualDescription: 'Request description',
+  aiConsentRequired: 'Review and allow content use before sending it for AI assistance.',
+  aiConsentQueuedWork:
+    'Saved messages are waiting to be sent. Allow sending them, or delete this draft to start a new manual request.',
+  reportAiSuggestion: 'Report an AI suggestion',
+  aiReportHelp:
+    'Reporting opens the support form. Describe what needs review; your conversation and photos are not attached automatically.',
   appName: 'SALLAH',
   accountSettingsLead: 'Manage your preferences, notifications, and account privacy.',
   currentPassword: 'Current password',
@@ -1403,11 +1479,12 @@ const en: TranslationShape = {
   draftApproved: 'Draft approved',
   approveDraftPublish: 'I approve publishing this draft',
   permissionFaceId: 'Allow SALLAH to use Face ID to protect your account session.',
-  permissionPhotos: 'Allow access to the photo you select for a service request.',
+  permissionPhotos:
+    'Use the photos you select for requests, conversations, provider verification and completion evidence.',
   permissionCamera: 'Allow camera access to photograph the problem.',
   permissionMicrophone: 'Allow microphone access only while recording a problem description.',
   permissionLocation:
-    'Use your location only while creating a request to identify the service area.',
+    'Use your location to choose and save a service address, and temporarily share provider location updates with the customer during a job, with permission while the app is open.',
   jobActionSchedule: 'Confirm schedule',
   jobActionEnRoute: 'Start route',
   jobActionArrived: 'Confirm arrival',
@@ -1422,7 +1499,7 @@ const en: TranslationShape = {
     'The update is available only to both job parties and expires automatically in four hours.',
   foregroundLocationTitle: 'Foreground location sharing',
   foregroundLocationBody:
-    'Your current location is sent once to the customer for this job. No background tracking is used.',
+    'Your location updates will be sent to the customer for this job for up to 30 minutes while the app stays open. You can stop sharing at any time. Sharing stops when you leave the app or the time expires; there is no background tracking.',
   shareNow: 'Share now',
   customerAcceptedCompletionReason: 'Customer accepted completion',
   completionNotAcceptedReason: 'Completion not accepted',
@@ -1436,7 +1513,7 @@ const en: TranslationShape = {
   signInToLoadJobs: 'Sign in to load your jobs.',
   approvedTotal: 'Approved total {{amount}}',
   jobRoleSummary: 'Version {{version}} · {{role}}',
-  shareLocationOnce: 'Share my current location once',
+  shareLocationOnce: 'Share temporary location updates',
   openJobMaps: 'Open the job destination in device maps',
   latestLocationUpdate: 'Latest authorized location update: {{time}}',
   noProviderLocationUpdate: 'The provider has not shared a location update yet.',
@@ -1628,6 +1705,55 @@ const en: TranslationShape = {
 };
 const ur: TranslationShape = {
   ...en,
+  aiDataConsentTitle: 'AI مدد استعمال کرنے سے پہلے',
+  legalDocuments: 'رازداری، شرائط اور کمیونٹی کے اصول',
+  publicLegalUnavailable: 'یہ پالیسی اس وقت دستیاب نہیں ہے۔ براہ کرم بعد میں کوشش کریں۔',
+  publicContactUnavailable:
+    'معاونت کا ای میل پتہ اس وقت دستیاب نہیں ہے۔ براہ کرم بعد میں کوشش کریں۔',
+  publicContactLead: 'معاونت کی ٹیم سے ای میل کے ذریعے رابطہ کریں۔',
+  publicCommunityStandards: 'کمیونٹی کے اصول',
+  publicContact: 'ہم سے رابطہ کریں',
+  publicNavigation: 'ویب سائٹ میں نیویگیشن',
+  publicHome: 'ہوم',
+  publicLegalLoading: 'موجودہ پالیسی لوڈ ہو رہی ہے…',
+  publicDocumentLanguage: 'دستاویز کی زبان',
+  legalDocumentsLead:
+    'موجودہ منظور شدہ پالیسیاں پڑھیں۔ اکاؤنٹ بنانے سے خودکار رضامندی نہیں دی جاتی۔',
+  legalUnavailable:
+    'منظور شدہ پالیسیاں اس وقت دستیاب نہیں ہیں۔ دوبارہ کوشش کریں یا اپنے اکاؤنٹ سے معاونت سے رابطہ کریں۔ اکاؤنٹ کی ترتیبات اور حذف کرنے کی درخواست دستیاب رہتی ہیں۔',
+  legalAcceptanceRequired:
+    'مواد شائع یا ارسال کرنے سے پہلے مطلوبہ دستاویزات پڑھیں اور ہر ایک سے اپنی رضامندی منتخب کریں۔',
+  legalAccepted: 'موجودہ پالیسیوں کے لیے آپ کی رضامندی محفوظ ہو گئی ہے۔',
+  legalDocumentVersion: 'ورژن {{version}} · {{language}}',
+  legalAcceptDocument: 'میں نے پڑھ لیا ہے اور متفق ہوں: {{title}}',
+  legalAcceptAndContinue: 'میری رضامندی محفوظ کریں',
+  legalAcceptanceFailed:
+    'رضامندی محفوظ نہیں ہو سکی۔ موجودہ دستاویزات کا جائزہ لیں، رضامندی منتخب کریں اور دوبارہ کوشش کریں۔',
+  permissionCamera: 'مسئلے کی تصویر لینے کے لیے کیمرے تک رسائی کی اجازت دیں۔',
+  permissionMicrophone: 'صرف مسئلے کی صوتی تفصیل ریکارڈ کرتے وقت مائیکروفون تک رسائی کی اجازت دیں۔',
+  permissionFaceId: 'اپنے اکاؤنٹ کی نشست کی حفاظت کے لیے SALLAH کو Face ID استعمال کرنے دیں۔',
+  foregroundLocationTitle: 'ایپ کھلی ہونے پر مقام کی شراکت',
+  aiDataConsentBody:
+    'آپ کی درخواست کا مسودہ بنانے اور آواز کو متن میں بدلنے کے لیے صلّح آپ کا منتخب متن، تصاویر اور صوتی ریکارڈنگ اپنے سرورز کے ذریعے OpenAI کو بھیجتا ہے۔ پاس ورڈ، شناختی دستاویزات یا غیر ضروری نجی معلومات شامل نہ کریں۔',
+  aiDataConsentScope:
+    'آپ کی اجازت اس نشست کے لیے ہے۔ آپ آئندہ مواد بھیجنا روک سکتے ہیں یا خود درخواست مکمل کر سکتے ہیں۔ روکنے سے پہلے بھیجا گیا مواد حذف نہیں ہوتا؛ اکاؤنٹ سے حذف کرنے کی درخواست دیں۔',
+  aiDataConsentAllow: 'AI مدد کے لیے مواد بھیجنے کی اجازت دیں',
+  aiDataConsentWithdraw: 'AI مدد کے لیے مواد بھیجنا روکیں',
+  aiContinueManually: 'AI مدد کے بغیر جاری رکھیں',
+  aiManualDescription: 'درخواست کی تفصیل',
+  aiConsentRequired: 'AI مدد کے لیے مواد بھیجنے سے پہلے اس کا استعمال پڑھ کر اجازت دیں۔',
+  aiConsentQueuedWork:
+    'محفوظ پیغامات ابھی بھیجے نہیں گئے۔ انہیں بھیجنے کی اجازت دیں یا نئی دستی درخواست کے لیے یہ مسودہ حذف کریں۔',
+  reportAiSuggestion: 'AI تجویز کی شکایت کریں',
+  aiReportHelp:
+    'شکایت سے سپورٹ فارم کھلتا ہے۔ نظرثانی کی وجہ لکھیں؛ گفتگو اور تصاویر خود بخود منسلک نہیں ہوں گی۔',
+  permissionPhotos:
+    'آپ کی منتخب تصاویر درخواست، گفتگو، فراہم کنندہ کی تصدیق اور تکمیل کے ثبوت کے لیے استعمال ہوتی ہیں۔',
+  permissionLocation:
+    'آپ کی اجازت سے ایپ کھلی ہونے پر مقام سروس کا پتہ منتخب اور محفوظ کرنے اور کام کے دوران فراہم کنندہ کے مقام کی عارضی تازہ معلومات گاہک کو دینے کے لیے استعمال ہوتا ہے۔',
+  foregroundLocationBody:
+    'ایپ کھلی ہونے پر اس کام کے گاہک کو زیادہ سے زیادہ 30 منٹ تک آپ کے مقام کی تازہ معلومات ملیں گی۔ آپ کسی بھی وقت روک سکتے ہیں۔ ایپ چھوڑنے یا وقت ختم ہونے پر اشتراک رک جاتا ہے؛ پس منظر میں نگرانی نہیں ہوتی۔',
+  shareLocationOnce: 'مقام کی عارضی تازہ معلومات شیئر کریں',
   authTitle: 'صلّح میں خوش آمدید',
   authLead:
     'اپنی ای میل سے محفوظ طریقے سے شروع کریں۔ درخواست شائع کرنے سے پہلے ای میل کی تصدیق ضروری ہے۔',
@@ -2040,6 +2166,54 @@ const ur: TranslationShape = {
 };
 const hi: TranslationShape = {
   ...en,
+  aiDataConsentTitle: 'AI सहायता इस्तेमाल करने से पहले',
+  legalDocuments: 'गोपनीयता, शर्तें और समुदाय के नियम',
+  publicLegalUnavailable: 'यह नीति अभी उपलब्ध नहीं है। कृपया बाद में फिर कोशिश करें।',
+  publicContactUnavailable: 'सहायता का ईमेल पता अभी उपलब्ध नहीं है। कृपया बाद में फिर कोशिश करें।',
+  publicContactLead: 'सहायता टीम से ईमेल पर संपर्क करें।',
+  publicCommunityStandards: 'समुदाय के नियम',
+  publicContact: 'संपर्क करें',
+  publicNavigation: 'वेबसाइट नेविगेशन',
+  publicHome: 'होम',
+  publicLegalLoading: 'मौजूदा नीति लोड हो रही है…',
+  publicDocumentLanguage: 'दस्तावेज़ की भाषा',
+  legalDocumentsLead:
+    'मौजूदा स्वीकृत नीतियाँ पढ़ें। खाता बनाने से आप उन्हें अपने आप स्वीकार नहीं करते।',
+  legalUnavailable:
+    'स्वीकृत नीतियाँ अभी उपलब्ध नहीं हैं। फिर कोशिश करें या अपने खाते से सहायता से संपर्क करें। खाता सेटिंग और मिटाने का अनुरोध उपलब्ध रहते हैं।',
+  legalAcceptanceRequired:
+    'सामग्री पोस्ट या भेजने से पहले ज़रूरी दस्तावेज़ पढ़ें और प्रत्येक के लिए अपनी सहमति चुनें।',
+  legalAccepted: 'मौजूदा नीतियों के लिए आपकी सहमति सहेज दी गई है।',
+  legalDocumentVersion: 'संस्करण {{version}} · {{language}}',
+  legalAcceptDocument: 'मैंने पढ़ लिया है और सहमत हूँ: {{title}}',
+  legalAcceptAndContinue: 'मेरी सहमति सहेजें',
+  legalAcceptanceFailed:
+    'आपकी सहमति सहेजी नहीं जा सकी। मौजूदा दस्तावेज़ पढ़ें, अपनी सहमति चुनें और फिर कोशिश करें।',
+  permissionCamera: 'समस्या की तस्वीर लेने के लिए कैमरे की अनुमति दें।',
+  permissionMicrophone: 'केवल समस्या का ध्वनि विवरण रिकॉर्ड करते समय माइक्रोफ़ोन की अनुमति दें।',
+  permissionFaceId: 'अपने खाते के सत्र की सुरक्षा के लिए SALLAH को Face ID इस्तेमाल करने दें।',
+  foregroundLocationTitle: 'ऐप खुला होने पर स्थान साझा करना',
+  aiDataConsentBody:
+    'आपके अनुरोध का मसौदा बनाने और आवाज़ को पाठ में बदलने के लिए सल्लाह आपका चुना हुआ पाठ, तस्वीरें और आवाज़ की रिकॉर्डिंग अपने सर्वर से OpenAI को भेजता है। पासवर्ड, पहचान दस्तावेज़ या अनावश्यक निजी जानकारी शामिल न करें।',
+  aiDataConsentScope:
+    'आपकी अनुमति इस सत्र के लिए है। आप आगे सामग्री भेजना रोक सकते हैं या अनुरोध स्वयं पूरा कर सकते हैं। रोकने से पहले भेजी गई सामग्री मिटती नहीं है; खाते से उसे मिटाने का अनुरोध करें।',
+  aiDataConsentAllow: 'AI सहायता के लिए सामग्री भेजने की अनुमति दें',
+  aiDataConsentWithdraw: 'AI सहायता के लिए सामग्री भेजना रोकें',
+  aiContinueManually: 'AI सहायता के बिना जारी रखें',
+  aiManualDescription: 'अनुरोध का विवरण',
+  aiConsentRequired: 'AI सहायता के लिए सामग्री भेजने से पहले उसके उपयोग को पढ़ें और अनुमति दें।',
+  aiConsentQueuedWork:
+    'सहेजे गए संदेश अभी भेजे नहीं गए हैं। उन्हें भेजने की अनुमति दें या नया अनुरोध स्वयं बनाने के लिए यह मसौदा मिटाएं।',
+  reportAiSuggestion: 'AI सुझाव की शिकायत करें',
+  aiReportHelp:
+    'शिकायत से सहायता फ़ॉर्म खुलता है। बताएं कि किस बात की समीक्षा चाहिए; बातचीत और तस्वीरें अपने आप संलग्न नहीं होंगी।',
+  permissionPhotos:
+    'आपकी चुनी तस्वीरें अनुरोध, बातचीत, सेवा प्रदाता के सत्यापन और काम पूरा होने के प्रमाण के लिए इस्तेमाल होती हैं।',
+  permissionLocation:
+    'आपकी अनुमति से ऐप खुला होने पर स्थान का इस्तेमाल सेवा का पता चुनने और सहेजने तथा काम के दौरान ग्राहक को सेवा प्रदाता के स्थान के अस्थायी अपडेट देने के लिए होता है।',
+  foregroundLocationBody:
+    'ऐप खुला होने पर इस काम के ग्राहक को अधिकतम 30 मिनट तक आपके स्थान के अपडेट भेजे जाएंगे। आप कभी भी रोक सकते हैं। ऐप छोड़ने या समय समाप्त होने पर साझाकरण रुक जाता है; पृष्ठभूमि में ट्रैकिंग नहीं होती।',
+  shareLocationOnce: 'स्थान के अस्थायी अपडेट साझा करें',
   authTitle: 'सल्लाह में आपका स्वागत है',
   authLead:
     'अपनी ईमेल से सुरक्षित शुरुआत करें। अनुरोध प्रकाशित करने से पहले ईमेल की पुष्टि ज़रूरी है।',

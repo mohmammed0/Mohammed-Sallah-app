@@ -3,7 +3,9 @@ import { readFile } from 'node:fs/promises';
 import {
   MAX_UPLOAD_BYTES,
   createMediaScannerRuntime,
+  createScannerHealthPublisher,
   runMediaScannerPullLoop,
+  SCANNER_HEALTH_PATH,
 } from './dist/index.js';
 
 const environments = new Set(['local', 'test', 'preview', 'production']);
@@ -95,4 +97,13 @@ const runtime = createMediaScannerRuntime({
   },
 });
 
-await runMediaScannerPullLoop(runtime, { idleDelayMs, signal: abort.signal });
+try {
+  await runMediaScannerPullLoop(runtime, {
+    idleDelayMs,
+    signal: abort.signal,
+    onHealth: createScannerHealthPublisher(SCANNER_HEALTH_PATH),
+  });
+} catch {
+  console.error('scanner_worker_stopped');
+  process.exitCode = 1;
+}

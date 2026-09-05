@@ -57,6 +57,29 @@ contract; it does not select, purchase, provision, or prove a hosted scanner.
 8. Record PASS/FAIL honestly. A running container, PING-only response, deterministic scanner, or
    repository test is not hosted Preview activation evidence.
 
+## Worker health and operational evidence
+
+The worker writes an atomic, mode-0600 record in a separate private 1 MiB tmpfs at
+`/tmp/scanner-health/state.json`. It contains only a fixed schema, UTC epoch timestamps,
+operational state, and an allowlisted category. It contains no worker, attempt, object or user
+identifier, URL, token, raw error, or media detail. Logs use the same record: ordinary heartbeat
+output is limited to once per minute, with state changes at most once per five seconds and one
+final shutdown record. This provides local evidence; it does not configure an external alert
+destination or prove that an operator received an alert.
+
+Both Compose profiles run `node dist/healthcheck.js`. The probe fails closed for missing,
+malformed, oversized, future-dated or symlinked records, a heartbeat older than 30 seconds,
+or readiness older than 150 seconds. Readiness requires fresh ClamD evidence and a successful
+control-plane claim response, including an idle response. The heartbeat runs every 10 seconds
+during work; it cannot extend readiness indefinitely for a hung job. Startup, signature/control
+failure, cleanup failure and shutdown are unhealthy. A valid new readiness check permits recovery.
+Health-file publishing failure stops the pull loop; cleanup failure remains fatal.
+
+Alert routing must distinguish `signature_stale`, `signature_invalid`, `readiness_unavailable`,
+`control_unavailable`, `processing_failed`, `processing_timeout`, `readiness_expired`,
+`cleanup_failed` and `worker_failed`. It must also watch the host's Docker health state so that
+a dead or blocked event loop is visible when it cannot emit another record.
+
 ## Rollback
 
 Stop new claims, keep quarantine fail-closed, roll back to the previously recorded immutable worker

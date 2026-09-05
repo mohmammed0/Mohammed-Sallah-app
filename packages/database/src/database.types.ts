@@ -2660,6 +2660,9 @@ export type Database = {
       legal_acceptances: {
         Row: {
           accepted_at: string;
+          accepted_content_hash: string | null;
+          accepted_document_locale: string | null;
+          accepted_document_version: string | null;
           id: string;
           ip_hash: string | null;
           legal_document_id: string;
@@ -2668,6 +2671,9 @@ export type Database = {
         };
         Insert: {
           accepted_at?: string;
+          accepted_content_hash?: string | null;
+          accepted_document_locale?: string | null;
+          accepted_document_version?: string | null;
           id?: string;
           ip_hash?: string | null;
           legal_document_id: string;
@@ -2676,6 +2682,9 @@ export type Database = {
         };
         Update: {
           accepted_at?: string;
+          accepted_content_hash?: string | null;
+          accepted_document_locale?: string | null;
+          accepted_document_version?: string | null;
           id?: string;
           ip_hash?: string | null;
           legal_document_id?: string;
@@ -2701,6 +2710,9 @@ export type Database = {
       };
       legal_documents: {
         Row: {
+          approval_reference: string | null;
+          approved_at: string | null;
+          body: string | null;
           content_hash: string;
           document_type: string;
           effective_at: string | null;
@@ -2708,9 +2720,14 @@ export type Database = {
           locale: string;
           published_at: string | null;
           requires_acceptance: boolean;
+          title: string | null;
           version: string;
+          withdrawn_at: string | null;
         };
         Insert: {
+          approval_reference?: string | null;
+          approved_at?: string | null;
+          body?: string | null;
           content_hash: string;
           document_type: string;
           effective_at?: string | null;
@@ -2718,9 +2735,14 @@ export type Database = {
           locale: string;
           published_at?: string | null;
           requires_acceptance?: boolean;
+          title?: string | null;
           version: string;
+          withdrawn_at?: string | null;
         };
         Update: {
+          approval_reference?: string | null;
+          approved_at?: string | null;
+          body?: string | null;
           content_hash?: string;
           document_type?: string;
           effective_at?: string | null;
@@ -2728,7 +2750,9 @@ export type Database = {
           locale?: string;
           published_at?: string | null;
           requires_acceptance?: boolean;
+          title?: string | null;
           version?: string;
+          withdrawn_at?: string | null;
         };
         Relationships: [];
       };
@@ -7205,6 +7229,10 @@ export type Database = {
         };
         Returns: Json;
       };
+      accept_current_legal_documents: {
+        Args: { p_documents: Json; p_idempotency_key: string; p_locale: string };
+        Returns: Json;
+      };
       admin_marketplace_health: { Args: never; Returns: Json };
       admin_set_category: {
         Args: {
@@ -7228,6 +7256,7 @@ export type Database = {
         Args: { p_address_id: string };
         Returns: undefined;
       };
+      assert_actor_legal_consent: { Args: { p_user_id: string }; Returns: undefined };
       assert_data_export_catalog_complete: { Args: never; Returns: boolean };
       assign_support_case: {
         Args: {
@@ -7566,6 +7595,8 @@ export type Database = {
       get_data_export_query_coverage: { Args: never; Returns: Json };
       get_data_export_query_coverage_v3: { Args: never; Returns: Json };
       get_finance_review_queue: { Args: never; Returns: Json };
+      get_legal_consent_context: { Args: { p_locale: string }; Returns: Json };
+      get_legal_release_readiness: { Args: never; Returns: Json };
       get_marketplace_report_enforcement_target: {
         Args: { p_report_id: string };
         Returns: Json;
