@@ -155,7 +155,9 @@ export function ActionButton({
   return (
     <InteractivePressable
       {...pressableProps}
+      accessibilityLabel={props.accessibilityLabel ?? label}
       accessibilityRole="button"
+      accessibilityState={{ ...props.accessibilityState, disabled, busy: loading }}
       disabled={disabled}
       style={[
         styles.action,

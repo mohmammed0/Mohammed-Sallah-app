@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { z } from 'zod';
 import { formatStatusLabel } from '@sallah/i18n';
 import {
@@ -9,6 +9,7 @@ import {
   CustomerScreen,
   EmptyState,
   Field,
+  InteractivePressable,
   LoadingBlock,
   Notice,
   SectionHeader,
@@ -85,7 +86,7 @@ export function CustomerHome() {
       const { count, error } = await supabase
         .from('notification_outbox')
         .select('id', { count: 'exact', head: true });
-      if (error) return 0;
+      if (error) throw error;
       return count ?? 0;
     },
   });
@@ -117,88 +118,40 @@ export function CustomerHome() {
       />
 
       <View style={styles.hero}>
-        <View style={styles.heroIcon}>
-          <AppIcon color={tokens.colors.primaryStrong} name="sparkles" size={28} />
+        <View style={[customerStyles.between, dir === 'rtl' && styles.rowReverse]}>
+          <Text style={styles.heroEyebrow}>{t('appName')}</Text>
+          <View style={styles.heroIcon}>
+            <AppIcon color={tokens.colors.white} name="tools" size={26} />
+          </View>
         </View>
-        <Text accessibilityRole="header" style={customerStyles.display}>
+        <Text accessibilityRole="header" style={styles.heroTitle}>
           {t('customerHomeTitle')}
         </Text>
-        <Text style={customerStyles.bodyMuted}>{t('customerHomeLead')}</Text>
+        <Text style={styles.heroLead}>{t('customerHomeLead')}</Text>
         <ActionButton
           icon="plus"
           label={t('newRequest')}
           onPress={() => router.push('/request/new')}
-        />
-      </View>
-
-      <Field
-        icon="search"
-        label={t('searchServices')}
-        onChangeText={setSearch}
-        placeholder={t('searchServicesPlaceholder')}
-        returnKeyType="search"
-        value={search}
-      />
-
-      <View style={styles.section}>
-        <SectionHeader title={t('serviceCategories')} />
-        {catalog.isPending ? <LoadingBlock label={t('loading')} rows={4} /> : null}
-        {catalog.isError ? (
-          <Notice live tone="danger">
-            {t('catalogLoadFailed')}
-          </Notice>
-        ) : null}
-        <View style={[styles.categoryGrid, dir === 'rtl' && styles.rowReverse]}>
-          {filteredCategories.map((category) => {
-            const translation = category.service_category_translations[0];
-            return (
-              <Pressable
-                key={category.id}
-                accessibilityHint={t('browseCategory')}
-                accessibilityRole="button"
-                onPress={() =>
-                  router.push({
-                    pathname: '/request/new',
-                    params: { category: category.slug },
-                  })
-                }
-                style={({ pressed }) => [styles.categoryCard, pressed && styles.pressed]}
-              >
-                <View style={styles.categoryIcon}>
-                  <AppIcon
-                    color={tokens.colors.primaryStrong}
-                    name={categoryIconName(category.icon_key, category.slug)}
-                    size={27}
-                  />
-                </View>
-                <Text numberOfLines={2} style={styles.categoryName}>
-                  {translation?.name ?? category.slug}
-                </Text>
-                <Text numberOfLines={2} style={customerStyles.caption}>
-                  {translation?.description ?? ''}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
-
-      <Surface tone="muted">
-        <View style={[customerStyles.row, dir === 'rtl' && styles.rowReverse]}>
-          <View style={styles.aiIcon}>
-            <AppIcon color={tokens.colors.primaryStrong} name="sparkles" size={24} />
-          </View>
-          <View style={styles.flex}>
-            <Text style={customerStyles.section}>{t('aiRequestPrompt')}</Text>
-            <Text style={customerStyles.bodyMuted}>{t('aiRequestBody')}</Text>
-          </View>
-        </View>
-        <ActionButton
-          label={t('describeProblem')}
-          onPress={() => router.push('/request/new')}
           variant="secondary"
         />
-      </Surface>
+      </View>
+
+      <View style={[customerStyles.wrap, dir === 'rtl' && styles.rowReverse]}>
+        <ActionButton
+          icon="requests"
+          label={t('requests')}
+          onPress={() => router.push('/requests')}
+          variant="secondary"
+          style={styles.shortcut}
+        />
+        <ActionButton
+          icon="messages"
+          label={t('messages')}
+          onPress={() => router.push('/messages')}
+          variant="secondary"
+          style={styles.shortcut}
+        />
+      </View>
 
       <View style={styles.section}>
         <SectionHeader
@@ -208,16 +161,22 @@ export function CustomerHome() {
         />
         {requests.isPending ? <LoadingBlock label={t('loadingRequests')} /> : null}
         {requests.isError ? (
-          <Notice live tone="danger">
-            {t('loadRequestsFailed')}
-          </Notice>
+          <Surface>
+            <Notice live tone="danger">
+              {t('loadRequestsFailed')}
+            </Notice>
+            <ActionButton
+              testID="home-retry-requests"
+              icon="refresh"
+              label={t('retry')}
+              loading={requests.isFetching}
+              onPress={() => void requests.refetch()}
+              variant="secondary"
+            />
+          </Surface>
         ) : null}
         {activeRequest ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push('/requests')}
-            style={({ pressed }) => pressed && styles.pressed}
-          >
+          <InteractivePressable accessibilityRole="button" onPress={() => router.push('/requests')}>
             <Surface>
               <View style={[customerStyles.between, dir === 'rtl' && styles.rowReverse]}>
                 <Text style={styles.requestTitle}>{activeRequest.title}</Text>
@@ -228,10 +187,11 @@ export function CustomerHome() {
               <Text style={customerStyles.caption}>
                 {new Date(activeRequest.created_at).toLocaleString(
                   locale === 'ar' ? 'ar-SA' : locale,
+                  { timeZone: 'Asia/Riyadh', dateStyle: 'medium', timeStyle: 'short' },
                 )}
               </Text>
             </Surface>
-          </Pressable>
+          </InteractivePressable>
         ) : !requests.isPending && !requests.isError ? (
           <EmptyState
             actionLabel={t('createFirstRequest')}
@@ -264,50 +224,149 @@ export function CustomerHome() {
         </Surface>
       ) : null}
 
-      <View style={styles.section}>
-        <SectionHeader title={t('recentRequests')} />
-        {recentRequests.length ? (
-          recentRequests.map((request) => (
-            <Surface key={request.id}>
-              <View style={[customerStyles.between, dir === 'rtl' && styles.rowReverse]}>
-                <Text numberOfLines={1} style={styles.requestTitle}>
-                  {request.title}
-                </Text>
-                <Text style={customerStyles.caption}>
-                  {formatStatusLabel(request.status, locale)}
-                </Text>
-              </View>
-            </Surface>
-          ))
-        ) : (
-          <Text style={customerStyles.bodyMuted}>{t('noRecentRequests')}</Text>
-        )}
-      </View>
+      <Field
+        icon="search"
+        label={t('searchServices')}
+        onChangeText={setSearch}
+        placeholder={t('searchServicesPlaceholder')}
+        returnKeyType="search"
+        value={search}
+      />
 
       <View style={styles.section}>
-        <SectionHeader title={t('recommendedServices')} />
-        <View style={[customerStyles.wrap, dir === 'rtl' && styles.rowReverse]}>
-          {(catalog.data ?? []).slice(0, 4).map((category) => (
-            <Pressable
-              key={category.id}
-              accessibilityRole="button"
-              onPress={() =>
-                router.push({ pathname: '/request/new', params: { category: category.slug } })
-              }
-              style={[styles.recommendation, dir === 'rtl' && styles.rowReverse]}
-            >
-              <AppIcon
-                color={tokens.colors.primaryStrong}
-                name={categoryIconName(category.icon_key, category.slug)}
-                size={19}
-              />
-              <Text style={styles.recommendationText}>
-                {category.service_category_translations[0]?.name ?? category.slug}
-              </Text>
-            </Pressable>
-          ))}
+        <SectionHeader title={t('serviceCategories')} />
+        {search.trim() ? (
+          <ActionButton
+            testID="home-clear-search"
+            icon="close"
+            label={t('homeClearSearch')}
+            onPress={() => setSearch('')}
+            variant="ghost"
+          />
+        ) : null}
+        {catalog.isPending ? <LoadingBlock label={t('loading')} rows={4} /> : null}
+        {catalog.isError ? (
+          <Surface>
+            <Notice live tone="danger">
+              {t('catalogLoadFailed')}
+            </Notice>
+            <ActionButton
+              testID="home-retry-catalog"
+              icon="refresh"
+              label={t('retry')}
+              loading={catalog.isFetching}
+              onPress={() => void catalog.refetch()}
+              variant="secondary"
+            />
+          </Surface>
+        ) : null}
+        {catalog.isSuccess && filteredCategories.length === 0 ? (
+          <EmptyState
+            icon={catalog.data.length ? 'search' : 'tools'}
+            title={t(catalog.data.length ? 'homeSearchEmptyTitle' : 'homeCatalogEmptyTitle')}
+            body={t(catalog.data.length ? 'homeSearchEmptyBody' : 'homeCatalogEmptyBody')}
+            {...(catalog.data.length
+              ? {}
+              : { actionLabel: t('openHelp'), onAction: () => router.push('/support') })}
+          />
+        ) : null}
+        <View style={[styles.categoryGrid, dir === 'rtl' && styles.rowReverse]}>
+          {filteredCategories.map((category) => {
+            const translation = category.service_category_translations[0];
+            return (
+              <InteractivePressable
+                key={category.id}
+                testID={`home-category-${category.slug}`}
+                accessibilityHint={t('browseCategory')}
+                accessibilityRole="button"
+                onPress={() =>
+                  router.push({
+                    pathname: '/request/new',
+                    params: { category: category.slug },
+                  })
+                }
+                style={styles.categoryCard}
+              >
+                <View style={styles.categoryIcon}>
+                  <AppIcon
+                    color={tokens.colors.primaryStrong}
+                    name={categoryIconName(category.icon_key, category.slug)}
+                    size={27}
+                  />
+                </View>
+                <Text style={styles.categoryName}>{translation?.name ?? category.slug}</Text>
+                <Text style={customerStyles.caption}>{translation?.description ?? ''}</Text>
+              </InteractivePressable>
+            );
+          })}
         </View>
       </View>
+
+      <Surface tone="muted">
+        <View style={[customerStyles.row, dir === 'rtl' && styles.rowReverse]}>
+          <View style={styles.aiIcon}>
+            <AppIcon color={tokens.colors.primaryStrong} name="sparkles" size={24} />
+          </View>
+          <View style={styles.flex}>
+            <Text style={customerStyles.section}>{t('aiRequestPrompt')}</Text>
+            <Text style={customerStyles.bodyMuted}>{t('aiRequestBody')}</Text>
+          </View>
+        </View>
+        <ActionButton
+          label={t('describeProblem')}
+          onPress={() => router.push('/request/new')}
+          variant="secondary"
+        />
+      </Surface>
+
+      {requests.isSuccess ? (
+        <View style={styles.section}>
+          <SectionHeader title={t('recentRequests')} />
+          {recentRequests.length ? (
+            recentRequests.map((request) => (
+              <Surface key={request.id}>
+                <View style={[customerStyles.between, dir === 'rtl' && styles.rowReverse]}>
+                  <Text numberOfLines={1} style={styles.requestTitle}>
+                    {request.title}
+                  </Text>
+                  <Text style={customerStyles.caption}>
+                    {formatStatusLabel(request.status, locale)}
+                  </Text>
+                </View>
+              </Surface>
+            ))
+          ) : (
+            <Text style={customerStyles.bodyMuted}>{t('noRecentRequests')}</Text>
+          )}
+        </View>
+      ) : null}
+
+      {catalog.data?.length ? (
+        <View style={styles.section}>
+          <SectionHeader title={t('recommendedServices')} />
+          <View style={[customerStyles.wrap, dir === 'rtl' && styles.rowReverse]}>
+            {(catalog.data ?? []).slice(0, 4).map((category) => (
+              <InteractivePressable
+                key={category.id}
+                accessibilityRole="button"
+                onPress={() =>
+                  router.push({ pathname: '/request/new', params: { category: category.slug } })
+                }
+                style={[styles.recommendation, dir === 'rtl' && styles.rowReverse]}
+              >
+                <AppIcon
+                  color={tokens.colors.primaryStrong}
+                  name={categoryIconName(category.icon_key, category.slug)}
+                  size={19}
+                />
+                <Text style={styles.recommendationText}>
+                  {category.service_category_translations[0]?.name ?? category.slug}
+                </Text>
+              </InteractivePressable>
+            ))}
+          </View>
+        </View>
+      ) : null}
 
       <Surface tone="muted">
         <View style={[customerStyles.row, dir === 'rtl' && styles.rowReverse]}>
@@ -349,24 +408,29 @@ const styles = StyleSheet.create({
   locationValue: { ...tokens.type.label, color: tokens.colors.ink, textAlign: 'auto' },
   hero: {
     borderRadius: tokens.radius.xl,
-    backgroundColor: tokens.colors.primarySoft,
+    backgroundColor: tokens.colors.primaryStrong,
     padding: tokens.spacing.xl,
-    gap: tokens.spacing.sm,
+    gap: tokens.spacing.md,
     overflow: 'hidden',
   },
   heroIcon: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    width: 46,
+    height: 46,
+    borderRadius: tokens.radius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: tokens.colors.surface,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
   },
+  heroEyebrow: { ...tokens.type.section, color: tokens.colors.white, textAlign: 'auto' },
+  heroTitle: { ...tokens.type.display, color: tokens.colors.white, textAlign: 'auto' },
+  heroLead: { ...tokens.type.body, color: '#DFF2EE', textAlign: 'auto' },
+  shortcut: { flexBasis: 140, flexGrow: 1 },
   section: { gap: tokens.spacing.sm },
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
   categoryCard: {
-    width: '48%',
-    minHeight: 158,
+    flexBasis: 140,
+    flexGrow: 1,
+    minHeight: 150,
     borderRadius: tokens.radius.lg,
     backgroundColor: tokens.colors.surface,
     borderColor: tokens.colors.border,

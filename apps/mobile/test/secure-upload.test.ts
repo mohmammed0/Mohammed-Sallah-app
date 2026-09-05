@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const stored = vi.hoisted(() => new Map<string, string>());
 const rpc = vi.hoisted(() => vi.fn());
@@ -53,6 +53,9 @@ const clean = {
 
 describe('asynchronous secure upload recovery', () => {
   beforeEach(() => {
+    // Keep journal fixtures inside their retention window as the calendar advances.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-08-21T12:05:00.000Z'));
     stored.clear();
     rpc.mockReset();
     getUser.mockReset();
@@ -64,6 +67,7 @@ describe('asynchronous secure upload recovery', () => {
     removeStoredItem.mockReset();
     removeStoredItem.mockImplementation(async (key: string) => stored.delete(key));
   });
+  afterEach(() => vi.useRealTimers());
 
   it('persists a pre-upload recovery record before quarantine transfer', async () => {
     rpc.mockResolvedValueOnce({

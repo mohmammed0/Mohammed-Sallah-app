@@ -24,6 +24,17 @@ vi.mock('../src/providers/locale-provider', () => ({
   true;
 
 describe('customer form direction', () => {
+  it('keeps an action named and announces its busy state while the label becomes a spinner', async () => {
+    const { ActionButton } = await import('../src/design-system/primitives');
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(() => {
+      renderer = create(<ActionButton label="Send request" loading />);
+    });
+    const button = renderer?.root.findByType('Pressable');
+    expect(button?.props.accessibilityLabel).toBe('Send request');
+    expect(button?.props.accessibilityState).toMatchObject({ disabled: true, busy: true });
+    await act(() => renderer?.unmount());
+  });
   it('renders forms and screen content in the active locale direction without a restart', async () => {
     const { CustomerScreen, Field, StepHeader } = await import('../src/design-system/primitives');
     const content = () => (
