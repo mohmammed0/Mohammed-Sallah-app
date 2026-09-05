@@ -61,7 +61,7 @@ async function withFirebaseFixture(content: string, test: (file: string) => Prom
   }
 }
 
-async function introspectPermissions() {
+async function introspectPermissions(inheritedPermissions: string[] = []) {
   vi.stubEnv('EXPO_PUBLIC_APP_ENV', 'test');
   const config = createExpoConfig({ config: {} } as Parameters<typeof createExpoConfig>[0]);
   const projectRoot = fileURLToPath(new URL('..', import.meta.url));
@@ -75,7 +75,10 @@ async function introspectPermissions() {
   // manifest compiler. Introspection never generates or writes native files.
   const compiled = await compileModsAsync(
     AndroidConfig.Permissions.withInternalBlockedPermissions(
-      withPlugins({ ...config, _internal: { projectRoot } }, permissionPlugins ?? []),
+      AndroidConfig.Permissions.withPermissions(
+        withPlugins({ ...config, _internal: { projectRoot } }, permissionPlugins ?? []),
+        inheritedPermissions,
+      ),
     ),
     {
       projectRoot,
@@ -211,6 +214,16 @@ describe('composed native permissions', () => {
     expect(result.ios.infoPlist.NSMicrophoneUsageDescription).toBe(
       translate('ar', 'permissionMicrophone'),
     );
+  });
+
+  it('removes overlay access even when a native dependency requests it', async () => {
+    const permissionName = 'android.permission.SYSTEM_ALERT_WINDOW';
+    const result = await introspectPermissions([permissionName]);
+    const overlay = result.android.manifest.manifest['uses-permission']?.filter(
+      (permission) => permission.$['android:name'] === permissionName,
+    );
+
+    expect(overlay).toEqual([{ $: { 'android:name': permissionName, 'tools:node': 'remove' } }]);
   });
 
   it('does not enable background audio or background location as a recording workaround', async () => {

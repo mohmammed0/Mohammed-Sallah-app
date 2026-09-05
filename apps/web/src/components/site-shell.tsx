@@ -26,7 +26,7 @@ export function SiteShell({
 }) {
   const l = labels[locale];
   return (
-    <div dir={locale === 'ar' ? 'rtl' : 'ltr'}>
+    <div lang={locale} dir={locale === 'ar' ? 'rtl' : 'ltr'}>
       <header className="site-header">
         <nav className="shell nav" aria-label="Primary">
           <Link className="brand" href={`/${locale}`}>

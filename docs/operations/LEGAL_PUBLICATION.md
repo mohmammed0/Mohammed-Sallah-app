@@ -32,7 +32,8 @@ withdrawal because an earlier approved version can become current again.
 
 ## Deployment order
 
-1. Review the migration mapping before touching an existing database. The audited Preview ledger
+1. Review the [migration mapping](../validation/PREVIEW_MIGRATION_RECONCILIATION_2026-09-05.md)
+   before touching an existing database. The audited Preview ledger
    matched historical filenames but used different version numbers; never run an unreviewed bulk
    `db push` against it.
 2. Apply the forward migrations `20260905070000_reviewed_legal_consent.sql` and

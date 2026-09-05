@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { DocumentLocale } from '@/components/document-locale';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -12,9 +13,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="ar" dir="rtl">
       <body>
-        <a className="skip-link" href="#main">
-          انتقل إلى المحتوى
-        </a>
+        <DocumentLocale />
         {children}
       </body>
     </html>

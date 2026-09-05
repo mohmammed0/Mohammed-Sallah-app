@@ -7256,7 +7256,10 @@ export type Database = {
         Args: { p_address_id: string };
         Returns: undefined;
       };
-      assert_actor_legal_consent: { Args: { p_user_id: string }; Returns: undefined };
+      assert_actor_legal_consent: {
+        Args: { p_user_id: string };
+        Returns: undefined;
+      };
       assert_data_export_catalog_complete: { Args: never; Returns: boolean };
       assign_support_case: {
         Args: {

@@ -61,11 +61,12 @@ status, and audience.
 - [Store listing drafts](store/STORE_LISTING_DRAFTS.md) — مسودات وصف المتاجر بأربع لغات، CURRENT SUPPORTING DOCUMENT، ملاك الإصدار.
 - [Data disclosure worksheet](store/DATA_DISCLOSURE_WORKSHEET.md) — حقول إفصاحات البيانات والأدلة المطلوبة، CURRENT SUPPORTING DOCUMENT، الخصوصية والإصدار.
 
-| المستند                                                                    | الوصف العربي                                        | الحالة                      | الجمهور           |
-| -------------------------------------------------------------------------- | --------------------------------------------------- | --------------------------- | ----------------- |
-| [Reviewed policy publication](operations/LEGAL_PUBLICATION.md)             | نشر السياسات المعتمدة وقبول نسخها والتحقق من الخادم | CURRENT SUPPORTING DOCUMENT | الخصوصية والإصدار |
-| [EAS native build configuration](operations/EAS_NATIVE_BUILDS.md)          | إعداد البناء وملف Firebase والتحقق من النسخة        | CURRENT SUPPORTING DOCUMENT | الإصدار           |
-| [Launch preparation 2026-09-05](validation/LAUNCH_READINESS_2026-09-05.md) | تغييرات التجهيز وأدلة التحقق والمدخلات المتبقية     | CURRENT SUPPORTING DOCUMENT | ملاك الإصدار      |
+| المستند                                                                                       | الوصف العربي                                        | الحالة                      | الجمهور                 |
+| --------------------------------------------------------------------------------------------- | --------------------------------------------------- | --------------------------- | ----------------------- |
+| [Reviewed policy publication](operations/LEGAL_PUBLICATION.md)                                | نشر السياسات المعتمدة وقبول نسخها والتحقق من الخادم | CURRENT SUPPORTING DOCUMENT | الخصوصية والإصدار       |
+| [EAS native build configuration](operations/EAS_NATIVE_BUILDS.md)                             | إعداد البناء وملف Firebase والتحقق من النسخة        | CURRENT SUPPORTING DOCUMENT | الإصدار                 |
+| [Launch preparation 2026-09-05](validation/LAUNCH_READINESS_2026-09-05.md)                    | تغييرات التجهيز وأدلة التحقق والمدخلات المتبقية     | CURRENT SUPPORTING DOCUMENT | ملاك الإصدار            |
+| [Preview migration reconciliation](validation/PREVIEW_MIGRATION_RECONCILIATION_2026-09-05.md) | مطابقة سجل الترحيلات والمحتوى قبل تحديث البيئة      | CURRENT SUPPORTING DOCUMENT | قاعدة البيانات والإصدار |
 
 | المستند                                                   | الوصف العربي                       | الحالة                      | الجمهور               |
 | --------------------------------------------------------- | ---------------------------------- | --------------------------- | --------------------- |

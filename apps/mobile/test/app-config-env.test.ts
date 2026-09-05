@@ -136,7 +136,10 @@ describe('mobile Expo APP_ENV boundary', () => {
     expect(result.android).toMatchObject({
       package: 'com.mohmammed0.sallah.preview',
       googleServicesFile: '/run/secrets/google-services.json',
-      blockedPermissions: ['android.permission.ACCESS_BACKGROUND_LOCATION'],
+      blockedPermissions: [
+        'android.permission.ACCESS_BACKGROUND_LOCATION',
+        'android.permission.SYSTEM_ALERT_WINDOW',
+      ],
       config: { googleMaps: { apiKey: 'restricted-preview-key' } },
       adaptiveIcon: {
         backgroundColor: '#F6F0E7',

@@ -136,7 +136,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         foregroundImage: './assets/images/adaptive-icon.png',
         monochromeImage: './assets/images/adaptive-icon-monochrome.png',
       },
-      blockedPermissions: ['android.permission.ACCESS_BACKGROUND_LOCATION'],
+      blockedPermissions: [
+        'android.permission.ACCESS_BACKGROUND_LOCATION',
+        'android.permission.SYSTEM_ALERT_WINDOW',
+      ],
       ...(androidMapsApiKey ? { config: { googleMaps: { apiKey: androidMapsApiKey } } } : {}),
     },
     plugins: [
