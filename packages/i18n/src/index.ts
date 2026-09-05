@@ -1707,6 +1707,9 @@ const en: TranslationShape = {
 };
 const ur: TranslationShape = {
   ...en,
+  welcomeBadge: 'سعودی عرب میں خدمات',
+  welcomeLead:
+    'مسئلہ بیان کریں، درخواست کا جائزہ لیں اور اہل فراہم کنندگان کی نجی پیشکشوں کا موازنہ کریں۔',
   aiDataConsentTitle: 'AI مدد استعمال کرنے سے پہلے',
   legalDocuments: 'رازداری، شرائط اور کمیونٹی کے اصول',
   publicLegalUnavailable: 'یہ پالیسی اس وقت دستیاب نہیں ہے۔ براہ کرم بعد میں کوشش کریں۔',
@@ -2169,6 +2172,9 @@ const ur: TranslationShape = {
 };
 const hi: TranslationShape = {
   ...en,
+  welcomeBadge: 'सऊदी अरब में सेवाएँ',
+  welcomeLead:
+    'समस्या बताएं, अनुरोध की समीक्षा करें और योग्य सेवा प्रदाताओं के निजी प्रस्तावों की तुलना करें।',
   aiDataConsentTitle: 'AI सहायता इस्तेमाल करने से पहले',
   legalDocuments: 'गोपनीयता, शर्तें और समुदाय के नियम',
   publicLegalUnavailable: 'यह नीति अभी उपलब्ध नहीं है। कृपया बाद में फिर कोशिश करें।',
