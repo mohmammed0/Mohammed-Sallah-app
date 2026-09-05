@@ -4,10 +4,9 @@
 `codex/*` branches, stacked pull requests, local backups, and old worktrees are
 evidence only and must not be selected as a parallel source of truth.
 
-The current prelaunch candidate is [PR #36](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/36)
-directly to `main`. When explicitly assigned to review that candidate, resolve its current GitHub
-head and record `git rev-parse HEAD` from the matching clean checkout. This review scope does not
-replace `main` as the canonical branch. See the [prelaunch guide](../release/PRELAUNCH.md).
+[PR #36](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/36) was merged into `main`.
+Its former task branch is historical evidence. Resolve current `main` for new work rather than
+assuming the immutable handoff checkpoint is still the latest source. See the [prelaunch guide](../release/PRELAUNCH.md).
 
 ## Required start sequence
 
@@ -18,10 +17,12 @@ replace `main` as the canonical branch. See the [prelaunch guide](../release/PRE
 5. Read the first file for the selected tool before changing anything.
 6. Create a normal task branch from that exact SHA; never commit feature work directly to `main`.
 
-The immutable handoff tag `sallah-multitool-handoff-v1` is planned and has not been created.
-It may be created after a separately authorized, verified merge. The final verified `main` SHA
-is reported externally after merge because a tracked file cannot embed the SHA of the commit
-that contains itself.
+The annotated handoff tag `sallah-multitool-handoff-v1` exists at
+`2cf253bb44d417a02fd483395a862ff66bb4b053`. Its remote tag object is
+`48b6824a52d2c2216408ad71d455a2e4ce98adee`; no cryptographic signature is claimed.
+Use this fixed checkpoint only when explicitly reviewing that handoff. Do not move or replace it.
+Current `main` identity must still be resolved and recorded for each task because a tracked file
+cannot embed the SHA of the commit that contains itself.
 
 ## Tool entry points
 

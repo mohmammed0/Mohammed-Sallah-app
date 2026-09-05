@@ -8,10 +8,18 @@ Status: CURRENT SUPPORTING DOCUMENT. Audience: engineering, reviewers and releas
 
 ## Current integration
 
-[PR #36](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/36) targets `main` directly and
-contains the earlier PR #33/#35 history. Retargeting preserves the commits and prior review evidence;
-it neither merges them nor makes a branch an alternative canonical source. `main` remains canonical.
-After any source or base change, require fresh CI for the exact candidate and its PR merge checkout.
+[PR #36](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/36) was merged into `main` at
+`2cf253bb44d417a02fd483395a862ff66bb4b053`, preserving the earlier PR #33/#35 history.
+[All six main CI jobs passed](https://github.com/mohmammed0/Mohammed-Sallah-app/actions/runs/33994499891),
+and that run's [prelaunch packet](https://github.com/mohmammed0/Mohammed-Sallah-app/actions/runs/33994499891/artifacts/9977772072)
+was retained and verified against a clean checkout of the merge SHA.
+
+The annotated tag [`sallah-multitool-handoff-v1`](https://github.com/mohmammed0/Mohammed-Sallah-app/tree/sallah-multitool-handoff-v1)
+preserves this engineering checkpoint. Its tag object is `48b6824a52d2c2216408ad71d455a2e4ce98adee`
+and its target is the merge SHA above; no cryptographic signing is claimed. The tag stays immutable
+while `main` may advance. Resolve current `main` with `git rev-parse HEAD` in a clean checkout and
+use matching CI for new work. After any source or base change, require fresh CI for the exact candidate
+and its PR merge checkout. Current follow-up gates remain in [tracker #23](https://github.com/mohmammed0/Mohammed-Sallah-app/issues/23).
 
 ## Automated repository gate
 

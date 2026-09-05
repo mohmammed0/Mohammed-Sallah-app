@@ -2,12 +2,11 @@
 
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
-import { direction, supportedLocales, translate, type SupportedLocale } from '@sallah/i18n';
+import { direction, translate } from '@sallah/i18n';
+import { documentLocaleFromPath } from '@/lib/document-language';
 
 export function DocumentLocale() {
-  const segment = usePathname().split('/')[1];
-  const locale: SupportedLocale =
-    supportedLocales.find((candidate) => candidate === segment) ?? 'ar';
+  const locale = documentLocaleFromPath(usePathname());
   useEffect(() => {
     document.documentElement.lang = locale;
     document.documentElement.dir = direction(locale);

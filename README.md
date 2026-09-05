@@ -9,16 +9,16 @@
 SALLAH is an Arabic-first Saudi local-services marketplace with an Expo mobile app, a public and
 operations Next.js web app, shared TypeScript contracts, and an authoritative Supabase backend.
 
-> **الحالة الحالية:** تجهيز الكود وGitHub قبل الإطلاق في
-> [PR #36](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/36) إلى `main` مباشرة.
-> المرجع الحالي هو رأس الطلب وتشغيل CI المطابق له؛ تبقى الطلبات السابقة أدلة تاريخية محفوظة.
+> **الحالة الحالية:** دُمج تجهيز الكود وGitHub قبل الإطلاق عبر
+> [PR #36](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/36) في `main`.
+> يبدأ العمل الجديد من رأس `main` النظيف مع فحوصه المطابقة؛ تبقى الطلبات السابقة أدلة تاريخية محفوظة.
 > راجع [دليل ما قبل الإطلاق](docs/release/PRELAUNCH.md) و
 > [حالة النسخة التجريبية](docs/status/CLOSED_BETA.md). تبقى موافقات الإنتاج والمتاجر
 > والتحقق على الأجهزة الفعلية بوابات منفصلة.
 >
-> **Current status:** code and GitHub prelaunch preparation is in
-> [PR #36](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/36), directly to `main`.
-> Use its current head and matching CI run; earlier pull requests remain preserved historical evidence.
+> **Current status:** code and GitHub prelaunch preparation was merged into `main` through
+> [PR #36](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/36).
+> New work starts from clean `main` with matching checks; earlier pull requests remain preserved historical evidence.
 > See the [prelaunch guide](docs/release/PRELAUNCH.md) and
 > [closed-beta status](docs/status/CLOSED_BETA.md). Production and store approvals and
 > physical-device validation remain separate gates.
