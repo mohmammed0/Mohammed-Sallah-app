@@ -17,6 +17,8 @@ export const mutationOperationSchema = z.enum([
   'resolve_dispute',
   'support_case',
   'financial_admin',
+  'marketplace_report',
+  'user_block_state',
 ]);
 export type MutationOperation = z.infer<typeof mutationOperationSchema>;
 
@@ -44,6 +46,7 @@ const inFlightMutations = new Map<
   string,
   { payloadFingerprint: string; promise: Promise<unknown> }
 >();
+const journalMutationQueues = new Map<string, Promise<void>>();
 
 function key(userId: string): string {
   return `sallah:mutation-journal:v2:${userId}`;
@@ -65,7 +68,7 @@ export function mutationFingerprint(payload: unknown): string {
   return JSON.stringify(canonicalize(payload));
 }
 
-async function load(userId: string): Promise<MutationJournalEntry[]> {
+async function loadUnlocked(userId: string): Promise<MutationJournalEntry[]> {
   const raw = await chunkedSecureStorage.getItem(key(userId));
   if (!raw) return [];
   const parsed = z.array(journalEntrySchema).safeParse(JSON.parse(raw));
@@ -80,8 +83,25 @@ async function load(userId: string): Promise<MutationJournalEntry[]> {
   });
 }
 
-async function save(userId: string, entries: readonly MutationJournalEntry[]): Promise<void> {
+async function saveUnlocked(
+  userId: string,
+  entries: readonly MutationJournalEntry[],
+): Promise<void> {
   await chunkedSecureStorage.setItem(key(userId), JSON.stringify(entries.slice(-MAX_ENTRIES)));
+}
+
+function withJournalMutationLock<T>(userId: string, mutate: () => Promise<T>): Promise<T> {
+  const previous = journalMutationQueues.get(userId) ?? Promise.resolve();
+  const current = previous.catch(() => undefined).then(mutate);
+  const settled = current.then(
+    () => undefined,
+    () => undefined,
+  );
+  journalMutationQueues.set(userId, settled);
+  void settled.then(() => {
+    if (journalMutationQueues.get(userId) === settled) journalMutationQueues.delete(userId);
+  });
+  return current;
 }
 
 export async function beginMutation(input: {
@@ -90,83 +110,98 @@ export async function beginMutation(input: {
   entityKey: string;
   payload: unknown;
 }): Promise<MutationJournalEntry> {
-  const entries = await load(input.userId);
-  const payloadFingerprint = mutationFingerprint(input.payload);
-  const existing = entries.find(
-    (entry) =>
-      entry.operation === input.operation &&
-      entry.entityKey === input.entityKey &&
-      (entry.state === 'pending' || entry.state === 'retryable'),
-  );
-  if (existing) {
-    if (existing.payloadFingerprint !== payloadFingerprint) {
-      throw new Error('MUTATION_INTENT_STILL_PENDING');
+  return withJournalMutationLock(input.userId, async () => {
+    const entries = await loadUnlocked(input.userId);
+    const payloadFingerprint = mutationFingerprint(input.payload);
+    const existing = entries.find(
+      (entry) =>
+        entry.operation === input.operation &&
+        entry.entityKey === input.entityKey &&
+        (entry.state === 'pending' || entry.state === 'retryable'),
+    );
+    if (existing) {
+      if (existing.payloadFingerprint !== payloadFingerprint) {
+        throw new Error('MUTATION_INTENT_STILL_PENDING');
+      }
+      return existing;
     }
-    return existing;
-  }
-  const now = new Date();
-  const entry = journalEntrySchema.parse({
-    id: globalThis.crypto.randomUUID(),
-    userId: input.userId,
-    operation: input.operation,
-    entityKey: input.entityKey,
-    payloadFingerprint,
-    payload: canonicalize(input.payload),
-    idempotencyKey: globalThis.crypto.randomUUID(),
-    state: 'pending',
-    lastError: null,
-    updatedAt: now.toISOString(),
-    createdAt: now.toISOString(),
-    expiresAt: new Date(now.getTime() + RETENTION_MS).toISOString(),
+    const now = new Date();
+    const entry = journalEntrySchema.parse({
+      id: globalThis.crypto.randomUUID(),
+      userId: input.userId,
+      operation: input.operation,
+      entityKey: input.entityKey,
+      payloadFingerprint,
+      payload: canonicalize(input.payload),
+      idempotencyKey: globalThis.crypto.randomUUID(),
+      state: 'pending',
+      lastError: null,
+      updatedAt: now.toISOString(),
+      createdAt: now.toISOString(),
+      expiresAt: new Date(now.getTime() + RETENTION_MS).toISOString(),
+    });
+    await saveUnlocked(input.userId, [...entries, entry]);
+    return entry;
   });
-  await save(input.userId, [...entries, entry]);
-  return entry;
 }
 
 async function updateMutation(
   entry: MutationJournalEntry,
   update: Partial<MutationJournalEntry>,
 ): Promise<MutationJournalEntry> {
-  const entries = await load(entry.userId);
-  const next = journalEntrySchema.parse({
-    ...entry,
-    ...update,
-    updatedAt: new Date().toISOString(),
+  return withJournalMutationLock(entry.userId, async () => {
+    const entries = await loadUnlocked(entry.userId);
+    const next = journalEntrySchema.parse({
+      ...entry,
+      ...update,
+      updatedAt: new Date().toISOString(),
+    });
+    await saveUnlocked(
+      entry.userId,
+      entries.map((item) => (item.id === entry.id ? next : item)),
+    );
+    return next;
   });
-  await save(
-    entry.userId,
-    entries.map((item) => (item.id === entry.id ? next : item)),
-  );
-  return next;
 }
 
 export async function completeMutation(
   entry: MutationJournalEntry,
   result: unknown,
 ): Promise<void> {
-  const completed = await updateMutation(entry, { state: 'completed', result, lastError: null });
-  const entries = await load(entry.userId);
-  await save(
-    entry.userId,
-    entries.filter((item) => item.id !== completed.id),
-  );
+  await withJournalMutationLock(entry.userId, async () => {
+    const entries = await loadUnlocked(entry.userId);
+    const completed = journalEntrySchema.parse({
+      ...entry,
+      state: 'completed',
+      result,
+      lastError: null,
+      updatedAt: new Date().toISOString(),
+    });
+    await saveUnlocked(
+      entry.userId,
+      entries
+        .map((item) => (item.id === entry.id ? completed : item))
+        .filter((item) => item.id !== completed.id),
+    );
+  });
 }
 
 export async function abandonMutation(entry: MutationJournalEntry): Promise<void> {
   await updateMutation(entry, { state: 'abandoned', lastError: null });
 }
 
-function errorCode(error: unknown): string {
+function errorSignature(error: unknown): string {
   if (error && typeof error === 'object') {
-    const candidate = error as { code?: unknown; message?: unknown };
-    if (typeof candidate.code === 'string') return candidate.code;
-    if (typeof candidate.message === 'string') return candidate.message;
+    const candidate = error as Record<string, unknown>;
+    return ['code', 'message', 'details', 'hint', 'name']
+      .flatMap((field) => (typeof candidate[field] === 'string' ? [candidate[field]] : []))
+      .join(' ');
   }
   return String(error);
 }
 
 export function mutationFailureState(error: unknown): 'retryable' | 'terminal_failed' {
-  const value = errorCode(error).toUpperCase();
+  const value = errorSignature(error).toUpperCase();
   if (
     /NETWORK|OFFLINE|TIMEOUT|TIMED_OUT|FETCH|CONNECTION|RESPONSE_LOST|IDEMPOTENCY_COMMAND_IN_PROGRESS/.test(
       value,
@@ -175,6 +210,15 @@ export function mutationFailureState(error: unknown): 'retryable' | 'terminal_fa
     return 'retryable';
   }
   return 'terminal_failed';
+}
+
+function journalErrorCode(error: unknown): string {
+  const value = errorSignature(error).toUpperCase();
+  const recognized = value.match(
+    /RESPONSE_LOST_AFTER_COMMIT|IDEMPOTENCY_COMMAND_IN_PROGRESS|NETWORK|OFFLINE|TIMEOUT|TIMED_OUT|FETCH|CONNECTION|MUTATION_INTENT_STILL_PENDING|VERSION_CONFLICT/,
+  );
+  if (recognized) return recognized[0];
+  return mutationFailureState(error) === 'retryable' ? 'RETRYABLE_FAILURE' : 'TERMINAL_FAILURE';
 }
 
 export function executeJournaledMutation<T>(input: {
@@ -202,7 +246,7 @@ export function executeJournaledMutation<T>(input: {
     } catch (error) {
       await updateMutation(entry, {
         state: mutationFailureState(error),
-        lastError: errorCode(error).slice(0, 200),
+        lastError: journalErrorCode(error),
       });
       throw error;
     }

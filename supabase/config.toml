@@ -67,11 +67,17 @@ verify_jwt = true
 [functions.notification-worker]
 verify_jwt = false
 
+[functions.push-devices]
+verify_jwt = true
+
 [functions.privacy-worker]
 verify_jwt = false
 
 [functions.scan-upload]
 verify_jwt = true
+
+[functions.scanner-control]
+verify_jwt = false
 
 [functions.translate-provider-brief]
 verify_jwt = true
@@ -80,4 +86,4 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.media-access]
-verify_jwt = true
+verify_jwt = false

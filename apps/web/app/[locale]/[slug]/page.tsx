@@ -1,10 +1,26 @@
 import { notFound } from 'next/navigation';
+import { Suspense } from 'react';
+import { supportedLocales, type SupportedLocale } from '@sallah/i18n';
 import { pages, type PublicSlug } from '@/content';
 import { SiteShell } from '@/components/site-shell';
+import {
+  PublicContactContent,
+  PublicPolicyContent,
+  PublicPolicyLoading,
+  PublicPolicyShell,
+  publicPolicyTypes,
+  type PublicPolicySlug,
+} from '@/components/public-policy';
 export function generateStaticParams() {
-  return (['ar', 'en'] as const).flatMap((locale) =>
+  const pagesInMainLanguages = (['ar', 'en'] as const).flatMap((locale) =>
     Object.keys(pages).map((slug) => ({ locale, slug })),
   );
+  return [
+    ...pagesInMainLanguages,
+    ...(['ur', 'hi'] as const).flatMap((locale) =>
+      [...Object.keys(publicPolicyTypes), 'contact'].map((slug) => ({ locale, slug })),
+    ),
+  ];
 }
 export default async function ContentPage({
   params,
@@ -12,7 +28,24 @@ export default async function ContentPage({
   params: Promise<{ locale: string; slug: string }>;
 }) {
   const { locale, slug: slugRaw } = await params;
-  if ((locale !== 'ar' && locale !== 'en') || !(slugRaw in pages)) notFound();
+  if (!supportedLocales.includes(locale as SupportedLocale) || !Object.hasOwn(pages, slugRaw))
+    notFound();
+  if (Object.hasOwn(publicPolicyTypes, slugRaw) || slugRaw === 'contact') {
+    const publicLocale = locale as SupportedLocale;
+    const policySlug = slugRaw as PublicPolicySlug | 'contact';
+    return (
+      <PublicPolicyShell locale={publicLocale} slug={policySlug}>
+        <Suspense fallback={<PublicPolicyLoading locale={publicLocale} />}>
+          {policySlug === 'contact' ? (
+            <PublicContactContent locale={publicLocale} />
+          ) : (
+            <PublicPolicyContent locale={publicLocale} slug={policySlug} />
+          )}
+        </Suspense>
+      </PublicPolicyShell>
+    );
+  }
+  if (locale !== 'ar' && locale !== 'en') notFound();
   const slug = slugRaw as PublicSlug;
   const [title, body] = pages[slug][locale];
   return (
@@ -25,7 +58,7 @@ export default async function ContentPage({
       </header>
       <article className="shell prose">
         <p>{body}</p>
-        {['privacy', 'terms', 'cancellation'].includes(slug) && (
+        {slug === 'cancellation' && (
           <aside className="notice">
             {locale === 'ar'
               ? 'مسودة للمراجعة القانونية المختصة في المملكة العربية السعودية قبل الإطلاق.'

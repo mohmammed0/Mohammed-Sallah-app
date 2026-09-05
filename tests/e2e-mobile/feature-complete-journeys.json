@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "evidence": {
+    "repositoryContract": "AUTOMATED",
+    "physicalDevice": "NOT RUN - EXTERNAL/RELEASE GATE",
+    "externalAiProvider": "MOCKED AT ADAPTER BOUNDARY",
+    "liveTranscriptionAndTranslation": "NOT RUN - CREDENTIALLED PREVIEW GATE",
+    "livePushReceiptAndTap": "NOT RUN - PHYSICAL DEVICE GATE"
+  },
+  "journeys": {
+    "customer": [
+      "authentication",
+      "service-selection",
+      "ai-diagnostic",
+      "image-or-voice-input",
+      "location",
+      "timing",
+      "review",
+      "publish",
+      "receive-offers",
+      "select-provider",
+      "message",
+      "completion",
+      "rating"
+    ],
+    "provider": [
+      "authentication",
+      "onboarding-qualification",
+      "request-feed",
+      "translated-brief",
+      "offer",
+      "selected-job",
+      "message",
+      "completion-evidence",
+      "earnings-status"
+    ]
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "control": {
+    "secret": "control-secret-that-is-at-least-thirty-two-bytes",
+    "body": "{\"operationId\":\"22222222-2222-4222-8222-222222222222\",\"nonceOperationId\":\"33333333-3333-4333-8333-333333333333\",\"workerId\":\"scanner-worker-1\",\"signatureTimestamp\":\"2026-08-21T12:00:00.000Z\",\"signatureMaxAgeSeconds\":3600}",
+    "bodySha256": "6a703114ab14371e011b3b1b762c67ef81d2192c30752b5641fac57b1a4df131",
+    "canonical": "sallah-scanner-control-v1\nscanner-worker-1\nPOST\n/functions/v1/scanner-control\nclaim\n-\n1787313660\n44444444-4444-4444-8444-444444444444\n6a703114ab14371e011b3b1b762c67ef81d2192c30752b5641fac57b1a4df131",
+    "signature": "2826bf8b37fdeb492806a3ffc7029218434a08d81cc2b84e77ebeab644aca4a2"
+  },
+  "attestation": {
+    "secret": "attestation-secret-that-is-at-least-thirty-two-bytes",
+    "manifest": {
+      "schemaVersion": "sallah-media-attestation-v1",
+      "attemptId": "11111111-1111-4111-8111-111111111111",
+      "inputRef": "aa/bb/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "outputRef": "cc/dd/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      "purpose": "request_media",
+      "detectedInputMime": "image/png",
+      "detectedOutputMime": "image/png",
+      "inputSize": 1024,
+      "outputSize": 1024,
+      "inputSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "outputSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "originalScan": "clean",
+      "finalScan": "clean",
+      "sanitized": true,
+      "sanitizer": "decode-reencode-png-v1",
+      "sanitizerVersion": "1.0.0",
+      "clamavEngineVersion": "1.4.3",
+      "signatureVersion": "28000",
+      "signatureTimestamp": "2026-08-21T12:00:00.000Z",
+      "signatureAgeSeconds": 60,
+      "processingDurationMs": 60000,
+      "jobDeadline": "2026-08-21T12:02:00.000Z",
+      "nonce": "66666666-6666-4666-8666-666666666666",
+      "correlationId": "77777777-7777-4777-8777-777777777777",
+      "readbackSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "storageFingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "canonical": "{\"schemaVersion\":\"sallah-media-attestation-v1\",\"attemptId\":\"11111111-1111-4111-8111-111111111111\",\"inputRef\":\"aa/bb/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\"outputRef\":\"cc/dd/cccccccc-cccc-4ccc-8ccc-cccccccccccc\",\"purpose\":\"request_media\",\"detectedInputMime\":\"image/png\",\"detectedOutputMime\":\"image/png\",\"inputSize\":1024,\"outputSize\":1024,\"inputSha256\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"outputSha256\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"originalScan\":\"clean\",\"finalScan\":\"clean\",\"sanitized\":true,\"sanitizer\":\"decode-reencode-png-v1\",\"sanitizerVersion\":\"1.0.0\",\"clamavEngineVersion\":\"1.4.3\",\"signatureVersion\":\"28000\",\"signatureTimestamp\":\"2026-08-21T12:00:00.000Z\",\"signatureAgeSeconds\":60,\"processingDurationMs\":60000,\"jobDeadline\":\"2026-08-21T12:02:00.000Z\",\"nonce\":\"66666666-6666-4666-8666-666666666666\",\"correlationId\":\"77777777-7777-4777-8777-777777777777\",\"readbackSha256\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"storageFingerprint\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}",
+    "fingerprint": "837d1dfa016ee124eab578e2f89e5a67102a61c78508bb6e4f4f157af7882136",
+    "signature": "243c8c21cd398ef3a1f32e29fee964613025f16767759fa3f24477fc33058f2f"
+  }
+}

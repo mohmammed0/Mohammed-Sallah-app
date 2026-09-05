@@ -1,17 +1,17 @@
-# Security policy
+# الأمن | Security
 
-Report vulnerabilities privately to the repository owner through GitHub private vulnerability reporting. Do not open a public issue containing exploits, credentials, personal data, exact addresses, provider documents, or payment records. A real production security email is a required human input before launch.
+[العربية](SECURITY.ar.md) · [English](SECURITY.en.md)
 
-Supported code is the current controlled-launch branch and the latest released tag. Critical findings involving authentication bypass, RLS, sealed-offer leakage, exact-location disclosure, admin elevation, private storage, financial integrity, or remote execution receive priority.
+أبلغ عن الثغرات **بشكل خاص** عبر
+[GitHub Private Vulnerability Reporting](https://github.com/mohmammed0/Mohammed-Sallah-app/security/advisories/new).
+لا تنشر استغلالاً أو بيانات اعتماد أو PII أو موقعاً دقيقاً أو مستنداً أو رسالة أو بيانات دفع في
+Issue عام. بريد الأمن الإنتاجي **HUMAN INPUT REQUIRED** ولم يُخترع لهذا المستودع.
 
-## Baseline controls
+Report vulnerabilities **privately** through
+[GitHub Private Vulnerability Reporting](https://github.com/mohmammed0/Mohammed-Sallah-app/security/advisories/new).
+Never place exploits, credentials, PII, exact locations, documents, messages, or payment data in a
+public issue. A production security email is **HUMAN INPUT REQUIRED** and has not been invented.
 
-- Supabase Auth plus database-enforced roles and RLS; UI hiding is never authorization.
-- Exact customer addresses are readable only by the customer, selected provider, or authorized staff.
-- Competing provider offers are sealed by policies and cross-role pgTAP tests.
-- Critical mutations use security-definer RPCs with fixed `search_path`, actor checks, state validation, idempotency, versioning, and audit history.
-- Private storage buckets require owner-prefixed paths; server-authorized signed URLs are short-lived.
-- AI and secret keys are server-only. Logs exclude tokens, raw documents, addresses, prompts containing sensitive data, and payment data.
-- Append-only triggers protect job, payment, settlement, and admin audit events.
-
-See `docs/security/THREAT_MODEL.md`, `docs/security/RLS_MATRIX.md`, and `docs/operations/INCIDENT_RESPONSE.md`.
+تغطي السياسة الحالية فرع النسخة التجريبية المعتمد وأحدث إصدار منشور. الأولوية لتجاوز المصادقة
+أو RLS، وتسرب العروض المختومة أو المواقع، ورفع صلاحيات الإدارة، والوسائط الخاصة، وسلامة المال
+والتنفيذ البعيد.

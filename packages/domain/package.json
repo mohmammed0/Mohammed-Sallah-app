@@ -7,13 +7,14 @@
     ".": "./src/index.ts",
     "./ai": "./src/ai.ts",
     "./matching": "./src/matching.ts",
-    "./payments": "./src/payments.ts"
+    "./payments": "./src/payments.ts",
+    "./trust": "./src/trust.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "lint": "eslint src test",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --exclude dist/**"
+    "test": "vitest run --exclude \"dist/**\""
   },
   "dependencies": {
     "zod": "4.4.3"

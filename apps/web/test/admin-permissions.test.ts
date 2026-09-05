@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import * as adminPermissions from '../src/lib/admin-permissions';
 import {
   activeAdminRoleNames,
   canReadSupportLinkedResource,
@@ -153,5 +154,119 @@ describe('admin permission evaluation', () => {
         now,
       ),
     ).toBe(true);
+  });
+
+  it('derives report-specific moderation capabilities from operations and scoped support grants', () => {
+    const capabilityFunction = Reflect.get(
+      adminPermissions,
+      'moderationCapabilitiesForCase',
+    ) as unknown as
+      | ((
+          permissions: ReadonlySet<string>,
+          scope: { kind: 'assignment' | 'delegation'; permissions: readonly string[] } | null,
+        ) => Record<string, unknown>)
+      | undefined;
+
+    expect(capabilityFunction).toBeTypeOf('function');
+    if (!capabilityFunction) return;
+
+    expect(
+      capabilityFunction(new Set(['operations.marketplace.read', 'operations.mutate']), null),
+    ).toEqual({
+      canDismiss: true,
+      canEscalate: true,
+      canOpenCustomerEnforcement: true,
+      canOpenProviderEnforcement: false,
+      canRead: true,
+      canReadEvidence: true,
+      canResolve: true,
+      canTriage: true,
+      scope: 'operations',
+    });
+    expect(
+      capabilityFunction(new Set(['support.case.read']), {
+        kind: 'assignment',
+        permissions: ['read', 'internal_note'],
+      }),
+    ).toEqual({
+      canDismiss: false,
+      canEscalate: true,
+      canOpenCustomerEnforcement: false,
+      canOpenProviderEnforcement: false,
+      canRead: true,
+      canReadEvidence: false,
+      canResolve: false,
+      canTriage: false,
+      scope: 'assignment',
+    });
+    expect(
+      capabilityFunction(new Set(['support.case.read']), {
+        kind: 'delegation',
+        permissions: ['read', 'evidence'],
+      }),
+    ).toEqual({
+      canDismiss: false,
+      canEscalate: false,
+      canOpenCustomerEnforcement: false,
+      canOpenProviderEnforcement: false,
+      canRead: true,
+      canReadEvidence: true,
+      canResolve: false,
+      canTriage: false,
+      scope: 'delegation',
+    });
+    expect(capabilityFunction(new Set(['finance.read']), null)).toEqual({
+      canDismiss: false,
+      canEscalate: false,
+      canOpenCustomerEnforcement: false,
+      canOpenProviderEnforcement: false,
+      canRead: false,
+      canReadEvidence: false,
+      canResolve: false,
+      canTriage: false,
+      scope: 'none',
+    });
+
+    for (const role of ['customer', 'analyst', 'finance_reviewer', 'verification_reviewer']) {
+      expect(
+        capabilityFunction(permissionsForRoles([role]), null),
+        `${role} must not inherit moderation access`,
+      ).toMatchObject({ canRead: false, canEscalate: false, scope: 'none' });
+    }
+    expect(capabilityFunction(permissionsForRoles(['support_agent']), null)).toMatchObject({
+      canRead: false,
+      canEscalate: false,
+      scope: 'none',
+    });
+  });
+
+  it('shows only enforcement handoffs the current moderation operator can open', () => {
+    const capabilityFunction = Reflect.get(
+      adminPermissions,
+      'moderationCapabilitiesForCase',
+    ) as unknown as
+      ((permissions: ReadonlySet<string>, scope: null) => Record<string, unknown>) | undefined;
+    expect(capabilityFunction).toBeTypeOf('function');
+    if (!capabilityFunction) return;
+
+    expect(
+      capabilityFunction(new Set(['operations.marketplace.read', 'operations.mutate']), null),
+    ).toMatchObject({
+      canOpenCustomerEnforcement: true,
+      canOpenProviderEnforcement: false,
+    });
+    expect(
+      capabilityFunction(
+        new Set(['operations.marketplace.read', 'operations.mutate', 'provider.document.read']),
+        null,
+      ),
+    ).toMatchObject({
+      canOpenCustomerEnforcement: true,
+      canOpenProviderEnforcement: true,
+    });
+    expect(capabilityFunction(new Set(['support.case.read']), null)).toMatchObject({
+      canOpenCustomerEnforcement: false,
+      canOpenProviderEnforcement: false,
+    });
   });
 });

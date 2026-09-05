@@ -1,11 +1,118 @@
 {
-  "generatedAt": "2026-08-17",
+  "generatedAt": "2026-09-05",
   "policy": "Exact versions from pnpm lock; ship permissive dependencies. Package-scoped build/data exceptions are documented.",
+  "securityOverrides": [
+    {
+      "package": "decode-uri-component",
+      "version": "0.5.0",
+      "license": "MIT",
+      "caller": "query-string@7.1.3",
+      "patch": "patches/query-string@7.1.3.patch",
+      "reason": "Use the fixed upstream decoder with its ESM default export while preserving the caller's existing public API",
+      "advisory": "https://github.com/advisories/GHSA-vcc3-ghjq-m6fr"
+    },
+    {
+      "package": "@xmldom/xmldom",
+      "versions": ["0.8.15", "0.9.12"],
+      "license": "MIT",
+      "callers": ["@expo/plist", "plist"],
+      "reason": "Apply each maintained branch's entity-reference validation patch without a branch upgrade",
+      "advisory": "https://github.com/advisories/GHSA-6gmq-8vp8-gcm6"
+    }
+  ],
+  "containerSbom": {
+    "artifact": "artifacts/container-sbom.cdx.json",
+    "generator": "pnpm sbom:container",
+    "format": "CycloneDX 1.6 JSON",
+    "scope": "Reviewed pinned base images plus the scanner native runtime component"
+  },
+  "containerComponents": [
+    {
+      "kind": "container-image",
+      "component": "clamav/clamav",
+      "version": "1.4.6",
+      "digest": "sha256:e6444f72de025a3d57e2820dd1ad9f8734d1d4d6ab0e3336cdeb09fa2ba2f122",
+      "digestType": "oci-image-manifest",
+      "platform": "linux/amd64",
+      "configDigest": "sha256:d2f8e8115d74100224c2e836298f49791a671a844dc71b5c8c268c98e5eff005",
+      "configDigestType": "oci-manifest-config-descriptor",
+      "license": "GPL-2.0-only",
+      "source": "https://github.com/Cisco-Talos/clamav-docker",
+      "use": "Private ClamD malware detection and one-shot signature refresh; distribution package licenses remain represented by image package metadata",
+      "status": "Repository/local integration only; hosted activation and image distribution are NOT RUN and require separate legal/operator approval plus applicable GPL source-offer compliance"
+    },
+    {
+      "kind": "container-image",
+      "component": "library/node",
+      "version": "24.19.0-bookworm-slim",
+      "digest": "sha256:65932751ed4073ed02f5c04e494e4b2572a891b7dbea0568a863dc80341bf848",
+      "digestType": "oci-image-manifest",
+      "platform": "linux/amd64",
+      "configDigest": "sha256:9da0264deb61958d09c073001c1bd3a110ae3874be3375e92e0c0f16683986dd",
+      "configDigestType": "oci-manifest-config-descriptor",
+      "license": "MIT",
+      "source": "https://github.com/nodejs/docker-node",
+      "use": "Pinned build and runtime base for the pull worker; Debian package licenses remain represented by image package metadata"
+    }
+  ],
+  "nativeComponents": [
+    {
+      "kind": "native-binary",
+      "component": "@napi-rs/image-linux-x64-gnu",
+      "version": "1.13.0",
+      "license": "MIT",
+      "integrity": "sha512-rgPDeh2Xr7cGHQjxpWn8eFiM6Ksmtby1045DJ9JyN56JZQL9eSXzF/v3tuqg6nE84R83R4LaV7PTG1kMKw956A==",
+      "source": "https://registry.npmjs.org/@napi-rs/image-linux-x64-gnu/-/image-linux-x64-gnu-1.13.0.tgz",
+      "use": "Linux amd64 glibc decode/re-encode binary installed in the reviewed worker image"
+    }
+  ],
+  "optionalNativeComponents": {
+    "version": "1.13.0",
+    "license": "MIT",
+    "integritySource": "pnpm-lock.yaml",
+    "status": "Optional platform resolution only; not all targets are shipped in the Linux amd64 worker image",
+    "packages": [
+      "@napi-rs/image-android-arm64",
+      "@napi-rs/image-darwin-arm64",
+      "@napi-rs/image-darwin-x64",
+      "@napi-rs/image-freebsd-x64",
+      "@napi-rs/image-linux-arm-gnueabihf",
+      "@napi-rs/image-linux-arm64-gnu",
+      "@napi-rs/image-linux-arm64-musl",
+      "@napi-rs/image-linux-x64-gnu",
+      "@napi-rs/image-linux-x64-musl",
+      "@napi-rs/image-wasm32-wasi",
+      "@napi-rs/image-win32-arm64-msvc",
+      "@napi-rs/image-win32-ia32-msvc",
+      "@napi-rs/image-win32-x64-msvc"
+    ]
+  },
+  "adoptedRuntimeComponents": [
+    {
+      "component": "FFmpeg",
+      "version": "5.1.9-0+deb12u1",
+      "license": "GPL-2.0-or-later (Debian build; transitive codec libraries retain their package licenses)",
+      "source": "http://snapshot.debian.org/archive/debian/20260823T000000Z",
+      "integrity": "Debian signed Release and Packages indexes from the immutable 20260823T000000Z snapshot; exact package version enforced by worker.Dockerfile",
+      "use": "Fixed-path ffmpeg/ffprobe stream-copy remux and independent reopen for approved M4A/MP4 audio and completion MP4 video",
+      "status": "Repository/local integration only; hosted activation and image distribution are NOT RUN and require separate legal/operator approval plus applicable GPL source/notice compliance"
+    }
+  ],
   "adopted": [
     {
       "project": "expo/expo",
       "package": "expo",
-      "version": "57.0.14",
+      "version": "57.0.20",
+      "relatedPackageVersions": {
+        "expo-asset": "57.0.16",
+        "expo-constants": "57.0.17",
+        "expo-image-picker": "57.0.16",
+        "expo-linking": "57.0.9",
+        "expo-location": "57.0.16",
+        "expo-notifications": "57.0.17",
+        "expo-router": "57.0.19",
+        "expo-secure-store": "57.0.3"
+      },
       "license": "MIT",
       "use": "iOS/Android framework, Router and native modules",
       "security": "GitHub security policy/advisories"
@@ -13,7 +120,7 @@
     {
       "project": "facebook/react-native",
       "package": "react-native",
-      "version": "0.86.2",
+      "version": "0.86.3",
       "license": "MIT",
       "use": "native UI runtime",
       "security": "GitHub security policy"
@@ -71,8 +178,24 @@
       "package": "react-native-maps",
       "version": "1.27.2",
       "license": "MIT",
-      "use": "authorized foreground job tracking map and markers",
+      "use": "foreground customer location picker and authorized job tracking maps",
       "security": "GitHub advisories"
+    },
+    {
+      "project": "lucide-icons/lucide",
+      "package": "lucide-react-native",
+      "version": "1.18.0",
+      "license": "ISC",
+      "use": "cross-platform customer interface iconography",
+      "security": "GitHub security policy/advisories"
+    },
+    {
+      "project": "software-mansion/react-native-svg",
+      "package": "react-native-svg",
+      "version": "15.15.4",
+      "license": "MIT",
+      "use": "Expo-compatible SVG runtime for Lucide icons",
+      "security": "GitHub security policy/advisories"
     },
     {
       "project": "expo/expo",
@@ -85,9 +208,17 @@
     {
       "project": "expo/expo",
       "package": "expo-file-system",
-      "version": "57.0.4",
+      "version": "57.0.6",
       "license": "MIT",
       "use": "durable user-scoped app-private storage for offline request media",
+      "security": "Expo GitHub security policy/advisories"
+    },
+    {
+      "project": "expo/expo",
+      "package": "expo-splash-screen",
+      "version": "57.0.8",
+      "license": "MIT",
+      "use": "native Preview and production launch-screen configuration",
       "security": "Expo GitHub security policy/advisories"
     },
     {
@@ -96,6 +227,14 @@
       "version": "4.4.3",
       "license": "MIT",
       "use": "trust-boundary schemas",
+      "security": "GitHub advisories"
+    },
+    {
+      "project": "Brooooooklyn/Image",
+      "package": "@napi-rs/image",
+      "version": "1.13.0",
+      "license": "MIT",
+      "use": "server-side media scanner image decode and metadata-stripping re-encode",
       "security": "GitHub advisories"
     },
     {

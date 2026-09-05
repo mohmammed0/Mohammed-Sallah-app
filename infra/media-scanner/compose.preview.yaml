@@ -1,0 +1,168 @@
+name: sallah-media-scanner-preview
+
+x-sallah-preview-contract:
+  environment: preview
+  worker_memory_mib: 1024
+  clamd_memory_mib: 4096
+  max_concurrent_jobs: 1
+  job_deadline_seconds: 120
+  signature_max_age_hours: 24
+  persistent_user_media: false
+  public_clamd: false
+
+x-clamav-common: &clamav-common
+  image: clamav/clamav:1.4.6@sha256:e6444f72de025a3d57e2820dd1ad9f8734d1d4d6ab0e3336cdeb09fa2ba2f122
+  platform: linux/amd64
+  user: '100:101'
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  init: true
+
+services:
+  signature-bootstrap:
+    <<: *clamav-common
+    entrypoint: ['freshclam', '--stdout', '--log=/tmp/freshclam.log', '--datadir=/var/lib/clamav']
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,uid=100,gid=101,mode=0750
+    volumes:
+      - clamav-signatures:/var/lib/clamav
+    networks: [signature-egress]
+    pids_limit: 32
+    mem_limit: 512m
+    cpus: 0.5
+    restart: 'no'
+
+  signature-update:
+    <<: *clamav-common
+    depends_on:
+      signature-bootstrap:
+        condition: service_completed_successfully
+    entrypoint:
+      [
+        'freshclam',
+        '--daemon',
+        '--foreground',
+        '--checks=24',
+        '--stdout',
+        '--log=/tmp/freshclam.log',
+        '--datadir=/var/lib/clamav',
+      ]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,uid=100,gid=101,mode=0750
+    volumes:
+      - clamav-signatures:/var/lib/clamav
+    networks: [signature-egress]
+    pids_limit: 32
+    mem_limit: 512m
+    cpus: 0.5
+    restart: unless-stopped
+
+  clamd:
+    <<: *clamav-common
+    depends_on:
+      signature-bootstrap:
+        condition: service_completed_successfully
+      signature-update:
+        condition: service_started
+    entrypoint: ['clamd', '--foreground=true', '--config-file=/etc/clamav/clamd-sallah.conf']
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,uid=100,gid=101,mode=0750
+    volumes:
+      - ./clamd.conf:/etc/clamav/clamd-sallah.conf:ro
+      - clamav-signatures:/var/lib/clamav:ro
+    expose: ['3310']
+    networks: [scanner-private]
+    pids_limit: 128
+    mem_limit: 4g
+    cpus: 2.0
+    stop_grace_period: 30s
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          "printf 'zVERSION\\0' | nc -w 2 127.0.0.1 3310 | grep -Eq '^ClamAV [^/]+/[0-9]+/'",
+        ]
+      interval: 15s
+      timeout: 3s
+      retries: 12
+      start_period: 90s
+    restart: unless-stopped
+
+  worker:
+    image: ${SALLAH_SCANNER_WORKER_IMAGE:?set the reviewed worker image by immutable digest}
+    platform: linux/amd64
+    depends_on:
+      clamd:
+        condition: service_healthy
+    command: ['node', 'start-worker.mjs']
+    user: '65532:65532'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp/scanner:rw,noexec,nosuid,nodev,size=256m,uid=65532,gid=65532,mode=0700
+      - /tmp/scanner-health:rw,noexec,nosuid,nodev,size=1m,uid=65532,gid=65532,mode=0700
+    secrets:
+      - source: scanner-control-secret
+        target: scanner-control-secret
+        uid: '65532'
+        gid: '65532'
+        mode: 0400
+      - source: scanner-attestation-secret
+        target: scanner-attestation-secret
+        uid: '65532'
+        gid: '65532'
+        mode: 0400
+    environment:
+      APP_ENV: preview
+      UPLOAD_SCANNER_MODE: external
+      UPLOAD_SCANNER_WORKER_ID: ${UPLOAD_SCANNER_WORKER_ID:?set an opaque Preview worker ID}
+      UPLOAD_SCANNER_CONTROL_ORIGIN: ${UPLOAD_SCANNER_CONTROL_ORIGIN:?set the exact Preview HTTPS control origin}
+      UPLOAD_SCANNER_STORAGE_ORIGIN: ${UPLOAD_SCANNER_STORAGE_ORIGIN:?set the exact Preview HTTPS Storage origin}
+      UPLOAD_SCANNER_NETWORK_POLICY: private-only
+      UPLOAD_SCANNER_SIGNATURE_MAX_AGE_HOURS: '24'
+      UPLOAD_SCANNER_MAX_CONCURRENT_JOBS: '1'
+      UPLOAD_SCANNER_JOB_DEADLINE_SECONDS: '120'
+      UPLOAD_SCANNER_CONTROL_TIMEOUT_MS: '5000'
+      UPLOAD_SCANNER_IDLE_DELAY_MS: '1000'
+      UPLOAD_SCANNER_ALERTS_ENABLED: 'true'
+      NODE_OPTIONS: --max-old-space-size=256
+      MALLOC_ARENA_MAX: '2'
+      RAYON_NUM_THREADS: '1'
+      UV_THREADPOOL_SIZE: '1'
+    networks: [scanner-private, control-storage-egress]
+    init: true
+    pids_limit: 128
+    mem_limit: 1g
+    memswap_limit: 1g
+    cpus: 2.0
+    stop_grace_period: 20s
+    healthcheck:
+      test: ['CMD', 'node', 'dist/healthcheck.js']
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+networks:
+  scanner-private:
+    internal: true
+  control-storage-egress:
+    external: true
+    name: ${SALLAH_SCANNER_CONTROL_EGRESS_NETWORK:?provision the allowlisted control and Storage egress network}
+  signature-egress:
+    external: true
+    name: ${SALLAH_SCANNER_SIGNATURE_EGRESS_NETWORK:?provision the allowlisted ClamAV update egress network}
+
+volumes:
+  clamav-signatures:
+    external: true
+    name: ${SALLAH_SCANNER_SIGNATURE_VOLUME:?provision the persistent signature-only volume}
+
+secrets:
+  scanner-control-secret:
+    file: ${SALLAH_SCANNER_CONTROL_SECRET_FILE:?materialize the control secret from the approved secret store}
+  scanner-attestation-secret:
+    file: ${SALLAH_SCANNER_ATTESTATION_SECRET_FILE:?materialize the distinct attestation secret from the approved secret store}

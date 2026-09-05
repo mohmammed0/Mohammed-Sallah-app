@@ -1,9 +1,22 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { z } from 'zod';
-import { requireAdmin, requireAnyAdmin } from '@/lib/auth';
+import {
+  requireAdmin,
+  requireAnyAdmin,
+  requireModerationActionSession,
+  requireModerationEscalation,
+  requireModerationOperations,
+} from '@/lib/auth';
 import { adminCommandKey } from '@/lib/admin-command-intent';
+import {
+  moderationErrorCategory,
+  parseModerationCommand,
+  parseModerationEnforcementTarget,
+  type ModerationCommand,
+} from '@/lib/moderation';
 
 function commandIntentId(formData: FormData): string {
   return z.uuid().parse(formData.get('commandIntentId'));
@@ -33,6 +46,15 @@ const customerStatusDecision = z.object({
   status: z.enum(['active', 'suspended']),
   reason: z.string().trim().min(5).max(1000),
 });
+const boundCustomerEnforcementTarget = z.object({ reportId: z.uuid() }).strict();
+
+function customerEnforcementResultRedirect(
+  reportId: string,
+  result: { notice: 'updated'; confirmedIntentId: string } | { error: string },
+): never {
+  const params = new URLSearchParams(result);
+  redirect(`/admin/enforcement/customers/${reportId}?${params.toString()}`);
+}
 const cancellationDecision = z.object({
   cancellationId: z.uuid(),
   approve: z.enum(['true', 'false']).transform((value) => value === 'true'),
@@ -75,6 +97,12 @@ const supportGrantRevoke = z.object({
   grantId: z.uuid(),
   reason: z.string().trim().min(5).max(1000),
 });
+const supportMessageReply = z
+  .object({
+    caseId: z.uuid(),
+    body: z.string().trim().min(1).max(4000),
+  })
+  .strict();
 
 export async function reviewProvider(formData: FormData): Promise<void> {
   const input = providerDecision.parse({
@@ -132,22 +160,96 @@ export async function setCategoryState(formData: FormData): Promise<void> {
   revalidatePath('/admin');
 }
 
-export async function setCustomerStatus(formData: FormData): Promise<void> {
-  const input = customerStatusDecision.parse({
-    customerId: formData.get('customerId'),
+export async function setCustomerStatus(
+  targetOrFormData: FormData | { reportId: string },
+  boundFormData?: FormData,
+): Promise<void> {
+  const isBoundEnforcement = !(targetOrFormData instanceof FormData);
+  const formData = isBoundEnforcement ? boundFormData : targetOrFormData;
+  const parsedBoundTarget = isBoundEnforcement
+    ? boundCustomerEnforcementTarget.safeParse(targetOrFormData)
+    : null;
+  if (isBoundEnforcement && !parsedBoundTarget?.success) {
+    redirect('/admin/moderation?error=validation');
+  }
+  const reportId = parsedBoundTarget?.success ? parsedBoundTarget.data.reportId : null;
+  if (!formData) {
+    if (reportId) customerEnforcementResultRedirect(reportId, { error: 'validation' });
+    throw new Error('CUSTOMER_STATUS_INPUT_INVALID');
+  }
+
+  let client: Awaited<ReturnType<typeof requireAdmin>>['client'];
+  let customerId: FormDataEntryValue | string | null = formData.get('customerId');
+  if (isBoundEnforcement) {
+    if (!reportId) redirect('/admin/moderation?error=validation');
+    ({ client } = await requireModerationActionSession());
+    const targetResponse = await client.rpc('get_marketplace_report_enforcement_target', {
+      p_report_id: reportId,
+    });
+    if (targetResponse.error) {
+      customerEnforcementResultRedirect(reportId, {
+        error: moderationErrorCategory(targetResponse.error),
+      });
+    }
+    const enforcementTarget = (() => {
+      try {
+        return parseModerationEnforcementTarget(targetResponse.data);
+      } catch {
+        return null;
+      }
+    })();
+    if (
+      !enforcementTarget ||
+      enforcementTarget.reportId !== reportId ||
+      enforcementTarget.targetRole !== 'customer'
+    ) {
+      customerEnforcementResultRedirect(reportId, { error: 'not_found' });
+    }
+    customerId = enforcementTarget.reportedUserId;
+  } else {
+    ({ client } = await requireAdmin(['operations.mutate']));
+  }
+  const parsedInput = customerStatusDecision.safeParse({
+    customerId,
     status: formData.get('status'),
     reason: formData.get('reason'),
   });
-  const { client } = await requireAdmin(['operations.mutate']);
+  if (!parsedInput.success) {
+    if (reportId) customerEnforcementResultRedirect(reportId, { error: 'validation' });
+    throw new Error('CUSTOMER_STATUS_INPUT_INVALID');
+  }
+  const input = parsedInput.data;
+  let idempotencyKey: string;
+  let submittedCommandIntentId: string;
+  try {
+    submittedCommandIntentId = commandIntentId(formData);
+    idempotencyKey = adminCommandKey('customer-status', submittedCommandIntentId, input);
+  } catch {
+    if (reportId) customerEnforcementResultRedirect(reportId, { error: 'validation' });
+    throw new Error('CUSTOMER_STATUS_INPUT_INVALID');
+  }
   const { error } = await client.rpc('admin_set_customer_status', {
     p_customer_id: input.customerId,
     p_status: input.status,
     p_reason: input.reason,
-    p_idempotency_key: formCommandKey('customer-status', formData, input),
+    p_idempotency_key: idempotencyKey,
   });
-  if (error) throw new Error('CUSTOMER_STATUS_UPDATE_FAILED');
+  if (error) {
+    if (reportId) {
+      customerEnforcementResultRedirect(reportId, { error: moderationErrorCategory(error) });
+    }
+    throw new Error('CUSTOMER_STATUS_UPDATE_FAILED');
+  }
   revalidatePath('/admin/customers');
+  revalidatePath('/admin/moderation');
+  if (reportId) revalidatePath(`/admin/enforcement/customers/${reportId}`);
   revalidatePath('/admin');
+  if (reportId) {
+    customerEnforcementResultRedirect(reportId, {
+      notice: 'updated',
+      confirmedIntentId: submittedCommandIntentId,
+    });
+  }
 }
 
 export async function decideCancellation(formData: FormData): Promise<void> {
@@ -307,4 +409,131 @@ export async function revokeSupportAccess(formData: FormData): Promise<void> {
   });
   if (error) throw new Error('SUPPORT_ACCESS_REVOKE_FAILED');
   revalidatePath('/admin/support');
+}
+
+export async function sendSupportCaseMessage(formData: FormData): Promise<void> {
+  const parsed = supportMessageReply.safeParse({
+    caseId: formData.get('caseId'),
+    body: formData.get('body'),
+  });
+  if (!parsed.success) redirect('/admin/support?error=validation');
+  const input = parsed.data;
+  let submittedIntentId: string;
+  try {
+    submittedIntentId = commandIntentId(formData);
+  } catch {
+    redirect(`/admin/support?caseId=${input.caseId}&error=validation`);
+  }
+  const { client } = await requireAnyAdmin(['support.case.read', 'operations.marketplace.read']);
+  const { error } = await client.rpc('send_support_case_message', {
+    p_case_id: input.caseId,
+    p_body: input.body,
+    p_idempotency_key: submittedIntentId,
+  });
+  if (error) redirect(`/admin/support?caseId=${input.caseId}&error=unavailable`);
+  revalidatePath('/admin/support');
+  const query = new URLSearchParams({
+    caseId: input.caseId,
+    notice: 'message_sent',
+    confirmedIntentId: submittedIntentId,
+  });
+  redirect(`/admin/support?${query.toString()}`);
+}
+
+function moderationCommandFromForm(
+  action: ModerationCommand['action'],
+  formData: FormData,
+): ModerationCommand {
+  try {
+    return parseModerationCommand({
+      action,
+      reportId: formData.get('reportId'),
+      expectedVersion: formData.get('expectedVersion'),
+      commandIntentId: formData.get('commandIntentId'),
+      reason: formData.get('reason'),
+      ...(action === 'triage' ? { priority: formData.get('priority') } : {}),
+    });
+  } catch {
+    redirect('/admin/moderation?error=validation');
+  }
+}
+
+function moderationResultRedirect(
+  result:
+    | {
+        notice: 'triaged' | 'escalated' | 'dismissed' | 'resolved';
+        confirmedIntentId: string;
+      }
+    | { error: string },
+): never {
+  const params = new URLSearchParams(result);
+  redirect(`/admin/moderation?${params.toString()}`);
+}
+
+export async function triageMarketplaceReport(formData: FormData): Promise<void> {
+  const input = moderationCommandFromForm('triage', formData);
+  if (input.action !== 'triage') moderationResultRedirect({ error: 'validation' });
+  const { client } = await requireModerationOperations();
+  const payload = {
+    reportId: input.reportId,
+    priority: input.priority,
+    reason: input.reason,
+    expectedVersion: input.expectedVersion,
+  };
+  const { error } = await client.rpc('triage_marketplace_report', {
+    p_report_id: input.reportId,
+    p_priority: input.priority,
+    p_reason: input.reason,
+    p_expected_version: input.expectedVersion,
+    p_idempotency_key: formCommandKey('marketplace-report-triage', formData, payload),
+  });
+  if (error) moderationResultRedirect({ error: moderationErrorCategory(error) });
+  revalidatePath('/admin/moderation');
+  moderationResultRedirect({
+    notice: 'triaged',
+    confirmedIntentId: input.commandIntentId,
+  });
+}
+
+async function resolveMarketplaceReport(
+  resolution: 'escalated' | 'dismissed' | 'resolved',
+  formData: FormData,
+): Promise<void> {
+  const input = moderationCommandFromForm(resolution, formData);
+  if (input.action === 'triage') moderationResultRedirect({ error: 'validation' });
+  const { client } =
+    resolution === 'escalated'
+      ? await requireModerationEscalation()
+      : await requireModerationOperations();
+  const payload = {
+    reportId: input.reportId,
+    resolution,
+    reason: input.reason,
+    expectedVersion: input.expectedVersion,
+  };
+  const { error } = await client.rpc('resolve_marketplace_report', {
+    p_report_id: input.reportId,
+    p_resolution: resolution,
+    p_reason: input.reason,
+    p_expected_version: input.expectedVersion,
+    p_idempotency_key: formCommandKey('marketplace-report-resolution', formData, payload),
+  });
+  if (error) moderationResultRedirect({ error: moderationErrorCategory(error) });
+  revalidatePath('/admin/moderation');
+  moderationResultRedirect({
+    notice: resolution,
+    confirmedIntentId: input.commandIntentId,
+  });
+}
+
+export async function escalateMarketplaceReport(formData: FormData): Promise<void> {
+  return resolveMarketplaceReport('escalated', formData);
+}
+
+export async function dismissMarketplaceReport(formData: FormData): Promise<void> {
+  return resolveMarketplaceReport('dismissed', formData);
+}
+
+export async function resolveMarketplaceReportAction(formData: FormData): Promise<void> {
+  return resolveMarketplaceReport('resolved', formData);
 }

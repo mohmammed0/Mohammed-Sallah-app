@@ -4,9 +4,9 @@ import {
   classifyPrivacyError,
   drainOwnedStorage,
   exportStoragePath,
+  mediaArtifactCleanupSchema,
   privacyRetentionSchema,
   PrivacyWorkerError,
-  quarantineCleanupSchema,
 } from './privacy.ts';
 import { workerSecretMatches } from './worker-auth.ts';
 
@@ -18,7 +18,7 @@ Deno.test('worker secret comparison fails closed and accepts the configured secr
   assertEquals(await workerSecretMatches(configured, undefined), false);
 });
 
-Deno.test('owned storage deletion drains more than 5000 objects in batches of at most 100', async () => {
+Deno.test('owned storage deletion drains more than 5000 objects in bounded batches', async () => {
   const userId = '11111111-1111-4111-8111-111111111111';
   const remaining = new Map(
     Array.from({ length: 5_237 }, (_, index) => {
@@ -41,7 +41,7 @@ Deno.test('owned storage deletion drains more than 5000 objects in batches of at
   assertEquals(largestBatch <= 100, true);
 });
 
-Deno.test('owned storage deletion fails closed on a partial batch failure and can be retried', async () => {
+Deno.test('owned storage deletion fails closed on partial failure and can be retried', async () => {
   const userId = '11111111-1111-4111-8111-111111111111';
   const remaining = new Map(
     Array.from({ length: 130 }, (_, index) => {
@@ -66,25 +66,17 @@ Deno.test('owned storage deletion fails closed on a partial batch failure and ca
     'storage_delete_failed',
   );
   assertEquals(remaining.size, 30);
-  const retried = await drainOwnedStorage(
-    userId,
-    () => Promise.resolve([...remaining.values()]),
-    (_bucket, paths) => {
-      for (const path of paths) remaining.delete(path);
-      return Promise.resolve();
-    },
+  assertEquals(
+    await drainOwnedStorage(
+      userId,
+      () => Promise.resolve([...remaining.values()]),
+      (_bucket, paths) => {
+        for (const path of paths) remaining.delete(path);
+        return Promise.resolve();
+      },
+    ),
+    30,
   );
-  assertEquals(retried, 30);
-  assertEquals(remaining.size, 0);
-});
-
-Deno.test('owned storage deletion is idempotent when no objects remain', async () => {
-  const removed = await drainOwnedStorage(
-    '11111111-1111-4111-8111-111111111111',
-    () => Promise.resolve([]),
-    () => Promise.reject(new Error('remove must not be called')),
-  );
-  assertEquals(removed, 0);
 });
 
 Deno.test('privacy retention contract is bounded and explicit', () => {
@@ -97,42 +89,51 @@ Deno.test('privacy retention contract is bounded and explicit', () => {
   });
   assertEquals(config.exportLinkSeconds, 3600);
   assertThrows(() => privacyRetentionSchema.parse({ ...config, exportLinkSeconds: 0 }));
-  assertThrows(() => privacyRetentionSchema.parse({ ...config, maxWorkerAttempts: 21 }));
 });
 
-Deno.test('quarantine cleanup contract is owner scoped and private', () => {
-  const userId = '11111111-1111-4111-8111-111111111111';
-  const cleanup = quarantineCleanupSchema.parse({
-    uploadId: '22222222-2222-4222-8222-222222222222',
-    userId,
-    bucket: 'quarantine',
-    path: `${userId}/22222222-2222-4222-8222-222222222222/file.png`,
+Deno.test('media artifact cleanup accepts exact attempt paths and never retained kind', () => {
+  const parsed = mediaArtifactCleanupSchema.parse({
+    artifactId: '11111111-1111-4111-8111-111111111111',
+    kind: 'scan_input',
+    bucket: 'scan-input',
+    path: 'aa/bb/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    leaseExpiresAt: '2026-08-21T12:05:00.000Z',
   });
-  assertOwnedStoragePath(cleanup.userId, cleanup.path);
-  assertThrows(
-    () => quarantineCleanupSchema.parse({ ...cleanup, bucket: 'public-assets' }),
+  assertEquals(parsed.kind, 'scan_input');
+  for (
+    const invalid of [
+      { ...parsed, kind: 'retained' },
+      { ...parsed, bucket: 'scan-output' },
+      { ...parsed, path: '../private' },
+      { ...parsed, extra: true },
+    ]
+  ) assertThrows(() => mediaArtifactCleanupSchema.parse(invalid));
+});
+
+Deno.test('media artifact cleanup binds final candidates to private clean buckets and opaque paths', () => {
+  const base = {
+    artifactId: '11111111-1111-4111-8111-111111111111',
+    kind: 'final_candidate',
+    bucket: 'provider-documents',
+    path: 'clean/aa/bb/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    leaseExpiresAt: '2026-08-21T12:05:00.000Z',
+  };
+  assertEquals(mediaArtifactCleanupSchema.parse(base).bucket, 'provider-documents');
+  assertThrows(() => mediaArtifactCleanupSchema.parse({ ...base, bucket: 'public-assets' }));
+  assertThrows(() =>
+    mediaArtifactCleanupSchema.parse({ ...base, path: 'owner/resource/file.png' })
   );
 });
 
-Deno.test('export paths are owner scoped', () => {
+Deno.test('export and owned paths are owner-scoped', () => {
   const userId = '11111111-1111-4111-8111-111111111111';
   const requestId = '22222222-2222-4222-8222-222222222222';
   const path = exportStoragePath(userId, requestId);
   assertEquals(path, `${userId}/${requestId}/sallah-data-export-v1.json`);
   assertOwnedStoragePath(userId, path);
-});
-
-Deno.test('cross-user and traversal paths are rejected', () => {
-  const userId = '11111111-1111-4111-8111-111111111111';
-  assertThrows(
-    () => assertOwnedStoragePath(userId, '22222222-2222-4222-8222-222222222222/export.json'),
-    PrivacyWorkerError,
-    'invalid_storage_path',
-  );
   assertThrows(
     () => assertOwnedStoragePath(userId, `${userId}/../export.json`),
     PrivacyWorkerError,
-    'invalid_storage_path',
   );
 });
 

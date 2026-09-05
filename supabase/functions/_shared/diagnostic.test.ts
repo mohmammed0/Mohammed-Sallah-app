@@ -1,4 +1,12 @@
-import { deterministic, diagnosticSchema, inputSchema, jsonSchema } from './diagnostic.ts';
+import {
+  assertCanAppendDiagnosticTurn,
+  deterministic,
+  diagnosticSchema,
+  inputSchema,
+  jsonSchema,
+  MAX_DIAGNOSTIC_MESSAGES,
+} from './diagnostic.ts';
+import { openAiDiagnosticJsonSchema } from './ai-provider.ts';
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -26,11 +34,93 @@ Deno.test('input boundary rejects empty and oversized conversations', () => {
       .success,
     'oversized message must fail',
   );
+  assert(
+    !inputSchema.safeParse({
+      locale: 'ar',
+      messages: Array.from({ length: 5 }, () => ({ role: 'user', text: 'x'.repeat(7000) })),
+    }).success,
+    'oversized aggregate conversation must fail',
+  );
+  assert(
+    !inputSchema.safeParse({
+      locale: 'ar',
+      messages: [{ role: 'user', text: 'وصف صالح' }],
+      categoryHints: ['../../unsafe'],
+    }).success,
+    'category hints must be bounded slugs',
+  );
 });
 
-Deno.test('provider JSON schema is closed and contains metadata', () => {
+Deno.test('conversation capacity fails before a new persisted user and assistant pair can overflow', () => {
+  assertCanAppendDiagnosticTurn(MAX_DIAGNOSTIC_MESSAGES - 2);
+  for (const count of [-1, MAX_DIAGNOSTIC_MESSAGES - 1, MAX_DIAGNOSTIC_MESSAGES]) {
+    let rejected = false;
+    try {
+      assertCanAppendDiagnosticTurn(count);
+    } catch (error) {
+      rejected = error instanceof Error && error.message === 'AI_CONVERSATION_LIMIT_REACHED';
+    }
+    assert(rejected, `message count ${count} must fail before persistence`);
+  }
+});
+
+Deno.test('application JSON schema remains closed and contains server metadata', () => {
   assert(jsonSchema.additionalProperties === false, 'root schema must reject extra properties');
   assert(jsonSchema.required.includes('metadata'), 'metadata must be required');
+  assert(
+    jsonSchema.required.includes('quickReplies'),
+    'quick replies must use the strict contract',
+  );
+});
+
+Deno.test('OpenAI strict schema excludes server metadata and requires every property', () => {
+  assert(
+    !openAiDiagnosticJsonSchema.required.includes('metadata'),
+    'provider must not author server metadata',
+  );
+  assert(
+    !('metadata' in openAiDiagnosticJsonSchema.properties),
+    'provider schema must omit metadata entirely',
+  );
+  assert(
+    openAiDiagnosticJsonSchema.additionalProperties === false,
+    'provider schema must reject extra properties',
+  );
+  const keys = Object.keys(openAiDiagnosticJsonSchema.properties).sort();
+  assert(
+    JSON.stringify([...openAiDiagnosticJsonSchema.required].sort()) === JSON.stringify(keys),
+    'strict provider schema must require every root property',
+  );
+});
+
+Deno.test('quick replies are localized and correspond to the current question', () => {
+  const schedule = deterministic(inputSchema.parse({
+    locale: 'en',
+    confirmedCategorySlug: 'plumbing',
+    messages: [{ role: 'user', text: 'The kitchen pipe has leaked under the sink for two days.' }],
+  }));
+  const area = deterministic(inputSchema.parse({
+    locale: 'en',
+    confirmedCategorySlug: 'plumbing',
+    messages: [{
+      role: 'user',
+      text: 'The kitchen pipe has leaked under the sink for two days. Tomorrow morning works.',
+    }],
+  }));
+  assert(
+    schedule.followUpQuestions[0]?.includes('date and time') === true,
+    'schedule question expected',
+  );
+  assert(schedule.quickReplies.includes('Tomorrow'), 'schedule choices must answer timing');
+  assert(
+    area.followUpQuestions[0]?.includes('city and district') === true,
+    'area question expected',
+  );
+  assert(area.quickReplies.includes('Riyadh'), 'area choices must answer location');
+  assert(
+    JSON.stringify(schedule.quickReplies) !== JSON.stringify(area.quickReplies),
+    'different questions need different choices',
+  );
 });
 
 Deno.test('multi-turn fallback preserves answers and stops when the intake is sufficient', () => {
@@ -50,6 +140,7 @@ Deno.test('multi-turn fallback preserves answers and stops when the intake is su
   assert(result.customerSummary?.includes('kitchen sink'), 'the first answer must be preserved');
   assert(result.customerSummary?.includes('Al Malqa'), 'the later answer must be preserved');
   assert(result.followUpQuestions.length === 0, 'no more question is needed');
+  assert(result.quickReplies.length === 0, 'no choices are shown when no question remains');
   assert(result.metadata.sessionId === sessionId, 'session metadata must be preserved');
   assert(result.metadata.turnNumber === 2, 'user turns must be counted without a short limit');
 });

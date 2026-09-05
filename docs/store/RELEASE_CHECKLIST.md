@@ -2,6 +2,9 @@
 
 - [ ] Final brand/legal entity, bundle/package IDs, domain, support/privacy/terms URLs approved
 - [ ] Privacy/terms/retention/store disclosures reviewed by qualified counsel
+- [ ] Approved readable privacy, terms and community documents published in ar/en/ur/hi; production legal consent enabled; missing/draft policies rejected by release preflight
+- [ ] Explicit document acceptance and stale-version retry exercised; account deletion and support reachable while acceptance is pending
+- [ ] First AI upload, restored queue, withdrawal and manual alternative checked on native devices; report action reaches staffed support
 - [ ] Apple/Google/EAS accounts, signing, app IDs, agreements and tax/banking configured by owners
 - [ ] Production Supabase, SMTP, AI, push and monitoring credentials configured/rotated
 - [ ] Payment mode accurately disclosed; gateway disabled unless real merchant integration reconciles successfully
@@ -11,6 +14,9 @@
 - [ ] Customer/provider acceptance scenarios A–G rerun in review environment
 - [ ] Reviewer accounts and synthetic journey prepared securely
 - [ ] Screenshots/metadata contain no PII, placeholders, or fake integration claims
+- [ ] iPhone/iPad and Android captures, Play icon/feature graphic, exact build metadata and asset checksums recorded
+- [ ] Current age-rating, content, accessibility, encryption/export and data-collection questionnaires completed from verified behavior
+- [ ] Objectionable-content filtering, reports/blocks/removal and moderation response tested; malware scanning not substituted for moderation
 - [ ] SBOM/license/security/secret/dependency reports reviewed; excluded optional packages confirmed absent
 - [ ] Backup restore drill, incident/on-call/support escalation and rollback exercised
 - [ ] Data export/deletion and public deletion page verified end-to-end

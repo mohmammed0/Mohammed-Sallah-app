@@ -5,53 +5,111 @@ import {
   drainOwnedStorage,
   expiredExportSchema,
   exportStoragePath,
+  mediaArtifactCleanupSchema,
   type PrivacyJob,
   privacyJobSchema,
   privacyRetentionSchema,
   PrivacyWorkerError,
-  quarantineCleanupSchema,
-  storageObjectSchema,
+  scannerNonceCleanupSchema,
 } from '../_shared/privacy.ts';
+import { sha256Hex } from '../_shared/scanner-control.ts';
 import { workerSecretMatches } from '../_shared/worker-auth.ts';
 
 const exportBucket = 'exports';
 const maxJobsPerInvocation = 10;
-const maxQuarantineCleanupsPerInvocation = 50;
+const maxMediaArtifactCleanupsPerInvocation = 50;
+const maxOwnedStoragePage = 1_000;
+const maxOwnedStorageDirectories = 10_000;
 
 function fail(category: string): never {
   throw new PrivacyWorkerError(category);
 }
 
-async function removeStorageObjects(
-  db: ReturnType<typeof serviceClient>,
+interface OwnedStorageClient {
+  storage: {
+    listBuckets(): Promise<{
+      data: Array<{ id: string }> | null;
+      error: unknown;
+    }>;
+    from(bucket: string): {
+      list(
+        prefix: string,
+        options: {
+          limit: number;
+          offset: number;
+          sortBy: { column: 'name'; order: 'asc' };
+        },
+      ): Promise<{
+        data: Array<{ name: string; id: string | null; metadata: unknown }> | null;
+        error: unknown;
+      }>;
+      remove(paths: string[]): Promise<{ error: unknown }>;
+    };
+  };
+}
+
+function validStorageSegment(value: unknown): value is string {
+  return typeof value === 'string' && value.length >= 1 && value.length <= 255 &&
+    value !== '.' && value !== '..' && !value.includes('/') && !value.includes('\\');
+}
+
+async function listOwnedStoragePage(
+  db: OwnedStorageClient,
+  userId: string,
+  maximum = maxOwnedStoragePage,
+) {
+  const { data: buckets, error: bucketError } = await db.storage.listBuckets();
+  if (bucketError || !Array.isArray(buckets) || buckets.length > 100) fail('storage_query_failed');
+  const objects: Array<{ bucket_id: string; name: string }> = [];
+  for (const bucket of buckets) {
+    if (!validStorageSegment(bucket.id)) fail('storage_query_failed');
+    const directories = [userId];
+    const visited = new Set<string>();
+    for (let directoryIndex = 0; directoryIndex < directories.length; directoryIndex += 1) {
+      if (directories.length > maxOwnedStorageDirectories) fail('storage_query_failed');
+      const directory = directories[directoryIndex];
+      if (!directory || visited.has(directory)) continue;
+      visited.add(directory);
+      for (let offset = 0; offset < 100_000; offset += maxOwnedStoragePage) {
+        const { data, error } = await db.storage.from(bucket.id).list(directory, {
+          limit: maxOwnedStoragePage,
+          offset,
+          sortBy: { column: 'name', order: 'asc' },
+        });
+        if (error || !Array.isArray(data)) fail('storage_query_failed');
+        for (const item of data) {
+          if (!validStorageSegment(item.name)) fail('storage_query_failed');
+          const path = `${directory}/${item.name}`;
+          assertOwnedStoragePath(userId, path);
+          if (item.id === null && item.metadata === null) {
+            directories.push(path);
+          } else {
+            objects.push({ bucket_id: bucket.id, name: path });
+            if (objects.length >= maximum) return objects;
+          }
+        }
+        if (data.length < maxOwnedStoragePage) break;
+      }
+    }
+  }
+  return objects;
+}
+
+export async function removeOwnedStorageObjects(
+  db: OwnedStorageClient,
   userId: string,
 ): Promise<number> {
   const removed = await drainOwnedStorage(
     userId,
-    async () => {
-      const { data, error } = await db
-        .schema('storage')
-        .from('objects')
-        .select('bucket_id,name')
-        .like('name', `${userId}/%`)
-        .order('bucket_id')
-        .order('name')
-        .limit(1000);
-      if (error) fail('storage_query_failed');
-      return storageObjectSchema.array().parse(data ?? []);
-    },
+    () => listOwnedStoragePage(db, userId),
     async (bucket, batch) => {
       const { error: removeError } = await db.storage.from(bucket).remove(batch);
       if (removeError) fail('storage_delete_failed');
     },
   );
-  const { count, error: verifyError } = await db
-    .schema('storage')
-    .from('objects')
-    .select('id', { count: 'exact', head: true })
-    .like('name', `${userId}/%`);
-  if (verifyError) fail('storage_verify_failed');
-  if ((count ?? 0) !== 0) fail('storage_objects_remaining');
+  if ((await listOwnedStoragePage(db, userId, 1)).length !== 0) {
+    fail('storage_objects_remaining');
+  }
   return removed;
 }
 
@@ -59,7 +117,7 @@ async function processAccountDeletion(
   db: ReturnType<typeof serviceClient>,
   job: PrivacyJob,
 ): Promise<void> {
-  await removeStorageObjects(db, job.userId);
+  await removeOwnedStorageObjects(db, job.userId);
   const { data: authUser, error: lookupError } = await db.auth.admin.getUserById(job.userId);
   if (lookupError && lookupError.status !== 404) fail('auth_lookup_failed');
   if (authUser?.user) {
@@ -130,38 +188,78 @@ async function cleanExpiredExports(db: ReturnType<typeof serviceClient>): Promis
   return rows.length;
 }
 
-async function cleanQuarantinedUploads(
-  db: ReturnType<typeof serviceClient>,
+export interface MediaArtifactCleanupClient {
+  rpc(
+    name: string,
+    args: Record<string, unknown>,
+  ): Promise<{ data: unknown; error: unknown }>;
+  storage: {
+    from(bucket: string): {
+      remove(paths: string[]): Promise<{ error: unknown }>;
+    };
+  };
+}
+
+export async function cleanMediaScanArtifacts(
+  db: MediaArtifactCleanupClient,
   workerId: string,
 ): Promise<{ cleaned: number; failed: number }> {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{2,119}$/.test(workerId)) {
+    fail('invalid_cleanup_worker_id');
+  }
   let cleaned = 0;
   let failed = 0;
-  for (let index = 0; index < maxQuarantineCleanupsPerInvocation; index += 1) {
-    const { data, error } = await db.rpc('claim_upload_quarantine_cleanup', {
+  for (let index = 0; index < maxMediaArtifactCleanupsPerInvocation; index += 1) {
+    const cleanupToken = crypto.randomUUID();
+    const { data, error } = await db.rpc('claim_media_scan_artifact_cleanup', {
       p_worker_id: workerId,
+      p_operation_id: crypto.randomUUID(),
+      p_cleanup_token_hash: await sha256Hex(cleanupToken),
     });
-    if (error) fail('quarantine_cleanup_claim_failed');
+    if (error) fail('media_artifact_cleanup_claim_failed');
     if (!data) break;
-    const item = quarantineCleanupSchema.parse(data);
-    assertOwnedStoragePath(item.userId, item.path);
-    const { error: removeError } = await db.storage.from(item.bucket).remove([item.path]);
-    if (removeError) {
-      await db.rpc('fail_upload_quarantine_cleanup', {
-        p_upload_id: item.uploadId,
+    const item = mediaArtifactCleanupSchema.parse(data);
+    let removalFailed = false;
+    try {
+      const { error: removeError } = await db.storage.from(item.bucket).remove([item.path]);
+      if (removeError) {
+        removalFailed = true;
+      }
+    } catch {
+      removalFailed = true;
+    }
+    if (removalFailed) {
+      const { error: failureError } = await db.rpc('fail_media_scan_artifact_cleanup', {
+        p_artifact_id: item.artifactId,
+        p_cleanup_token: cleanupToken,
         p_worker_id: workerId,
-        p_error_category: 'quarantine_delete_failed',
+        p_operation_id: crypto.randomUUID(),
+        p_failure_category: 'storage_delete_failed',
       });
+      if (failureError) fail('media_artifact_cleanup_failure_report_failed');
       failed += 1;
       continue;
     }
-    const { error: completionError } = await db.rpc('complete_upload_quarantine_cleanup', {
-      p_upload_id: item.uploadId,
+    const { error: completionError } = await db.rpc('complete_media_scan_artifact_cleanup', {
+      p_artifact_id: item.artifactId,
+      p_cleanup_token: cleanupToken,
       p_worker_id: workerId,
+      p_operation_id: crypto.randomUUID(),
     });
-    if (completionError) fail('quarantine_cleanup_completion_failed');
+    if (completionError) fail('media_artifact_cleanup_completion_failed');
     cleaned += 1;
   }
   return { cleaned, failed };
+}
+
+export async function cleanupExpiredScannerNonces(
+  db: Pick<MediaArtifactCleanupClient, 'rpc'>,
+) {
+  const { data, error } = await db.rpc('cleanup_expired_media_scanner_nonces', {
+    p_operation_id: crypto.randomUUID(),
+  });
+  if (error) fail('scanner_nonce_cleanup_failed');
+  return scannerNonceCleanupSchema.parse(data);
 }
 
 async function reportFailure(
@@ -181,7 +279,7 @@ async function reportFailure(
   }
 }
 
-Deno.serve(async (request) => {
+export const handlePrivacyWorker = async (request: Request): Promise<Response> => {
   if (request.method !== 'POST') return new Response('method_not_allowed', { status: 405 });
   const authorized = await workerSecretMatches(
     request.headers.get('x-worker-secret'),
@@ -206,6 +304,7 @@ Deno.serve(async (request) => {
   let cleaned = 0;
   let quarantineCleaned = 0;
   let quarantineFailed = 0;
+  let scannerNoncesCleaned = 0;
   let reconciledDeletions = 0;
   try {
     const { data, error } = await db.rpc('reconcile_blocked_account_deletions', {
@@ -229,7 +328,23 @@ Deno.serve(async (request) => {
     );
   }
   try {
-    const quarantine = await cleanQuarantinedUploads(db, workerId);
+    const nonces = await cleanupExpiredScannerNonces(
+      db as unknown as Pick<MediaArtifactCleanupClient, 'rpc'>,
+    );
+    scannerNoncesCleaned = nonces.deleted;
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: 'scanner_nonce_cleanup_failed',
+        category: classifyPrivacyError(error),
+      }),
+    );
+  }
+  try {
+    const quarantine = await cleanMediaScanArtifacts(
+      db as unknown as MediaArtifactCleanupClient,
+      workerId,
+    );
     quarantineCleaned = quarantine.cleaned;
     quarantineFailed = quarantine.failed;
   } catch (error) {
@@ -274,6 +389,9 @@ Deno.serve(async (request) => {
     cleaned,
     quarantineCleaned,
     quarantineFailed,
+    scannerNoncesCleaned,
     reconciledDeletions,
   });
-});
+};
+
+if (import.meta.main) Deno.serve(handlePrivacyWorker);

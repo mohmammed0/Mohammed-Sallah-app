@@ -2,24 +2,23 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
+import { adminCommandIntentStorageKey } from '@/lib/confirmed-command-intent';
 
 interface StoredIntent {
   id: string;
   normalizedExpiresAt?: string;
 }
 
-function storageKey(intentKey: string): string {
-  return `sallah:admin-command-intent:v1:${intentKey}`;
-}
-
 export function DurableCommandIntent({
   intentKey,
   initialIntentId,
   defaultExpiresAt,
+  confirmedIntentId,
 }: {
   intentKey: string;
   initialIntentId: string;
   defaultExpiresAt?: string;
+  confirmedIntentId?: string | null;
 }) {
   const { pending } = useFormStatus();
   const wasPending = useRef(false);
@@ -30,7 +29,7 @@ export function DurableCommandIntent({
   const [intent, setIntent] = useState<StoredIntent>(initialIntent.current);
 
   useEffect(() => {
-    const key = storageKey(intentKey);
+    const key = adminCommandIntentStorageKey(intentKey);
     try {
       const existing = localStorage.getItem(key);
       if (existing) {
@@ -53,24 +52,29 @@ export function DurableCommandIntent({
   }, [intentKey]);
 
   useEffect(() => {
-    if (pending) {
-      wasPending.current = true;
-      return;
+    const explicitConfirmation = confirmedIntentId !== undefined;
+    if (explicitConfirmation) {
+      if (pending || confirmedIntentId === null || confirmedIntentId !== intent.id) return;
+    } else {
+      if (pending) {
+        wasPending.current = true;
+        return;
+      }
+      if (!wasPending.current) return;
+      wasPending.current = false;
     }
-    if (!wasPending.current) return;
-    wasPending.current = false;
     const nextIntent: StoredIntent = {
       id: crypto.randomUUID(),
       ...(defaultExpiresAt ? { normalizedExpiresAt: defaultExpiresAt } : {}),
     };
     setIntent(nextIntent);
     try {
-      localStorage.setItem(storageKey(intentKey), JSON.stringify(nextIntent));
+      localStorage.setItem(adminCommandIntentStorageKey(intentKey), JSON.stringify(nextIntent));
     } catch {
       // No customer or secret data is stored. The fresh in-memory intent still
       // prevents a completed or terminal command from trapping later input.
     }
-  }, [defaultExpiresAt, intentKey, pending]);
+  }, [confirmedIntentId, defaultExpiresAt, intent.id, intentKey, pending]);
 
   return (
     <>

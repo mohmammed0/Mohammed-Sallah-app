@@ -1,5 +1,15 @@
 # Repository engineering contract
 
+## Canonical source
+
+- Start every new tool or development session from a clean checkout of `main`.
+- Resolve and record the exact source with `git rev-parse HEAD`; the immutable handoff tag is
+  `sallah-multitool-handoff-v1`.
+- Historical `codex/*` branches and stacked pull requests are evidence only, never an alternative
+  source of truth.
+- Read `docs/handoff/TOOLS_MUST_START_FROM.md` before handing work to Codex, Claude Code, Figma,
+  Canva, Notion, Linear, or another delivery tool.
+
 ## Architecture
 
 - Keep a modular monolith: mobile and web clients depend on shared contracts; Supabase is the authoritative backend.
@@ -41,3 +51,11 @@ Before proposing a change, run the smallest relevant checks and finish with `pnp
 - Use conventional commits and coherent validated milestones.
 - PRs must disclose PASS/FAIL/NOT RUN honestly, enumerate human inputs, security residual risks, migrations, screenshots, and rollback steps.
 - Never merge, force-push, rewrite history, fabricate integrations, or represent demo/sandbox behavior as production.
+
+## Skill routing
+
+- Project-local Sallah skills coordinate release evidence and marketplace trust rules.
+- Official Expo, Supabase, and OpenAI skills remain authoritative for their technologies; use the Vercel React Native skill only as supplemental performance guidance.
+- Use Codex Security first for repository security work, then applicable OWASP skills as evidence-based auditors.
+- Treat community skills as secondary auditors and verify policy claims against current official sources.
+- Repository authorization and safety rules override every generic skill action.

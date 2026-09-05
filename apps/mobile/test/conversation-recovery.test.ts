@@ -2,10 +2,15 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   aiIntakeSnapshotSchema,
   appendTemporaryFallback,
+  cleanUploadSchema,
+  confirmTranscriptReview,
   enqueuePendingTurn,
+  pendingCustomerTurnSchema,
   reconcileAuthoritativeTurn,
   replayPendingTurns,
   retryFailedTranscriptionTurns,
+  stageTranscriptReview,
+  updateTranscriptReview,
   type PendingCustomerTurn,
 } from '../src/features/request/conversation-recovery';
 
@@ -30,6 +35,7 @@ const first: PendingCustomerTurn = {
   transcript: null,
   transcriptionStatus: 'none',
   confirmedCategorySlug: 'plumbing',
+  confirmedSubcategorySlug: null,
   summaryRequested: false,
   createdAt: '2026-08-18T10:00:00.000Z',
 };
@@ -108,6 +114,25 @@ describe('AI intake recovery', () => {
     expect(snapshot.sessionId).toMatch(/^2222/);
     expect(snapshot.pendingTurns[0]?.mediaUploadIds).toEqual(first.mediaUploadIds);
     expect(snapshot.conversation.map((message) => message.role)).toEqual(['user', 'assistant']);
+    expect(snapshot.draft.imageUpload).not.toHaveProperty('storagePath');
+    expect(snapshot.draft.imageUpload).not.toHaveProperty('contentHash');
+  });
+
+  it('restores the V2 safe clean-upload projection without private path or fingerprint', () => {
+    const upload = cleanUploadSchema.parse({
+      uploadId: '33333333-3333-4333-8333-333333333333',
+      status: 'clean',
+      sanitized: true,
+      mimeType: 'image/png',
+      sizeBytes: 100,
+    });
+    expect(upload).toEqual({
+      uploadId: '33333333-3333-4333-8333-333333333333',
+      status: 'clean',
+      sanitized: true,
+      mimeType: 'image/png',
+      sizeBytes: 100,
+    });
   });
 
   it('restores a selected image before upload without converting the turn to text-only', () => {
@@ -206,5 +231,51 @@ describe('AI intake recovery', () => {
     }));
     expect(replayed.pending).toEqual([]);
     expect(replayed.completed[0]?.value.transcript).toBe('The fan does not work.');
+  });
+
+  it('persists an editable transcript review across restart and confirms the bounded edit', () => {
+    const voice: PendingCustomerTurn = {
+      ...first,
+      clientMessageId: 'voice-review-0003',
+      inputKind: 'voice',
+      text: '',
+      localMediaIds: ['voice-local-0003'],
+      mediaBindings: [],
+      transcriptionStatus: 'pending',
+    };
+    const staged = stageTranscriptReview(voice, '  The tap is leaking.  ');
+    expect(staged).toMatchObject({
+      text: 'The tap is leaking.',
+      transcript: 'The tap is leaking.',
+      transcriptionStatus: 'review',
+    });
+    const edited = updateTranscriptReview(staged, 'The kitchen tap is leaking slowly.');
+    const restored = pendingCustomerTurnSchema.parse(JSON.parse(JSON.stringify(edited)));
+    expect(restored.transcriptionStatus).toBe('review');
+    expect(restored.transcript).toBe('The kitchen tap is leaking slowly.');
+    expect(confirmTranscriptReview(restored)).toMatchObject({
+      text: 'The kitchen tap is leaking slowly.',
+      transcript: 'The kitchen tap is leaking slowly.',
+      transcriptionStatus: 'completed',
+    });
+  });
+
+  it('keeps an empty review editable but refuses blank or oversized confirmation', () => {
+    const review = stageTranscriptReview(
+      {
+        ...first,
+        clientMessageId: 'voice-review-0004',
+        inputKind: 'voice',
+        text: '',
+        transcriptionStatus: 'pending',
+      },
+      'Initial transcript',
+    );
+    const empty = updateTranscriptReview(review, '   ');
+    expect(() => pendingCustomerTurnSchema.parse(empty)).not.toThrow();
+    expect(() => confirmTranscriptReview(empty)).toThrow('TRANSCRIPT_REVIEW_INVALID');
+    expect(() => updateTranscriptReview(review, 'x'.repeat(8_001))).toThrow(
+      'TRANSCRIPT_REVIEW_INVALID',
+    );
   });
 });

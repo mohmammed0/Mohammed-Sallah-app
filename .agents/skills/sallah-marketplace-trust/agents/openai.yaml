@@ -1,0 +1,4 @@
+interface:
+  display_name: "Sallah Marketplace Trust"
+  short_description: "Protect Sallah marketplace trust invariants"
+  default_prompt: "Use $sallah-marketplace-trust to review this Sallah marketplace trust or safety change."

@@ -33,7 +33,7 @@ const config: NextConfig = {
   images: {
     unoptimized: true,
   },
-  transpilePackages: ['@sallah/config', '@sallah/domain', '@sallah/i18n'],
+  transpilePackages: ['@sallah/config', '@sallah/domain', '@sallah/i18n', '@sallah/observability'],
   async headers() {
     return [
       {

@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Alert, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, Linking, ScrollView, Text, TextInput, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import * as Location from 'expo-location';
 import { z } from 'zod';
 import { formatStatusLabel } from '@sallah/i18n';
 import { Button, Card, LoadingSkeleton, Screen, styles } from '@/components/ui';
@@ -11,6 +10,10 @@ import { supabase } from '@/lib/supabase';
 import { secureUpload } from '@/lib/secure-upload';
 import { useLocale } from '@/providers/locale-provider';
 import { executeJournaledMutation } from '@/lib/mutation-journal';
+import {
+  acquireForegroundLocation,
+  locationRecoveryForResult,
+} from '@/features/location/location-device';
 
 const onboardingSchema = z.object({
   kind: z.enum(['individual', 'company']),
@@ -38,8 +41,9 @@ export default function ProviderOnboarding() {
   const [cityIds, setCityIds] = useState<string[]>([]);
   const [weekdays, setWeekdays] = useState<number[]>([0, 1, 2, 3, 4]);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationRecovery, setLocationRecovery] = useState<'retry' | 'settings' | null>(null);
   const [documents, setDocuments] = useState<ImagePicker.ImagePickerAsset[]>([]);
-  const { control, handleSubmit, formState, setError } = useForm<OnboardingForm>({
+  const { clearErrors, control, handleSubmit, formState, setError } = useForm<OnboardingForm>({
     defaultValues: {
       kind: 'individual',
       businessName: '',
@@ -84,15 +88,26 @@ export default function ProviderOnboarding() {
     },
   });
   async function chooseLocation() {
-    const permission = await Location.requestForegroundPermissionsAsync();
-    if (!permission.granted) {
-      setError('root', { message: t('providerLocationRequired') });
+    if (locationRecovery === 'settings') {
+      try {
+        await Linking.openSettings();
+        setLocationRecovery('retry');
+      } catch {
+        setError('root', { message: t('providerLocationRequired') });
+      }
       return;
     }
-    const current = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.Balanced,
-    });
-    setLocation({ latitude: current.coords.latitude, longitude: current.coords.longitude });
+    clearErrors('root');
+    try {
+      const result = await acquireForegroundLocation(({ coordinates }) => {
+        setLocation(coordinates);
+      });
+      const recovery = locationRecoveryForResult(result);
+      setLocationRecovery(recovery.action);
+      if (recovery.messageKey) setError('root', { message: t(recovery.messageKey) });
+    } catch {
+      setError('root', { message: t('providerLocationRequired') });
+    }
   }
   async function chooseDocument() {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -126,16 +141,21 @@ export default function ProviderOnboarding() {
       )
         throw new Error('MISSING_REQUIRED_FIELDS');
       const uploadedDocuments = await Promise.all(
-        documents.map(async (document) => {
+        documents.map(async (document, index) => {
           const response = await fetch(document.uri);
           if (!response.ok) throw new Error('DOCUMENT_READ_FAILED');
           const bytes = new Uint8Array(await response.arrayBuffer());
           const extension = document.mimeType === 'image/png' ? 'png' : 'jpg';
+          const documentType =
+            input.kind === 'company' && index === 0
+              ? 'commercial_registration'
+              : 'identity_or_license';
           return await secureUpload({
             bytes,
             filename: `${globalThis.crypto.randomUUID()}.${extension}`,
             mimeType: document.mimeType ?? 'image/jpeg',
             purpose: 'provider_document',
+            recoveryKey: `provider-document:${documentType}:${index + 1}`,
           });
         }),
       );
@@ -155,14 +175,11 @@ export default function ProviderOnboarding() {
         locale,
         submit: shouldSubmit,
         documents: uploadedDocuments.map((upload, index) => ({
+          uploadId: upload.uploadId,
           documentType:
             input.kind === 'company' && index === 0
               ? 'commercial_registration'
               : 'identity_or_license',
-          storagePath: upload.storagePath,
-          contentHash: upload.contentHash,
-          mimeType: upload.mimeType,
-          sizeBytes: upload.sizeBytes,
         })),
       };
       const { data: userData } = await supabase.auth.getUser();
@@ -331,9 +348,16 @@ export default function ProviderOnboarding() {
             />
           ))}
         </View>
+        <Text style={styles.lead}>{t('providerLocationRequired')}</Text>
         <Button
           kind="secondary"
-          label={location ? t('serviceCenterSelected') : t('selectServiceCenter')}
+          label={
+            locationRecovery === 'settings'
+              ? t('openDeviceSettings')
+              : location
+                ? t('serviceCenterSelected')
+                : t('selectServiceCenter')
+          }
           onPress={() => void chooseLocation()}
         />
         <Button

@@ -1,38 +1,66 @@
-name: Bug report
-description: Report a reproducible defect without personal data or secrets.
-title: '[Bug]: '
+name: بلاغ خلل | Bug report
+description: أبلغ عن خلل قابل للتكرار من دون بيانات شخصية أو أسرار | Report a reproducible defect without personal data or secrets.
+title: '[خلل | Bug]: '
 labels: [bug]
 body:
   - type: markdown
     attributes:
-      {
-        value: 'Do not include credentials, exact addresses, documents, messages, or payment data.',
-      }
+      value: |
+        **تحذير أمني وخصوصي | Security and privacy warning**
+
+        لا تضف بيانات اعتماد أو PII أو عنواناً/إحداثيات دقيقة أو مستندات أو رسائل أو وسائط خاصة أو بيانات دفع.
+        Do not include credentials, PII, exact addresses/coordinates, documents, messages, private media, or payment data.
+
+        أبلغ عن الثغرات عبر SECURITY.md، وليس Issue عاماً.
+        Report vulnerabilities through SECURITY.md, not a public issue.
   - type: dropdown
     id: surface
     attributes:
-      {
-        label: Surface,
-        options:
-          [
-            Mobile customer,
-            Mobile provider,
-            Public web,
-            Admin,
-            Database/RLS,
-            Edge Function,
-            CI/release,
-          ],
-      }
-    validations: { required: true }
+      label: السطح | Surface
+      options:
+        - تطبيق العميل | Customer mobile
+        - تطبيق مقدم الخدمة | Provider mobile
+        - الموقع العام | Public web
+        - لوحة التشغيل | Operations portal
+        - قاعدة البيانات وRLS | Database and RLS
+        - Edge Function
+        - CI والإصدار | CI and release
+        - التوثيق | Documentation
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: الإصدار أو commit | Version or commit
+      description: لا تضع معرّف جهاز أو حساب حقيقياً | Do not include a real device or account identifier.
+    validations:
+      required: true
   - type: textarea
     id: steps
-    attributes: { label: Reproduction, description: Use synthetic/redacted values. }
-    validations: { required: true }
+    attributes:
+      label: خطوات التكرار | Reproduction steps
+      description: استخدم قيماً تركيبية ومنقحة | Use synthetic, redacted values.
+    validations:
+      required: true
   - type: textarea
     id: expected
-    attributes: { label: Expected and actual behavior }
-    validations: { required: true }
-  - type: input
-    id: commit
-    attributes: { label: Commit/app version }
+    attributes:
+      label: المتوقع والمشاهد | Expected and observed behavior
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: الأثر | Impact
+      options:
+        - حاجب للنسخة التجريبية | Closed-beta blocker
+        - عالٍ | High
+        - متوسط | Medium
+        - منخفض | Low
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: الدليل المنقح | Redacted evidence
+      description: اذكر PASS أو FAIL أو NOT RUN ولا ترفق بيانات حساسة | State PASS, FAIL, or NOT RUN and attach no sensitive data.

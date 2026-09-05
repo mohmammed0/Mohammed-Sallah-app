@@ -1,17 +1,27 @@
 import { z } from 'npm:zod@4.4.3';
+const diagnosticSlug = z.string().regex(/^[a-z0-9][a-z0-9-]{0,119}$/u);
+export const MAX_DIAGNOSTIC_MESSAGES = 40;
+const messagesSchema = z
+  .array(z.object({ role: z.enum(['user', 'assistant']), text: z.string().min(1).max(8000) }))
+  .min(1)
+  .max(MAX_DIAGNOSTIC_MESSAGES)
+  .superRefine((messages, context) => {
+    if (messages.reduce((total, message) => total + message.text.length, 0) > 32_000) {
+      context.addIssue({ code: 'custom', message: 'diagnostic conversation is too large' });
+    }
+  });
 export const inputSchema = z.object({
   locale: z.enum(['ar', 'en', 'ur', 'hi']).default('ar'),
-  messages: z
-    .array(z.object({ role: z.enum(['user', 'assistant']), text: z.string().min(1).max(8000) }))
-    .min(1),
-  categoryHints: z.array(z.string()).max(100).default([]),
+  messages: messagesSchema,
+  categoryHints: z.array(diagnosticSlug).max(100).default([]),
   sessionId: z.uuid().optional(),
   clientMessageId: z.string().min(8).max(128).optional(),
   inputKind: z.enum(['text', 'voice', 'image']).default('text'),
   mediaUploadIds: z.array(z.uuid()).max(4).refine((ids) => new Set(ids).size === ids.length, {
     message: 'duplicate media upload ids',
   }).default([]),
-  confirmedCategorySlug: z.string().min(1).max(120).nullable().optional(),
+  confirmedCategorySlug: diagnosticSlug.nullable().optional(),
+  confirmedSubcategorySlug: diagnosticSlug.nullable().optional(),
   summaryRequested: z.boolean().default(false),
 });
 export const diagnosticSchema = z.object({
@@ -24,6 +34,7 @@ export const diagnosticSchema = z.object({
   observedSymptoms: z.array(z.string()).max(30),
   possibleCauses: z.array(z.string()).max(20),
   followUpQuestions: z.array(z.string()).max(5),
+  quickReplies: z.array(z.string().min(1).max(120)).max(4).default([]),
   safetyFlags: z
     .array(
       z.enum([
@@ -55,9 +66,22 @@ export const diagnosticSchema = z.object({
     visionInputCount: z.number().int().min(0).max(4).optional(),
     visionMode: z.enum(['not_requested', 'provider', 'text_fallback']).optional(),
     summaryRequested: z.boolean().optional(),
+    providerAttempts: z.number().int().min(1).max(2).optional(),
+    providerInputUnits: z.number().int().min(0).optional(),
+    providerOutputUnits: z.number().int().min(0).optional(),
   }),
 });
+export const providerDiagnosticSchema = diagnosticSchema.omit({ metadata: true }).strict();
 export type Diagnostic = z.infer<typeof diagnosticSchema>;
+
+export function assertCanAppendDiagnosticTurn(messageCount: number): void {
+  if (
+    !Number.isInteger(messageCount) || messageCount < 0 ||
+    messageCount > MAX_DIAGNOSTIC_MESSAGES - 2
+  ) {
+    throw new Error('AI_CONVERSATION_LIMIT_REACHED');
+  }
+}
 export const jsonSchema = {
   type: 'object',
   additionalProperties: false,
@@ -71,6 +95,7 @@ export const jsonSchema = {
     'observedSymptoms',
     'possibleCauses',
     'followUpQuestions',
+    'quickReplies',
     'safetyFlags',
     'urgencySuggestion',
     'recommendedCapabilities',
@@ -90,6 +115,7 @@ export const jsonSchema = {
     observedSymptoms: { type: 'array', items: { type: 'string' } },
     possibleCauses: { type: 'array', items: { type: 'string' } },
     followUpQuestions: { type: 'array', items: { type: 'string' }, maxItems: 5 },
+    quickReplies: { type: 'array', items: { type: 'string' }, maxItems: 4 },
     safetyFlags: {
       type: 'array',
       items: {
@@ -207,9 +233,37 @@ export function deterministic(input: z.infer<typeof inputSchema>): Diagnostic {
     },
   };
   const questions = localizedQuestions[input.locale];
-  const nextQuestion = missingInformation
-    .map((field) => questions[field])
-    .find((question) => question && !previousAssistantText.includes(question.toLocaleLowerCase()));
+  const nextField = missingInformation.find((field) => {
+    const question = questions[field];
+    return question && !previousAssistantText.includes(question.toLocaleLowerCase());
+  });
+  const nextQuestion = nextField ? questions[nextField] : undefined;
+  const localizedQuickReplies: Record<typeof input.locale, Record<string, string[]>> = {
+    ar: {
+      category: ['تكييف', 'سباكة', 'كهرباء', 'لست متأكدًا'],
+      description: ['لا تعمل نهائيًا', 'تعمل بشكل متقطع', 'يوجد صوت أو تسرب', 'لست متأكدًا'],
+      schedule: ['اليوم', 'غدًا', 'الوقت مرن'],
+      area: ['الرياض', 'جدة', 'الدمام'],
+    },
+    en: {
+      category: ['Air conditioning', 'Plumbing', 'Electrical', 'Not sure'],
+      description: ['Stopped completely', 'Works intermittently', 'Noise or leak', 'Not sure'],
+      schedule: ['Today', 'Tomorrow', 'My timing is flexible'],
+      area: ['Riyadh', 'Jeddah', 'Dammam'],
+    },
+    ur: {
+      category: ['ایئر کنڈیشننگ', 'پلمبنگ', 'بجلی', 'یقین نہیں'],
+      description: ['بالکل کام نہیں کرتا', 'کبھی کبھی کام کرتا ہے', 'آواز یا رساؤ ہے', 'یقین نہیں'],
+      schedule: ['آج', 'کل', 'وقت لچکدار ہے'],
+      area: ['ریاض', 'جدہ', 'دمام'],
+    },
+    hi: {
+      category: ['एयर कंडीशनिंग', 'प्लंबिंग', 'बिजली', 'पक्का नहीं'],
+      description: ['बिल्कुल काम नहीं करता', 'रुक-रुक कर चलता है', 'आवाज़ या रिसाव है', 'पक्का नहीं'],
+      schedule: ['आज', 'कल', 'समय लचीला है'],
+      area: ['रियाद', 'जेद्दा', 'दम्माम'],
+    },
+  };
   const allowSummary = enoughInformation || input.summaryRequested;
   return diagnosticSchema.parse({
     schemaVersion: '1.0',
@@ -221,6 +275,7 @@ export function deterministic(input: z.infer<typeof inputSchema>): Diagnostic {
     observedSymptoms: [],
     possibleCauses: [],
     followUpQuestions: nextQuestion ? [nextQuestion] : [],
+    quickReplies: nextField ? (localizedQuickReplies[input.locale][nextField] ?? []) : [],
     safetyFlags,
     urgencySuggestion: safetyFlags.length ? 'safety_critical' : 'normal',
     recommendedCapabilities: [],
@@ -237,7 +292,7 @@ export function deterministic(input: z.infer<typeof inputSchema>): Diagnostic {
     metadata: {
       provider: 'deterministic',
       model: 'rules-v1',
-      promptVersion: 'diagnostic-v3',
+      promptVersion: 'diagnostic-v4',
       fallback: true,
       historyPreserved: true,
       categoryConfirmed: input.confirmedCategorySlug !== undefined &&

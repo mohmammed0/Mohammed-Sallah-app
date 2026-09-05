@@ -1,0 +1,66 @@
+name: طلب ميزة | Feature request
+description: اقترح حلاً محدوداً لحاجة مستخدم أو بوابة beta | Propose a bounded solution for a user need or beta gate.
+title: '[ميزة | Feature]: '
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        لا تضع بيانات شخصية أو أسراراً أو مواقع دقيقة أو مستندات أو رسائل أو بيانات دفع.
+        Do not include personal data, secrets, exact locations, documents, messages, or payment data.
+
+        أبلغ عن الثغرات وفق [SECURITY.md](https://github.com/mohmammed0/Mohammed-Sallah-app/blob/main/SECURITY.md) عبر [الإبلاغ الأمني الخاص](https://github.com/mohmammed0/Mohammed-Sallah-app/security/advisories/new)، وليس طلب ميزة عاماً.
+        Report vulnerabilities through [SECURITY.md](https://github.com/mohmammed0/Mohammed-Sallah-app/blob/main/SECURITY.md) and [private vulnerability reporting](https://github.com/mohmammed0/Mohammed-Sallah-app/security/advisories/new), not a public feature request.
+  - type: textarea
+    id: problem
+    attributes:
+      label: المشكلة | Problem
+      description: صف حاجة المستخدم لا الحل فقط | Describe the user need, not only a solution.
+    validations:
+      required: true
+  - type: dropdown
+    id: user
+    attributes:
+      label: المستخدم | User
+      options:
+        - العميل | Customer
+        - مقدم الخدمة | Provider
+        - الدعم | Support
+        - العمليات | Operations
+        - الخصوصية أو الأمن | Privacy or security
+        - الإصدار أو التشغيل | Release or operations
+    validations:
+      required: true
+  - type: textarea
+    id: beta_need
+    attributes:
+      label: ضرورة النسخة التجريبية | Closed-beta necessity
+      description: لماذا يلزم الآن؟ وما الدليل؟ | Why is it needed now, and what evidence supports that?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: النتيجة المقترحة | Proposed outcome
+    validations:
+      required: true
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: خارج النطاق | Out of scope
+    validations:
+      required: true
+  - type: textarea
+    id: security_privacy
+    attributes:
+      label: الأمن والخصوصية | Security and privacy
+      description: اذكر الأدوار وRLS والموقع والوسائط والبيانات | Address roles, RLS, location, media, and data.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: معايير القبول | Acceptance criteria
+      description: أدرج الاختبارات وحالات السماح والمنع وإتاحة الوصول | Include tests, allow/deny cases, and accessibility.
+    validations:
+      required: true

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { translate } from '@sallah/i18n';
 import type { PublicLocale } from '@/content';
 const labels = {
   ar: {
@@ -25,7 +26,7 @@ export function SiteShell({
 }) {
   const l = labels[locale];
   return (
-    <div dir={locale === 'ar' ? 'rtl' : 'ltr'}>
+    <div lang={locale} dir={locale === 'ar' ? 'rtl' : 'ltr'}>
       <header className="site-header">
         <nav className="shell nav" aria-label="Primary">
           <Link className="brand" href={`/${locale}`}>
@@ -60,9 +61,13 @@ export function SiteShell({
             <span>Riyadh pilot · SAR · Asia/Riyadh</span>
           </div>
           <div>
-            <Link href={`/${locale}/privacy`}>Privacy</Link> ·{' '}
-            <Link href={`/${locale}/terms`}>Terms</Link> ·{' '}
-            <Link href={`/${locale}/account-deletion`}>Account deletion</Link>
+            <Link href={`/${locale}/privacy`}>{translate(locale, 'privacy')}</Link> ·{' '}
+            <Link href={`/${locale}/terms`}>{translate(locale, 'terms')}</Link> ·{' '}
+            <Link href={`/${locale}/community-standards`}>
+              {translate(locale, 'publicCommunityStandards')}
+            </Link>{' '}
+            · <Link href={`/${locale}/contact`}>{translate(locale, 'publicContact')}</Link> ·{' '}
+            <Link href={`/${locale}/account-deletion`}>{translate(locale, 'deleteAccount')}</Link>
           </div>
         </div>
       </footer>

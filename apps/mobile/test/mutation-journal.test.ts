@@ -173,4 +173,141 @@ describe('persistent mutation journal', () => {
       expect([...stored.values()].join('')).not.toContain(entityKey);
     },
   );
+
+  it.each([
+    [
+      'marketplace_report',
+      'message:11111111-1111-4111-8111-111111111111',
+      {
+        targetType: 'message',
+        targetId: '11111111-1111-4111-8111-111111111111',
+        reasonCategory: 'harassment',
+        explanation: 'Original report details',
+      },
+    ],
+    [
+      'user_block_state',
+      '22222222-2222-4222-8222-222222222222',
+      {
+        targetUserId: '22222222-2222-4222-8222-222222222222',
+        blocked: true,
+        reason: 'user_requested_block',
+      },
+    ],
+  ] as const)(
+    'replays the exact persisted %s intent with its original key',
+    async (operation, entityKey, payload) => {
+      const userId = '66666666-6666-4666-8666-666666666666';
+      const attempts: Array<{ idempotencyKey: string; payload: unknown }> = [];
+      await expect(
+        executeJournaledMutation({
+          userId,
+          operation,
+          entityKey,
+          payload,
+          execute: async (idempotencyKey, persistedPayload) => {
+            attempts.push({ idempotencyKey, payload: persistedPayload });
+            throw new Error('RESPONSE_LOST_AFTER_COMMIT');
+          },
+        }),
+      ).rejects.toThrow('RESPONSE_LOST_AFTER_COMMIT');
+
+      await expect(
+        executeJournaledMutation({
+          userId,
+          operation,
+          entityKey,
+          payload,
+          execute: async (idempotencyKey, persistedPayload) => {
+            attempts.push({ idempotencyKey, payload: persistedPayload });
+            return 'authoritative-result';
+          },
+        }),
+      ).resolves.toBe('authoritative-result');
+
+      expect(attempts).toHaveLength(2);
+      expect(attempts[1]?.idempotencyKey).toBe(attempts[0]?.idempotencyKey);
+      expect(attempts[0]?.payload).toEqual(payload);
+      expect(attempts[1]?.payload).toEqual(payload);
+    },
+  );
+
+  it('serializes different report and block journal entries for one user without losing retries', async () => {
+    const userId = '77777777-7777-4777-8777-777777777777';
+    const reportPayload = {
+      targetType: 'message',
+      targetId: '11111111-1111-4111-8111-111111111111',
+      reasonCategory: 'spam',
+      explanation: 'Concurrent report',
+    };
+    const blockPayload = {
+      targetUserId: '22222222-2222-4222-8222-222222222222',
+      blocked: true,
+      reason: 'user_requested_block',
+    };
+    const firstAttempts: Array<{ operation: string; key: string; payload: unknown }> = [];
+    const report = executeJournaledMutation({
+      userId,
+      operation: 'marketplace_report',
+      entityKey: `message:${reportPayload.targetId}`,
+      payload: reportPayload,
+      execute: async (key, payload) => {
+        firstAttempts.push({ operation: 'report', key, payload });
+        throw new Error('RESPONSE_LOST_AFTER_COMMIT');
+      },
+    });
+    const block = executeJournaledMutation({
+      userId,
+      operation: 'user_block_state',
+      entityKey: blockPayload.targetUserId,
+      payload: blockPayload,
+      execute: async (key, payload) => {
+        firstAttempts.push({ operation: 'block', key, payload });
+        throw new Error('RESPONSE_LOST_AFTER_COMMIT');
+      },
+    });
+
+    await Promise.all([
+      expect(report).rejects.toThrow('RESPONSE_LOST_AFTER_COMMIT'),
+      expect(block).rejects.toThrow('RESPONSE_LOST_AFTER_COMMIT'),
+    ]);
+    const persisted = JSON.parse([...stored.values()].join('')) as Array<{
+      operation: string;
+      idempotencyKey: string;
+      payload: unknown;
+    }>;
+    expect(persisted).toHaveLength(2);
+
+    const retries: Array<{ operation: string; key: string; payload: unknown }> = [];
+    await Promise.all([
+      executeJournaledMutation({
+        userId,
+        operation: 'marketplace_report',
+        entityKey: `message:${reportPayload.targetId}`,
+        payload: reportPayload,
+        execute: async (key, payload) => {
+          retries.push({ operation: 'report', key, payload });
+          return 'report-ok';
+        },
+      }),
+      executeJournaledMutation({
+        userId,
+        operation: 'user_block_state',
+        entityKey: blockPayload.targetUserId,
+        payload: blockPayload,
+        execute: async (key, payload) => {
+          retries.push({ operation: 'block', key, payload });
+          return 'block-ok';
+        },
+      }),
+    ]);
+
+    for (const operation of ['report', 'block']) {
+      const first = firstAttempts.find((attempt) => attempt.operation === operation);
+      const retry = retries.find((attempt) => attempt.operation === operation);
+      expect(retry?.key).toBe(first?.key);
+      expect(retry?.payload).toEqual(first?.payload);
+    }
+    expect([...stored.values()].join('')).not.toContain('idempotencyKey');
+  });
 });

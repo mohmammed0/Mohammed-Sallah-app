@@ -111,10 +111,9 @@ describe('turn-scoped request media', () => {
             upload: {
               uploadId: secondUpload,
               status: 'clean',
-              storagePath: `${userId}/clean.jpg`,
+              sanitized: true,
               mimeType: 'image/jpeg',
               sizeBytes: 100,
-              contentHash: 'a'.repeat(64),
             },
           },
         ],

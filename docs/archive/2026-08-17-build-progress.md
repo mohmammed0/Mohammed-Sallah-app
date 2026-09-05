@@ -1,3 +1,8 @@
+> **HISTORICAL EVIDENCE / دليل تاريخي:** This snapshot is preserved as evidence of the repository
+> state on 2026-08-17. It is superseded by
+> [the current closed-beta status](../status/CLOSED_BETA.md) and must not be cited as current
+> readiness.
+
 # Build progress
 
 Last updated: 2026-08-17

@@ -1,0 +1,167 @@
+{
+  "schemaVersion": "1.1.0",
+  "repository": "mohmammed0/Mohammed-Sallah-app",
+  "canonicalBranch": "main",
+  "exactSha": "git:HEAD",
+  "exactShaCommand": "git rev-parse HEAD",
+  "sourceCommit": "git:HEAD",
+  "finalMainSha": "reported-externally-after-merge",
+  "releaseTag": "sallah-multitool-handoff-v1",
+  "generatedAt": "2026-09-05T16:33:30.007Z",
+  "finalIntegrationPr": {
+    "number": 36,
+    "status": "prelaunch-review-candidate",
+    "base": "main",
+    "head": "codex/launch-readiness-v1",
+    "url": "https://github.com/mohmammed0/Mohammed-Sallah-app/pull/36"
+  },
+  "versions": {
+    "node": "24.19.0",
+    "pnpm": "11.19.0",
+    "supabaseCli": "2.114.0",
+    "deno": "2.9.5",
+    "expo": "57.0.20",
+    "reactNative": "0.86.3",
+    "next": "16.3.1"
+  },
+  "apps": ["apps/mobile", "apps/web", "services/media-scanner"],
+  "packages": [
+    "packages/api",
+    "packages/config",
+    "packages/database",
+    "packages/domain",
+    "packages/i18n",
+    "packages/image-size-safe",
+    "packages/observability",
+    "packages/typescript-config"
+  ],
+  "routes": [
+    "/(customer)/customer-home",
+    "/(customer)/customer-requests",
+    "/(customer)/customer-messages",
+    "/(customer)/customer-account",
+    "/(provider)/provider-home",
+    "/(provider)/provider-feed",
+    "/(provider)/provider-jobs",
+    "/(provider)/provider-messages",
+    "/(provider)/provider-account",
+    "/request/new",
+    "/jobs",
+    "/offers",
+    "/messages",
+    "/support",
+    "/admin",
+    "/admin/providers",
+    "/admin/moderation",
+    "/admin/support"
+  ],
+  "roles": [
+    "customer",
+    "provider",
+    "operations_admin",
+    "verification_reviewer",
+    "support_agent",
+    "finance_reviewer",
+    "privacy_reviewer",
+    "analyst",
+    "super_admin"
+  ],
+  "ciResults": [
+    {
+      "source": "parent",
+      "pushRun": 33062076893,
+      "status": "failed-known-defects-remediated"
+    },
+    {
+      "source": "parent",
+      "pullRequestRun": 33062080697,
+      "status": "failed-known-defects-remediated"
+    },
+    {
+      "source": "104d9994f15364ba6e2391f56a30c7b0a7fad102",
+      "pushRun": 33141628317,
+      "status": "passed-before-main-base-change"
+    },
+    {
+      "source": "104d9994f15364ba6e2391f56a30c7b0a7fad102",
+      "pullRequestRun": 33141630504,
+      "status": "passed-before-main-base-change"
+    },
+    {
+      "source": "9e9f6b2155b6fd5995fc124da0a25f3fc71e4356",
+      "pushRun": 33957016118,
+      "pullRequestRun": 33957018071,
+      "status": "passed-before-main-base-change"
+    },
+    {
+      "source": "git:HEAD",
+      "status": "resolve-from-github-for-exact-head"
+    }
+  ],
+  "validationCounts": [
+    {
+      "gate": "workspace-tests",
+      "passed": 631,
+      "skipped": 1
+    },
+    {
+      "gate": "database-pgtap",
+      "passed": 1269,
+      "files": 34
+    },
+    {
+      "gate": "edge-deno",
+      "passed": 136
+    },
+    {
+      "gate": "web-playwright",
+      "passed": 18,
+      "skipped": 4
+    }
+  ],
+  "validationIdentities": {
+    "codexSecurityScanId": "sallah-finalization-diff-20260828T040000Z",
+    "codexSecurityRepositoryScanId": "sallah-final-repository-security-20260828T040500Z",
+    "codexSecurityExactBytesScanId": "sallah-finalization-exact-bytes-20260828T041500Z",
+    "codexSecurityHostedRemediationScanId": "sallah-finalization-hosted-remediation-20260828T041848Z",
+    "codexSecurityMainFinalizationScanId": "sallah-main-finalization-final-diff-20260828T073900Z",
+    "migrationSetSha256": "99c924443da56f5d7fca1fa60ed575ffefebf103a58b4e61986b88572678309d",
+    "databaseTypesSha256": "9572a6ca5bd15d2c25003a791a389a98c6db870d1a1a7f455146883045fff5a7",
+    "lockfileSha256": "ad13ed60948d0d4abe37cbfd52cca9384e05a232f974c491499e96c74f670db5",
+    "repositorySbomSha256": "ec0d26323c975bc3ae0cff2bb450d98fe9f753bd6bfc4f2f77da5a2d669b16a9",
+    "containerSbomSha256": "38abd07483bacd53eb466c2dde94e470894fecae1f26ec5a2b5af96c930b97d6",
+    "scannerImage": "sha256:06b4737c25ed15f9f178adec160a87e0bb115eacaba6b6f191b34bc214467b5c"
+  },
+  "externalGates": [
+    "production:not-run",
+    "stores:not-run",
+    "physical-device:not-run",
+    "ios-signing:human-input-required",
+    "legal-privacy:human-input-required"
+  ],
+  "allowedUiPaths": [
+    "apps/mobile/src/components/**",
+    "apps/mobile/src/design-system/**",
+    "apps/mobile/src/features/**/presentation-only",
+    "apps/web/src/components/**",
+    "packages/i18n/**",
+    "docs/design/**"
+  ],
+  "deniedPaths": [
+    "supabase/migrations/**",
+    "supabase/functions/**",
+    "supabase/tests/database/**",
+    "services/media-scanner/**",
+    "packages/domain/**",
+    "packages/database/**",
+    ".github/**"
+  ],
+  "firstFilesByTool": [
+    "Codex:AGENTS.md",
+    "Claude:CLAUDE.md",
+    "Figma:docs/handoff/FIGMA_HANDOFF.md",
+    "Canva:docs/handoff/CANVA_HANDOFF.md",
+    "Notion-Linear:docs/handoff/NOTION_LINEAR_HANDOFF.md"
+  ],
+  "validationCountsSource": "Historical 9e9f6b2155b6fd5995fc124da0a25f3fc71e4356 checkpoint; resolve current candidate CI and prelaunch packet separately."
+}

@@ -58,6 +58,7 @@ insert into public.system_settings(key,value) values
  ('commission.default','{"rateBps":0,"pilot":true}'),('payments.mode','{"production":"offline","test":"fake"}'),
  ('media.limits','{"imageBytes":10485760,"videoBytes":20971520,"audioSeconds":120}'),
  ('safety.guidance','{"reviewed":false,"ar":"","en":""}')
+ ,('legal.consent','{"enabled":false,"scope":"local-test-seed-only"}')
 on conflict(key) do update set value=excluded.value,version=public.system_settings.version+1;
 
 insert into public.legal_documents(document_type,version,locale,content_hash,published_at,effective_at,requires_acceptance) values

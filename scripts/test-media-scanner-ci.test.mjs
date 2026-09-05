@@ -1,0 +1,386 @@
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import test from 'node:test';
+import { localTestFunctionEnvironment } from './test-local-supabase.mjs';
+
+const repositoryRoot = new URL('../', import.meta.url);
+
+async function source(path) {
+  return await readFile(new URL(path, repositoryRoot), 'utf8');
+}
+
+function jobBlock(workflow, name, nextName) {
+  const end = nextName ? `(?=\\n  ${nextName}:)` : '$';
+  return new RegExp(`\\n  ${name}:\\n(?<job>[\\s\\S]*?)${end}`, 'u').exec(workflow)?.groups?.job;
+}
+
+function windowsToWslPath(value) {
+  const match = /^([A-Za-z]):\\(.*)$/u.exec(value);
+  if (!match?.[1] || match[2] === undefined) return value;
+  return `/mnt/${match[1].toLowerCase()}/${match[2].replaceAll('\\', '/')}`;
+}
+
+function linuxShell(command, cwd) {
+  return process.platform === 'win32'
+    ? spawnSync('wsl.exe', ['--cd', windowsToWslPath(cwd), '-e', 'sh', '-c', command], {
+        encoding: 'utf8',
+        shell: false,
+      })
+    : spawnSync('/bin/sh', ['-c', command], { cwd, encoding: 'utf8', shell: false });
+}
+
+test('root and worker Docker contexts include declared patches without unrelated files', async (t) => {
+  const workspace = await source('pnpm-workspace.yaml');
+  const patchBlock = /^patchedDependencies:\r?\n(?<entries>(?:[ \t]+[^\r\n]+\r?\n?)*)/mu.exec(
+    workspace,
+  )?.groups?.entries;
+  assert.ok(patchBlock, 'workspace patch declarations missing');
+  const patches = patchBlock
+    .trim()
+    .split(/\r?\n/u)
+    .map((entry) => {
+      const match = /^[^:]+:\s+(patches\/[A-Za-z0-9@._+-]+\.patch)$/u.exec(entry.trim());
+      assert.ok(match, `unsupported patch declaration: ${entry}`);
+      return match[1];
+    });
+  const daemon = spawnSync('docker', ['version', '--format', '{{.Server.Version}}'], {
+    encoding: 'utf8',
+    shell: false,
+    timeout: 5_000,
+    maxBuffer: 16 * 1024,
+  });
+  if (daemon.error || daemon.status !== 0) {
+    t.skip('Docker daemon unavailable; context export not run');
+    return;
+  }
+
+  const temp = await mkdtemp(join(tmpdir(), 'sallah-docker-context-'));
+  const context = join(temp, 'context');
+  const workerDockerfile = 'infra/media-scanner/worker.Dockerfile';
+  const workerIgnore = `${workerDockerfile}.dockerignore`;
+  const excluded = [
+    '.env',
+    '.git/config',
+    'apps/mobile/.env',
+    'node_modules/private-package/index.js',
+    'patches/.env',
+    'patches/unrelated.patch',
+    'patches/private/note.txt',
+    'services/media-scanner/node_modules/private-package/index.js',
+    'services/media-scanner/dist/old.js',
+  ];
+  try {
+    const fixtures = new Map([
+      ['.dockerignore', await source('.dockerignore')],
+      ['Dockerfile', 'FROM scratch\nCOPY . /\n'],
+      [workerDockerfile, 'FROM scratch\nCOPY . /\n'],
+      [workerIgnore, await source(workerIgnore)],
+      ['package.json', '{"name":"synthetic-scanner-context","private":true}\n'],
+      ['pnpm-workspace.yaml', workspace],
+      ['pnpm-lock.yaml', 'lockfileVersion: 9.0\n'],
+      ...patches.map((path) => [path, `synthetic declared patch: ${path}\n`]),
+      ...excluded.map((path) => [path, 'synthetic excluded fixture\n']),
+    ]);
+    for (const [path, contents] of fixtures) {
+      const destination = join(context, path);
+      await mkdir(dirname(destination), { recursive: true });
+      await writeFile(destination, contents);
+    }
+    for (const [name, fileArguments] of [
+      ['root', []],
+      ['worker', ['--file', workerDockerfile]],
+    ]) {
+      const output = join(temp, `export-${name}`);
+      const build = spawnSync(
+        'docker',
+        ['build', ...fileArguments, '--output', `type=local,dest=${output}`, '.'],
+        {
+          cwd: context,
+          encoding: 'utf8',
+          shell: false,
+          timeout: 30_000,
+          maxBuffer: 256 * 1024,
+        },
+      );
+      assert.ifError(build.error);
+      assert.equal(build.status, 0, `${name} Docker context: ${build.stderr}`);
+      for (const path of ['pnpm-workspace.yaml', 'pnpm-lock.yaml', ...patches]) {
+        assert.equal(
+          await readFile(join(output, path), 'utf8'),
+          fixtures.get(path),
+          `required pnpm input missing from ${name} Docker context: ${path}`,
+        );
+      }
+      for (const path of excluded) {
+        await assert.rejects(readFile(join(output, path)), { code: 'ENOENT' }, `${name}: ${path}`);
+      }
+    }
+  } finally {
+    await rm(temp, { recursive: true, force: true });
+  }
+});
+
+test('workspace Vitest exclusions survive Linux shell tokenization and preserve scanner discovery', async () => {
+  const temp = await mkdtemp(join(tmpdir(), 'sallah-vitest-argv-'));
+  try {
+    await mkdir(join(temp, 'dist'), { recursive: true });
+    await writeFile(join(temp, 'dist', 'compiled.test.js'), 'throw new Error("must not run");\n');
+    await writeFile(join(temp, 'dist', 'helper.js'), 'export {};\n');
+
+    for (const packagePath of [
+      'services/media-scanner/package.json',
+      'packages/config/package.json',
+      'packages/domain/package.json',
+      'packages/i18n/package.json',
+    ]) {
+      const packageJson = JSON.parse(await source(packagePath));
+      const command = String(packageJson.scripts?.test ?? '');
+      assert.doesNotMatch(command, /passWithNoTests/u, packagePath);
+      const vitest = command.split('&&').at(-1)?.trim() ?? '';
+      assert.match(vitest, /^vitest run --exclude "dist\/\*\*"$/u, packagePath);
+      const argvProbe = vitest.replace(/^vitest run\s+/u, 'set -- ') + '; printf \'%s\\n\' "$@"';
+      const result = linuxShell(argvProbe, temp);
+      assert.equal(result.status, 0, `${packagePath}: ${result.stderr}`);
+      assert.deepEqual(result.stdout.trim().split(/\r?\n/u), ['--exclude', 'dist/**'], packagePath);
+    }
+
+    const scannerTests = (
+      await readdir(new URL('../services/media-scanner/test/', import.meta.url), {
+        recursive: true,
+      })
+    ).filter((path) => path.endsWith('.test.ts'));
+    assert.ok(scannerTests.length > 0, 'scanner suite discovery unexpectedly found zero tests');
+  } finally {
+    await rm(temp, { recursive: true, force: true });
+  }
+});
+
+test('CI has a mandatory scanner job covering every repository/local gate', async () => {
+  const workflow = await source('.github/workflows/ci.yml');
+  const scanner = jobBlock(workflow, 'media-scanner', 'mobile');
+  assert.ok(scanner, 'media-scanner job missing');
+  assert.doesNotMatch(scanner, /^    if:/mu);
+  assert.doesNotMatch(workflow, /^\s*paths(?:-ignore)?:/mu);
+
+  for (const command of [
+    'pnpm --filter @sallah/media-scanner lint',
+    'pnpm --filter @sallah/media-scanner typecheck',
+    'pnpm --filter @sallah/media-scanner test',
+    'pnpm --filter @sallah/media-scanner build',
+    'pnpm test:media-scanner:unit',
+    'pnpm test:edge-memory',
+    'pnpm test:media-scanner',
+    'pnpm test:media-scanner:fixtures',
+    'pnpm test:media-scanner:remux',
+    'docker build --pull --file infra/media-scanner/worker.Dockerfile --tag sallah-media-scanner-worker:m2v-node24.19.0-image1.13.0 .',
+    'supabase db reset',
+    'supabase/tests/database/media_scan_concurrency.sh',
+    'pnpm test:media-scanner:supabase',
+    'pnpm licenses:check',
+    'pnpm audit --audit-level high',
+    'pnpm security:scan',
+    'pnpm sbom:generate',
+    'pnpm sbom:container',
+  ]) {
+    assert.match(scanner, new RegExp(command.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'u'));
+  }
+
+  assert.match(scanner, /^\s*- run: pnpm test:media-scanner\s*$/mu);
+  assert.match(scanner, /SALLAH_MEDIA_SCANNER_SIGNATURE_MODE:\s*deterministic/u);
+
+  assert.match(scanner, /deno test[^\n]*scanner-control/u);
+  assert.match(scanner, /deno test[^\n]*(?:scan-upload|privacy-worker)/u);
+  assert.match(scanner, /UPLOAD_SCANNER_SIGNATURE_MAX_AGE_HOURS/u);
+  assert.match(scanner, /UPLOAD_SCANNER_CONTROL_SECRET/u);
+  assert.match(scanner, /UPLOAD_SCANNER_ATTESTATION_SECRET/u);
+  assert.match(scanner, /if: always\(\)[\s\S]*cleanup-media-scanner-ci\.mjs/u);
+  assert.doesNotMatch(workflow, /uses:\s*[^\s]+@v\d/u);
+  assert.doesNotMatch(workflow, /deno-version:\s*v?\d+\.x/u);
+  assert.match(workflow, /deno-version:\s*2\.9\.5/u);
+});
+
+test('Supabase CI uses an explicit lightweight test scanner contract beside the real scanner job', async () => {
+  const workflow = await source('.github/workflows/ci.yml');
+  const supabase = jobBlock(workflow, 'supabase');
+  const scanner = jobBlock(workflow, 'media-scanner', 'mobile');
+  assert.ok(supabase, 'supabase job missing');
+  assert.ok(scanner, 'media-scanner job missing');
+  assert.match(supabase, /^    env:\n(?:^      .*\n)*?^      APP_ENV: test$/mu);
+  assert.match(supabase, /^      UPLOAD_SCANNER_MODE: deterministic$/mu);
+  assert.doesNotMatch(
+    supabase,
+    /UPLOAD_SCANNER_(?:CONTROL|ATTESTATION)_SECRET|SALLAH_MEDIA_SCANNER_SIGNATURE_MODE/u,
+  );
+  assert.match(scanner, /^      UPLOAD_SCANNER_MODE: external$/mu);
+  assert.match(scanner, /^\s*- run: pnpm test:media-scanner:supabase$/mu);
+
+  const harness = await source('scripts/test-local-supabase.mjs');
+  assert.match(harness, /localTestFunctionEnvironment/u);
+  assert.match(harness, /action: 'start'/u);
+  assert.match(harness, /action: 'status'/u);
+  assert.match(harness, /status !== 'queued'/u);
+  assert.doesNotMatch(harness, /clean\?\.storagePath|clean_upload_contract_invalid/u);
+  assert.match(harness, /completion_rejection_fixture_submission/u);
+  assert.match(harness, /concurrent_completion_rejection_did_not_replay_authoritative_dispute/u);
+  assert.match(harness, /completion_rejection_idempotency_conflict_not_enforced/u);
+  assert.match(harness, /finally\s*\{[\s\S]*stopFunctions/u);
+});
+
+test('local Supabase scanner environment is explicit, test-only, and contains no credential', () => {
+  const valid = {
+    APP_ENV: 'test',
+    UPLOAD_SCANNER_MODE: 'deterministic',
+    AI_PROVIDER: 'deterministic',
+  };
+  assert.equal(
+    localTestFunctionEnvironment(valid),
+    'APP_ENV=test\nUPLOAD_SCANNER_MODE=deterministic\nAI_PROVIDER=deterministic\n',
+  );
+  for (const invalid of [
+    {},
+    { ...valid, APP_ENV: 'production' },
+    { ...valid, APP_ENV: 'preview' },
+    { ...valid, APP_ENV: 'tset' },
+    { ...valid, UPLOAD_SCANNER_MODE: 'external' },
+    { ...valid, UPLOAD_SCANNER_MODE: 'unknown' },
+    { ...valid, AI_PROVIDER: 'openai' },
+  ]) {
+    assert.throws(() => localTestFunctionEnvironment(invalid), /LOCAL_SUPABASE_TEST_ENV_INVALID/u);
+  }
+});
+
+test('release readiness forwards every scanner production contract variable', async () => {
+  const workflow = await source('.github/workflows/release-readiness.yml');
+  assert.match(workflow, /pnpm test:edge-memory/u);
+  assert.doesNotMatch(workflow, /uses:\s*[^\s]+@v\d/u);
+  assert.match(workflow, /deno-version:\s*2\.9\.5/u);
+  for (const variable of [
+    'UPLOAD_SCANNER_MODE',
+    'UPLOAD_SCANNER_CONTROL_ORIGIN',
+    'UPLOAD_SCANNER_STORAGE_ORIGIN',
+    'UPLOAD_SCANNER_STORAGE_S3_ACCESS_KEY_ID',
+    'UPLOAD_SCANNER_STORAGE_S3_SECRET_ACCESS_KEY',
+    'UPLOAD_SCANNER_STORAGE_S3_REGION',
+    'UPLOAD_SCANNER_CONTROL_SECRET',
+    'UPLOAD_SCANNER_ATTESTATION_SECRET',
+    'UPLOAD_SCANNER_NETWORK_POLICY',
+    'UPLOAD_SCANNER_SIGNATURE_MAX_AGE_HOURS',
+    'UPLOAD_SCANNER_MAX_CONCURRENT_JOBS',
+    'UPLOAD_SCANNER_JOB_DEADLINE_SECONDS',
+    'UPLOAD_SCANNER_CONTROL_TIMEOUT_MS',
+    'UPLOAD_SCANNER_WORKER_ID',
+    'UPLOAD_SCANNER_IDLE_DELAY_MS',
+    'UPLOAD_SCANNER_ALERTS_ENABLED',
+  ]) {
+    assert.match(workflow, new RegExp(`^\\s+${variable}:`, 'mu'), variable);
+  }
+  assert.match(
+    workflow,
+    /UPLOAD_SCANNER_CONTROL_SECRET:\s*\$\{\{ secrets\.UPLOAD_SCANNER_CONTROL_SECRET \}\}/u,
+  );
+  assert.match(
+    workflow,
+    /UPLOAD_SCANNER_ATTESTATION_SECRET:\s*\$\{\{ secrets\.UPLOAD_SCANNER_ATTESTATION_SECRET \}\}/u,
+  );
+
+  const validatorStep =
+    /^\s*- run: pnpm config:validate:production\n(?<step>[\s\S]*?)(?=^\s*- run: pnpm build:production)/mu.exec(
+      workflow,
+    )?.groups?.step;
+  assert.ok(validatorStep, 'production validator step missing');
+  assert.match(validatorStep, /^\s+APP_ENV: production$/mu);
+  assert.match(
+    validatorStep,
+    /^\s+SALLAH_ANDROID_GOOGLE_MAPS_API_KEY:\s*\$\{\{ secrets\.SALLAH_ANDROID_GOOGLE_MAPS_API_KEY \}\}$/mu,
+  );
+
+  const buildStep = /^\s*- run: pnpm build:production\n(?<step>[\s\S]*)$/mu.exec(workflow)?.groups
+    ?.step;
+  assert.ok(buildStep, 'production build step missing');
+  for (const binding of [
+    'NEXT_PUBLIC_APP_ENV: production',
+    'NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}',
+    'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}',
+    'EXPO_PUBLIC_APP_ENV: production',
+    'EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}',
+    'EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}',
+    'EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}',
+    'SALLAH_IOS_BUNDLE_ID: ${{ vars.SALLAH_IOS_BUNDLE_ID }}',
+    'SALLAH_ANDROID_PACKAGE: ${{ vars.SALLAH_ANDROID_PACKAGE }}',
+    'SALLAH_ANDROID_GOOGLE_MAPS_API_KEY: ${{ secrets.SALLAH_ANDROID_GOOGLE_MAPS_API_KEY }}',
+  ]) {
+    assert.ok(buildStep.includes(binding), binding);
+  }
+  assert.doesNotMatch(
+    buildStep,
+    /UPLOAD_SCANNER_(?:CONTROL|ATTESTATION)_SECRET|SUPABASE_SECRET_KEY/u,
+  );
+});
+
+test('integration harness targets only the V2 pull/control data plane', async () => {
+  const harness = await source('scripts/test-media-scanner-supabase.mjs');
+  for (const evidence of [
+    'queued-replay',
+    'active-replay',
+    'clean-replay',
+    'terminal-replay',
+    'clean-response-loss',
+    'output-response-loss',
+    'distinct-retry-artifacts',
+    'old-attempt-orphan',
+    'stale-worker',
+    'one-winner-completion',
+    'cleanup-versus-active',
+    'scanner-hmac-replay',
+    'signed-input',
+    'signed-output',
+    'signed-readback',
+    'real-eicar',
+    'fresh-signature',
+    'stale-signature',
+    'near-20mib-static-image',
+    'pdf-fail-closed',
+    'real-m4a-clean',
+    'real-mp4-audio-clean',
+    'real-mp4-video-clean',
+    'malformed-audio-video-fail-closed',
+    'polyglot-fail-closed',
+    'autonomous-24h-storage-cleanup',
+    'protected-broker-authorization',
+    'residue-equality',
+  ]) {
+    assert.match(harness, new RegExp(`['\"]${evidence}['\"]`, 'u'), evidence);
+  }
+  assert.doesNotMatch(harness, /\/v1\/scan|UPLOAD_SCANNER_URL|buildScannerHeaders|gatewaySecret/u);
+  assert.doesNotMatch(harness, /response\.clone\(\)\.text|scanner-control \$\{action/u);
+});
+
+test('root scripts expose a deterministic workflow gate and the real integration', async () => {
+  const packageJson = JSON.parse(await source('package.json'));
+  const validationBuild = await source('scripts/run-validation-build.mjs');
+  assert.equal(
+    packageJson.scripts['test:media-scanner:gates'],
+    'node --test scripts/test-media-scanner-ci.test.mjs',
+  );
+  assert.equal(
+    packageJson.scripts['test:edge-memory'],
+    'node --test scripts/test-edge-memory.test.mjs',
+  );
+  assert.equal(
+    packageJson.scripts['test:media-scanner:fixtures'],
+    'node --test scripts/test-media-scanner-fixtures.test.mjs',
+  );
+  assert.equal(
+    packageJson.scripts['test:media-scanner:supabase'],
+    'node scripts/test-media-scanner-supabase.mjs',
+  );
+  assert.match(packageJson.scripts.validate, /test:media-scanner:gates/u);
+  assert.equal(packageJson.scripts['build:validate'], 'node scripts/run-validation-build.mjs');
+  assert.match(packageJson.scripts.validate, /pnpm build:validate$/u);
+  for (const variable of ['APP_ENV', 'NEXT_PUBLIC_APP_ENV', 'EXPO_PUBLIC_APP_ENV']) {
+    assert.match(validationBuild, new RegExp(`${variable}: ['"]test['"]`, 'u'));
+  }
+});

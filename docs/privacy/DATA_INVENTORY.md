@@ -15,6 +15,53 @@
 
 Purpose, access, retention, deletion/anonymization, subprocessors, and cross-border handling require final legal approval. Data minimization and RLS apply independently of policy text.
 
+## Media-scanner operational data
+
+Media scan jobs, attempts, opaque artifact references, signed attestations, immutable events, and
+consumed authentication nonces live in the private schema. They are operational security data, not
+an owner-readable extension of the upload record. Neither authenticated owners nor the
+`service_role` receive direct table grants; reviewed fixed-signature RPCs are the only database
+boundary.
+
+Each scanner-request authentication nonce is strictly one-shot. Any duplicate is rejected,
+including a retry with the same nonce operation UUID and fingerprint or a duplicate observed after
+the stored nonce expires. A transport retry uses a fresh nonce and fresh nonce-operation UUID while
+retaining its separate domain operation UUID for idempotent state-machine replay; nonce consumption
+never returns a capability-recovery receipt.
+
+Scanner attestation nonces are also private, transactionally single-use, and bound to worker, action,
+attempt, manifest fingerprint, and time window. Expired request and attestation nonce records are
+removed by the scheduled privacy-worker boundary without becoming client-readable.
+
+An upload owner may retrieve only the safe status projection: upload ID, status, safe terminal
+category, sanitized flag, resulting MIME type and size, retry time, and creation/update timestamps.
+The projection excludes attempt and lease token hashes, scanner paths, input/output fingerprints,
+scanner and signature-database versions, sanitizer internals, callback nonces, worker identity, and
+operational error detail. Attempt-specific input, output, and final-candidate references are opaque
+and contain no user, upload, request, job, support, purpose, or filename identifier. Non-retained
+artifacts are autonomously cleanup-eligible no later than 24 hours; the winning retained final is
+preserved. Cleanup uses reclaimable leases, bounded attempts, an explicit dead-letter state, and
+immutable operational events that omit private paths.
+
+Media bytes and signed capabilities are not database evidence. The client never receives scanner
+input/output/readback capabilities. Edge handles bounded control metadata only; the scanner worker
+uses each exact capability directly and keeps temporary media in its bounded private workspace for
+one job. Operational logs may record a safe failure category, never a capability, object path,
+fingerprint, manifest body, private file content, scanner secret, or user identity.
+
+The existing `uploadSecurityEvents` account-export category remains a redacted, owner-scoped record
+of safe historical upload events. It does not export private scanner jobs, attempts, artifacts,
+attestations, nonces, manifests, or their operational evidence. This repository contract does not
+claim hosted scanner activation.
+
+Provider onboarding accepts document references only as exact `{uploadId, documentType}` objects.
+The fixed-search-path server wrapper locks an actor-owned clean `provider_document` upload and
+derives its final path, content SHA-256, detected MIME type, and size internally before invoking the
+revoked private onboarding authority. Authenticated clients cannot call the private body, insert raw
+provider-document rows, or select `storage_path`/`content_hash`; their direct metadata projection is
+limited to safe review fields. Onboarding responses and account exports expose neither path nor
+fingerprint.
+
 ## Account export manifest
 
 The export worker emits exactly the following top-level categories. Storage paths, signed URLs,
@@ -220,3 +267,17 @@ coverage map, concrete export queries, classification cardinality, all five clas
 and the presence of the catalog assertion on every full validation run.
 
 The database function and this document are two views of one explicit 76-category contract. Export generation fails if an unlisted category is introduced, and CI fails if the documented list, query coverage, or actual database catalog drifts. Account deletion uses the same ownership inventory for storage discovery, paginates until no objects remain, and records a failure instead of claiming completion when cleanup is incomplete.
+
+## Customer saved-location inventory addition
+
+| Data                                                                                        | Source                                                    | Storage                                                                                                          | Purpose                                                             | Access and retention                                                                                                               |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Saved location label, normalized address, building/unit, access notes and exact coordinates | Customer, foreground GPS, map choice and reverse geocoder | `public.addresses` with `address_kind = 'saved'`; selected saved ID may be cached locally per authenticated user | Reuse a customer-owned service location                             | Owner-only RLS/RPC access; archive uses `deleted_at`; no anonymous access                                                          |
+| Immutable request location snapshot                                                         | Server-side publication transaction                       | `public.addresses` with `address_kind = 'request_snapshot'`, referenced by `service_requests.address_id`         | Preserve the exact approved location for one request                | Existing request/location authorization; unmatched providers do not receive exact coordinates; lifecycle follows request retention |
+| Active saved-address identifier                                                             | Customer selection                                        | AsyncStorage key scoped by authenticated user                                                                    | Restore the preferred saved location                                | Identifier only; no token or exact coordinates; replaced on selection and inaccessible across user keys                            |
+| Transient unsaved map selection                                                             | Customer map choice                                       | In-memory provider and encrypted request draft when used in intake                                               | Let a customer use a location without saving it to the address book | Cleared with process/draft lifecycle; published only as an authorized request snapshot                                             |
+
+Foreground location is requested only after a user action. Background customer location is not
+requested. Reverse geocoding runs after current-position selection or a debounced map-movement end rather than
+continuously during map movement. Application logs must not include coordinates, address text,
+media, complaint text, session values or secrets.

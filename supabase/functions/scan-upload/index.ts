@@ -1,146 +1,142 @@
+import { createClient } from 'npm:@supabase/supabase-js@2.112.3';
 import { z } from 'npm:zod@4.4.3';
-import { authenticatedUser, serviceClient } from '../_shared/auth.ts';
-import { corsHeaders, json } from '../_shared/http.ts';
-import {
-  deterministicScan,
-  externalScan,
-  sha256Hex,
-  uploadInputSchema,
-  UploadScanError,
-  type UploadTicket,
-  uploadTicketSchema,
-} from '../_shared/upload-security.ts';
+import { authenticatedUser } from '../_shared/auth.ts';
+import { corsHeaders, json, safeError } from '../_shared/http.ts';
+import { parseAppEnvironment, readBoundedJson } from '../_shared/scanner-control.ts';
 
-const completionSchema = z.object({
+const startInputSchema = z.object({
   uploadId: z.uuid(),
-  status: z.literal('clean'),
-  storagePath: z.string().min(1),
-  mimeType: z.string().min(1),
-  sizeBytes: z.number().int().positive(),
-  contentHash: z.string().regex(/^[0-9a-f]{64}$/),
-});
+  action: z.literal('start'),
+  operationId: z.uuid(),
+}).strict();
+const statusInputSchema = z.object({
+  uploadId: z.uuid(),
+  action: z.literal('status'),
+}).strict();
+const inputSchema = z.discriminatedUnion('action', [startInputSchema, statusInputSchema]);
+const ownerStatusSchema = z.object({
+  uploadId: z.uuid(),
+  status: z.enum([
+    'queued',
+    'scanning',
+    'clean',
+    'rejected',
+    'retryable_failure',
+    'terminal_failure',
+  ]),
+  terminalCategory: z.string().max(80).nullable(),
+  sanitized: z.boolean().nullable(),
+  mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'audio/mp4', 'video/mp4']).nullable(),
+  sizeBytes: z.number().int().positive().max(20 * 1024 * 1024).nullable(),
+  retryAt: z.iso.datetime({ offset: true }).nullable(),
+  createdAt: z.iso.datetime({ offset: true }),
+  updatedAt: z.iso.datetime({ offset: true }),
+}).strict();
+const databaseErrorSchema = z.object({ message: z.string() }).passthrough();
 
-async function reportFailure(
-  ticket: UploadTicket,
-  category: string,
-  terminal: boolean,
-  scanner: string,
-): Promise<void> {
-  const db = serviceClient();
-  const { error } = terminal
-    ? await db.rpc('reject_file_upload', {
-      p_upload_id: ticket.uploadId,
-      p_user_id: ticket.userId,
-      p_failure_category: category,
-      p_scanner: scanner,
-    })
-    : await db.rpc('fail_file_upload', {
-      p_upload_id: ticket.uploadId,
-      p_user_id: ticket.userId,
-      p_failure_category: category,
-      p_scanner: scanner,
-    });
-  if (error) console.error(JSON.stringify({ event: 'upload_failure_report_failed' }));
+export interface UserScanClient {
+  rpc(
+    name: string,
+    args: Record<string, unknown>,
+  ): PromiseLike<{ data: unknown; error: unknown | null }>;
 }
 
-async function scan(ticket: UploadTicket, bytes: Uint8Array) {
-  const environment = Deno.env.get('APP_ENV') ?? 'local';
-  const mode = Deno.env.get('UPLOAD_SCANNER_MODE') ?? 'deterministic';
-  if (environment === 'production' && mode !== 'external') {
-    throw new UploadScanError('production_scanner_not_configured', false);
-  }
-  if (mode === 'external') {
-    const endpoint = Deno.env.get('UPLOAD_SCANNER_URL');
-    const secret = Deno.env.get('UPLOAD_SCANNER_SECRET');
-    if (!endpoint || !secret || secret.length < 24) {
-      throw new UploadScanError('external_scanner_not_configured', false);
-    }
-    return await externalScan(bytes, ticket, endpoint, secret);
-  }
-  if (mode !== 'deterministic') throw new UploadScanError('invalid_scanner_mode', false);
-  return deterministicScan(bytes, ticket.declaredMimeType, ticket.extension);
+export interface ScanUploadDependencies {
+  authenticate(request: Request): Promise<{ id: string }>;
+  createUserClient(request: Request): UserScanClient;
+  appEnvironment(): string | undefined;
+  log(entry: Record<string, unknown>): void;
 }
 
-Deno.serve(async (request) => {
-  if (request.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: corsHeaders(request) });
-  }
-  if (request.method !== 'POST') return json(request, { error: 'method_not_allowed' }, 405);
+function defaultUserClient(request: Request): UserScanClient {
+  const url = Deno.env.get('SUPABASE_URL');
+  const publishable = Deno.env.get('SUPABASE_ANON_KEY') ?? Deno.env.get('SUPABASE_PUBLISHABLE_KEY');
+  const authorization = request.headers.get('Authorization');
+  if (!url || !publishable || !authorization) throw new Error('SERVER_CONFIG');
+  return createClient(url, publishable, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { Authorization: authorization } },
+  });
+}
 
-  let ticket: UploadTicket | null = null;
+const defaultDependencies: ScanUploadDependencies = {
+  authenticate: authenticatedUser,
+  createUserClient: defaultUserClient,
+  appEnvironment: () => Deno.env.get('APP_ENV'),
+  log: (entry) => console.log(JSON.stringify(entry)),
+};
+
+async function boundedInput(request: Request): Promise<unknown> {
   try {
-    const user = await authenticatedUser(request);
-    const input = uploadInputSchema.parse(await request.json());
-    const db = serviceClient();
-    const { data: claimed, error: claimError } = await db.rpc('claim_file_upload', {
-      p_upload_id: input.uploadId,
-      p_user_id: user.id,
-    });
-    if (claimError || !claimed) throw new UploadScanError('upload_not_claimable');
-    ticket = uploadTicketSchema.parse(claimed);
-
-    const { data: object, error: downloadError } = await db.storage
-      .from(ticket.quarantineBucket)
-      .download(ticket.quarantinePath);
-    if (downloadError || !object) throw new UploadScanError('quarantine_download_failed', false);
-    const bytes = new Uint8Array(await object.arrayBuffer());
-    if (bytes.length !== ticket.sizeBytes || bytes.length > ticket.maxSizeBytes) {
-      throw new UploadScanError('uploaded_size_mismatch');
-    }
-
-    const result = await scan(ticket, bytes);
-    if (result.bytes.length > ticket.maxSizeBytes) {
-      throw new UploadScanError('sanitized_file_too_large');
-    }
-    const contentHash = await sha256Hex(result.bytes);
-    const { error: promoteError } = await db.storage
-      .from(ticket.targetBucket)
-      .upload(ticket.targetPath, result.bytes, {
-        contentType: result.detectedMimeType,
-        cacheControl: '0',
-        upsert: false,
-      });
-    if (promoteError) throw new UploadScanError('clean_file_promotion_failed', false);
-
-    const { data: completed, error: completionError } = await db.rpc('complete_file_upload', {
-      p_upload_id: ticket.uploadId,
-      p_user_id: ticket.userId,
-      p_detected_mime_type: result.detectedMimeType,
-      p_size_bytes: result.bytes.length,
-      p_content_sha256: contentHash,
-      p_final_path: ticket.targetPath,
-      p_scanner: result.scanner,
-      p_sanitized: result.sanitized,
-    });
-    if (completionError || !completed) {
-      await db.storage.from(ticket.targetBucket).remove([ticket.targetPath]);
-      throw new UploadScanError('upload_completion_failed', false);
-    }
-    const parsed = completionSchema.parse(completed);
-    const { error: quarantineDeleteError } = await db.storage
-      .from(ticket.quarantineBucket)
-      .remove([ticket.quarantinePath]);
-    if (quarantineDeleteError) {
-      console.error(JSON.stringify({ event: 'quarantine_cleanup_deferred' }));
-    }
-    return json(request, parsed);
-  } catch (error) {
-    const scanError = error instanceof UploadScanError
-      ? error
-      : new UploadScanError('unexpected_scan_failure', false);
-    if (ticket) {
-      await reportFailure(
-        ticket,
-        scanError.message,
-        scanError.terminal,
-        Deno.env.get('UPLOAD_SCANNER_MODE') ?? 'deterministic',
-      );
-    }
-    console.error(JSON.stringify({ event: 'upload_scan_failed', category: scanError.message }));
-    return json(
-      request,
-      { error: scanError.terminal ? 'file_rejected' : 'scanner_unavailable' },
-      scanError.terminal ? 422 : 503,
-    );
+    return (await readBoundedJson(request, 4096)).value;
+  } catch {
+    throw new Error('INVALID_SCAN_REQUEST');
   }
-});
+}
+
+function safeOwnerResponse(value: unknown) {
+  const parsed = ownerStatusSchema.parse(value);
+  return {
+    uploadId: parsed.uploadId,
+    status: parsed.status,
+    terminalCategory: parsed.terminalCategory,
+    sanitized: parsed.sanitized,
+    mimeType: parsed.mimeType,
+    sizeBytes: parsed.sizeBytes,
+    retryAt: parsed.retryAt,
+  };
+}
+
+export function createScanUploadHandler(dependencies: ScanUploadDependencies) {
+  return async (request: Request): Promise<Response> => {
+    const correlationId = crypto.randomUUID();
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: corsHeaders(request) });
+    }
+    if (request.method !== 'POST') return json(request, { error: 'method_not_allowed' }, 405);
+    try {
+      try {
+        parseAppEnvironment(dependencies.appEnvironment());
+      } catch {
+        throw new Error('SERVER_CONFIG');
+      }
+      const input = inputSchema.parse(await boundedInput(request));
+      await dependencies.authenticate(request);
+      const db = dependencies.createUserClient(request);
+      const result = input.action === 'start'
+        ? await db.rpc('start_or_get_media_scan', {
+          p_upload_id: input.uploadId,
+          p_operation_id: input.operationId,
+        })
+        : await db.rpc('get_my_file_upload_status', { p_upload_id: input.uploadId });
+      if (result.error) {
+        const databaseError = databaseErrorSchema.safeParse(result.error);
+        if (
+          input.action === 'start' && databaseError.success &&
+          databaseError.data.message === 'QUARANTINE_UPLOAD_INCOMPLETE'
+        ) {
+          return json(request, {
+            uploadId: input.uploadId,
+            status: 'terminal_failure',
+            terminalCategory: 'quarantine_upload_incomplete',
+            sanitized: false,
+            mimeType: null,
+            sizeBytes: null,
+            retryAt: null,
+          });
+        }
+        throw new Error('MEDIA_SCAN_STATE_UNAVAILABLE');
+      }
+      const safe = safeOwnerResponse(result.data);
+      dependencies.log({ event: 'media_scan_owner_state', status: safe.status, correlationId });
+      return json(request, safe);
+    } catch (error) {
+      if (error instanceof z.ZodError) return json(request, { error: 'invalid_request' }, 400);
+      return safeError(request, error, correlationId);
+    }
+  };
+}
+
+export const handleScanUpload = createScanUploadHandler(defaultDependencies);
+
+if (import.meta.main) Deno.serve(handleScanUpload);

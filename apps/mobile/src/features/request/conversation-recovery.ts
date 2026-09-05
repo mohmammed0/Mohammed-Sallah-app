@@ -3,14 +3,29 @@ import { chunkedSecureStorage } from '../../lib/secure-storage';
 import type { ConversationMessage } from './conversation-state';
 import { retainedMediaSchema } from '../../lib/durable-media';
 
-export const cleanUploadSchema = z.object({
-  uploadId: z.uuid(),
-  status: z.literal('clean'),
-  storagePath: z.string(),
-  mimeType: z.string(),
-  sizeBytes: z.number().int().positive(),
-  contentHash: z.string(),
-});
+export const cleanUploadSchema = z
+  .object({
+    uploadId: z.uuid(),
+    status: z.literal('clean'),
+    sanitized: z.literal(true).default(true),
+    mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'audio/mp4', 'video/mp4']),
+    sizeBytes: z
+      .number()
+      .int()
+      .positive()
+      .max(20 * 1024 * 1024),
+    // Accept these only while migrating old on-device snapshots. The transform
+    // strips both private fields so V2 callers cannot re-persist or submit them.
+    storagePath: z.string().optional(),
+    contentHash: z.string().optional(),
+  })
+  .transform((value) => ({
+    uploadId: value.uploadId,
+    status: value.status,
+    sanitized: value.sanitized,
+    mimeType: value.mimeType,
+    sizeBytes: value.sizeBytes,
+  }));
 export type RecoveredCleanUpload = z.infer<typeof cleanUploadSchema>;
 export const turnMediaBindingSchema = z.object({
   localMediaId: z.string().min(8).max(128),
@@ -25,9 +40,12 @@ export const pendingCustomerTurnSchema = z.object({
   mediaUploadIds: z.array(z.uuid()).max(4),
   localMediaIds: z.array(z.string().min(8).max(128)).max(4),
   mediaBindings: z.array(turnMediaBindingSchema).max(4).default([]),
-  transcript: z.string().min(1).max(8000).nullable().default(null),
-  transcriptionStatus: z.enum(['none', 'pending', 'retryable', 'completed']).default('none'),
+  transcript: z.string().max(8000).nullable().default(null),
+  transcriptionStatus: z
+    .enum(['none', 'pending', 'review', 'retryable', 'completed'])
+    .default('none'),
   confirmedCategorySlug: z.string().nullable(),
+  confirmedSubcategorySlug: z.string().nullable().default(null),
   summaryRequested: z.boolean(),
   createdAt: z.string(),
 });
@@ -40,6 +58,9 @@ const conversationMessageSchema = z.object({
   authoritative: z.boolean().optional(),
   temporary: z.boolean().optional(),
   mediaUploadIds: z.array(z.uuid()).optional(),
+  delivery: z.enum(['pending', 'retryable', 'offline', 'sent']).optional(),
+  inputKind: z.enum(['text', 'voice', 'image']).optional(),
+  transcriptStatus: z.enum(['pending', 'review', 'retryable', 'completed']).optional(),
 });
 
 export const aiIntakeSnapshotSchema = z.object({
@@ -56,6 +77,7 @@ export const aiIntakeSnapshotSchema = z.object({
       .nullable()
       .transform((value) => value ?? ''),
     selectedCategorySlug: z.string(),
+    selectedSubcategorySlug: z.string().default(''),
     categoryConfirmedByUser: z.boolean(),
     categorySelectionSource: z.enum(['ai_suggestion', 'customer_correction', 'manual']).nullable(),
     cityCode: z.string(),
@@ -64,6 +86,17 @@ export const aiIntakeSnapshotSchema = z.object({
       .enum(['asap', 'scheduled', 'today', 'flexible'])
       .transform((value) => (value === 'today' ? ('scheduled' as const) : value)),
     coordinates: z.object({ latitude: z.number(), longitude: z.number() }).nullable(),
+    selectedAddressId: z.uuid().nullable().default(null),
+    formattedAddress: z.string().max(500).default(''),
+    addressLabel: z.string().max(80).default(''),
+    building: z.string().max(80).default(''),
+    unit: z.string().max(80).default(''),
+    accessNotes: z.string().max(500).default(''),
+    requestedStart: z.string().datetime().nullable().default(null),
+    requestedEnd: z.string().datetime().nullable().default(null),
+    journeyStep: z
+      .enum(['category', 'chat', 'location', 'timing', 'review', 'success'])
+      .default('category'),
     diagnostic: z.unknown().nullable(),
     imageUpload: cleanUploadSchema.nullable(),
     voiceUpload: cleanUploadSchema.nullable(),
@@ -71,6 +104,24 @@ export const aiIntakeSnapshotSchema = z.object({
     activeImageMediaId: z.string().min(8).max(128).nullable().default(null),
     activeVoiceMediaId: z.string().min(8).max(128).nullable().default(null),
     requestMediaUploadIds: z.array(z.uuid()).max(8).default([]),
+    activeLocation: z
+      .object({
+        savedAddressId: z.uuid().nullable(),
+        label: z.string().max(80),
+        formattedAddress: z.string().max(500),
+        building: z.string().max(80).nullable(),
+        unit: z.string().max(80).nullable(),
+        accessNotes: z.string().max(500).nullable(),
+        cityCode: z.string().min(2).max(80),
+        cityNameAr: z.string(),
+        cityNameEn: z.string(),
+        coordinates: z.object({
+          latitude: z.number().finite().min(-90).max(90),
+          longitude: z.number().finite().min(-180).max(180),
+        }),
+      })
+      .nullable()
+      .optional(),
   }),
 });
 export type AiIntakeSnapshot = z.infer<typeof aiIntakeSnapshotSchema>;
@@ -131,12 +182,73 @@ export function retryFailedTranscriptionTurns(
   );
 }
 
+function assertVoiceTurn(turn: PendingCustomerTurn): void {
+  if (turn.inputKind !== 'voice') throw new Error('TRANSCRIPT_REVIEW_INVALID');
+}
+
+function boundedTranscript(value: string, allowBlank: boolean): string {
+  if (value.length > 8000 || (!allowBlank && value.trim().length === 0)) {
+    throw new Error('TRANSCRIPT_REVIEW_INVALID');
+  }
+  return allowBlank ? value : value.trim();
+}
+
+export function stageTranscriptReview(
+  turn: PendingCustomerTurn,
+  transcript: string,
+): PendingCustomerTurn {
+  assertVoiceTurn(turn);
+  const reviewed = boundedTranscript(transcript, false);
+  return pendingCustomerTurnSchema.parse({
+    ...turn,
+    text: reviewed,
+    transcript: reviewed,
+    transcriptionStatus: 'review',
+  });
+}
+
+export function updateTranscriptReview(
+  turn: PendingCustomerTurn,
+  transcript: string,
+): PendingCustomerTurn {
+  assertVoiceTurn(turn);
+  if (turn.transcriptionStatus !== 'review') throw new Error('TRANSCRIPT_REVIEW_INVALID');
+  const reviewed = boundedTranscript(transcript, true);
+  return pendingCustomerTurnSchema.parse({ ...turn, text: reviewed, transcript: reviewed });
+}
+
+export function confirmTranscriptReview(turn: PendingCustomerTurn): PendingCustomerTurn {
+  assertVoiceTurn(turn);
+  if (turn.transcriptionStatus !== 'review' || turn.transcript === null) {
+    throw new Error('TRANSCRIPT_REVIEW_INVALID');
+  }
+  const reviewed = boundedTranscript(turn.transcript, false);
+  return pendingCustomerTurnSchema.parse({
+    ...turn,
+    text: reviewed,
+    transcript: reviewed,
+    transcriptionStatus: 'completed',
+  });
+}
+
+export class TranscriptReviewRequiredError extends Error {
+  constructor() {
+    super('TRANSCRIPT_REVIEW_REQUIRED');
+    this.name = 'TranscriptReviewRequiredError';
+  }
+}
+
+export function isTranscriptReviewRequiredError(error: unknown): boolean {
+  return error instanceof TranscriptReviewRequiredError;
+}
+
 export async function replayPendingTurns<T>(
   turns: readonly PendingCustomerTurn[],
   send: (turn: PendingCustomerTurn) => Promise<T>,
 ): Promise<{
   completed: Array<{ turn: PendingCustomerTurn; value: T }>;
   pending: PendingCustomerTurn[];
+  error?: unknown;
 }> {
   const unique = turns.filter(
     (turn, index) =>
@@ -148,8 +260,8 @@ export async function replayPendingTurns<T>(
     if (!turn) continue;
     try {
       completed.push({ turn, value: await send(turn) });
-    } catch {
-      return { completed, pending: unique.slice(index) };
+    } catch (error) {
+      return { completed, pending: unique.slice(index), error };
     }
   }
   return { completed, pending: [] };
@@ -170,13 +282,17 @@ export function reconcileAuthoritativeTurn(
       text: turn.text,
       clientMessageId: turn.clientMessageId,
       authoritative: true,
+      delivery: 'sent',
       mediaUploadIds: turn.mediaUploadIds,
+      inputKind: turn.inputKind,
+      transcriptStatus: turn.inputKind === 'voice' ? 'completed' : undefined,
     },
     {
       role: 'assistant',
       text: assistantText,
       clientMessageId: turn.clientMessageId,
       authoritative: true,
+      delivery: 'sent',
     },
   ];
 }
@@ -186,17 +302,27 @@ export function appendTemporaryFallback(
   turn: PendingCustomerTurn,
   assistantText: string,
 ): ConversationMessage[] {
-  if (conversation.some((message) => message.clientMessageId === turn.clientMessageId)) {
-    return [...conversation];
-  }
+  const retained = conversation.filter(
+    (message) => message.clientMessageId !== turn.clientMessageId,
+  );
   return [
-    ...conversation,
+    ...retained,
     {
       role: 'user',
       text: turn.text,
       clientMessageId: turn.clientMessageId,
       authoritative: false,
+      delivery: 'offline',
       mediaUploadIds: turn.mediaUploadIds,
+      inputKind: turn.inputKind,
+      transcriptStatus:
+        turn.inputKind === 'voice'
+          ? turn.transcriptionStatus === 'review'
+            ? 'review'
+            : turn.transcriptionStatus === 'retryable'
+              ? 'retryable'
+              : 'pending'
+          : undefined,
     },
     {
       role: 'assistant',
@@ -204,6 +330,7 @@ export function appendTemporaryFallback(
       clientMessageId: turn.clientMessageId,
       authoritative: false,
       temporary: true,
+      delivery: 'offline',
     },
   ];
 }

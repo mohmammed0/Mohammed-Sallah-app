@@ -6,13 +6,15 @@
   "exports": {
     ".": "./src/index.ts",
     "./branding": "./src/branding.ts",
-    "./env": "./src/env.ts"
+    "./env": "./src/env.ts",
+    "./release": "./src/release.ts",
+    "./web": "./src/web.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --exclude dist/**"
+    "test": "vitest run --exclude \"dist/**\""
   },
   "dependencies": {
     "zod": "4.4.3"

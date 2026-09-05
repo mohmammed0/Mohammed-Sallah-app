@@ -1,11 +1,29 @@
 import { useEffect, useState } from 'react';
-import { Alert, Switch, Text, TextInput, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { formatStatusLabel } from '@sallah/i18n';
-import { Button, Card, Screen, styles } from '@/components/ui';
+import { formatStatusLabel, localeNativeNames, supportedLocales } from '@sallah/i18n';
+import { styles } from '@/components/ui';
+import {
+  ActionButton,
+  Field,
+  InteractivePressable,
+  Notice,
+  Surface,
+  customerStyles,
+} from '@/design-system/primitives';
+import { AppIcon } from '@/design-system/icon';
+import { customerTokens as tokens } from '@/design-system/tokens';
+import {
+  logicalFlexDirection,
+  logicalTextAlignment,
+  logicalWritingDirection,
+} from '@/design-system/rtl';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/providers/locale-provider';
 import { useSessionContext } from '@/providers/session-provider';
+import { productLandingRoute } from '@/features/auth/route-policy';
+import { useCustomerLocation } from '@/features/location/location-provider';
+import { revokeExpoPushDevice } from '@/features/notifications/expo-push-runtime';
 
 interface NotificationPreferences {
   in_app: boolean;
@@ -23,11 +41,24 @@ const defaultNotifications: NotificationPreferences = {
 export default function Account() {
   const { locale, setLocale, t } = useLocale();
   const [status, setStatus] = useState('');
+  const [providerSwitchPending, setProviderSwitchPending] = useState(false);
   const [notifications, setNotifications] = useState(defaultNotifications);
   const [userId, setUserId] = useState<string | null>(null);
   const [reauthPassword, setReauthPassword] = useState('');
+  const [passwordFocused, setPasswordFocused] = useState(false);
   const [deletionSummary, setDeletionSummary] = useState<Record<string, unknown> | null>(null);
-  const { context, signOutAll } = useSessionContext();
+  const { context, setActiveRole, signOutAll } = useSessionContext();
+  const { activeLocation } = useCustomerLocation();
+  const textDirection = {
+    textAlign: logicalTextAlignment(locale),
+    writingDirection: logicalWritingDirection(locale),
+  } as const;
+  const rowDirection = { flexDirection: logicalFlexDirection(locale) } as const;
+  useEffect(() => {
+    if (!providerSwitchPending || context?.activeRole !== 'provider') return;
+    setProviderSwitchPending(false);
+    router.replace(productLandingRoute(context));
+  }, [context, providerSwitchPending]);
   async function loadDeletionSummary() {
     const result = await (
       supabase.rpc as unknown as (
@@ -110,48 +141,130 @@ export default function Account() {
     }
   }
   async function logout() {
+    await revokeExpoPushDevice('all', t('notificationPush'));
     await signOutAll();
     router.replace('/');
   }
+  async function switchToProvider() {
+    setProviderSwitchPending(true);
+    try {
+      await setActiveRole('provider');
+    } catch {
+      setProviderSwitchPending(false);
+      setStatus(t('authFailed'));
+    }
+  }
   return (
-    <Screen>
-      <Text style={styles.title}>{t('accountPrivacyTitle')}</Text>
+    <ScrollView
+      contentContainerStyle={[styles.scrollScreen, { direction: logicalWritingDirection(locale) }]}
+      contentInsetAdjustmentBehavior="automatic"
+      keyboardShouldPersistTaps="handled"
+    >
+      <Surface tone="accent" style={accountStyles.header}>
+        <View style={[accountStyles.headingRow, rowDirection]}>
+          <View style={accountStyles.accountIcon}>
+            <AppIcon color={tokens.colors.primaryStrong} name="customer" size={32} />
+          </View>
+          <View style={accountStyles.headingText}>
+            <Text accessibilityRole="header" style={[customerStyles.title, textDirection]}>
+              {t('accountPrivacyTitle')}
+            </Text>
+            <Text style={[customerStyles.bodyMuted, textDirection]}>
+              {t('accountSettingsLead')}
+            </Text>
+          </View>
+        </View>
+      </Surface>
       {context && !context.allowed && (
-        <Card>
-          <Text accessibilityLiveRegion="polite" style={styles.error}>
-            {t('accountRestricted', {
-              status: formatStatusLabel(context.accountStatus ?? 'unknown', locale),
-            })}
-          </Text>
-        </Card>
+        <Notice live tone="danger">
+          {t('accountRestricted', {
+            status: formatStatusLabel(context.accountStatus ?? 'unknown', locale),
+          })}
+        </Notice>
       )}
-      <Card>
-        <Text style={styles.badge}>{t('language')}</Text>
-        <View style={styles.row}>
-          {(['ar', 'en', 'ur', 'hi'] as const).map((code) => (
-            <Button
+      {context?.roles.includes('customer') ? (
+        <Surface>
+          <View style={[accountStyles.headingRow, rowDirection]}>
+            <AppIcon color={tokens.colors.primaryStrong} name="location" />
+            <Text accessibilityRole="header" style={[customerStyles.section, textDirection]}>
+              {t('currentLocation')}
+            </Text>
+          </View>
+          <Text selectable style={[customerStyles.body, textDirection]}>
+            {activeLocation?.label ?? t('locationNotSelected')}
+          </Text>
+          {activeLocation?.formattedAddress ? (
+            <Text selectable style={[customerStyles.bodyMuted, textDirection]}>
+              {activeLocation.formattedAddress}
+            </Text>
+          ) : null}
+          <ActionButton
+            variant="secondary"
+            label={t('changeLocation')}
+            onPress={() => router.push('/locations')}
+          />
+        </Surface>
+      ) : null}
+      {context?.roles.includes('provider') && context.activeRole !== 'provider' ? (
+        <ActionButton
+          variant="secondary"
+          icon="tools"
+          label={t('provider')}
+          onPress={() => void switchToProvider()}
+        />
+      ) : null}
+      <Surface>
+        <Text accessibilityRole="header" style={[customerStyles.section, textDirection]}>
+          {t('language')}
+        </Text>
+        <View
+          accessibilityRole="radiogroup"
+          accessibilityLabel={t('language')}
+          style={[accountStyles.languages, rowDirection]}
+        >
+          {supportedLocales.map((code) => (
+            <InteractivePressable
               key={code}
-              kind={locale === code ? 'primary' : 'secondary'}
-              label={code.toUpperCase()}
+              accessibilityLabel={localeNativeNames[code]}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: locale === code }}
               onPress={() => void updateLocale(code)}
-            />
+              style={[
+                accountStyles.languageOption,
+                rowDirection,
+                locale === code && accountStyles.languageSelected,
+              ]}
+            >
+              <Text
+                style={[
+                  accountStyles.languageLabel,
+                  {
+                    textAlign: logicalTextAlignment(code),
+                    writingDirection: logicalWritingDirection(code),
+                  },
+                ]}
+              >
+                {localeNativeNames[code]}
+              </Text>
+              <View style={accountStyles.selectionMark}>
+                {locale === code ? (
+                  <AppIcon color={tokens.colors.primaryStrong} name="check" size={20} />
+                ) : null}
+              </View>
+            </InteractivePressable>
           ))}
         </View>
-      </Card>
-      <Card>
-        <Text style={styles.badge}>{t('reauthTitle')}</Text>
-        <Text style={styles.lead}>{t('reauthLead')}</Text>
-        <TextInput
-          accessibilityLabel={t('password')}
-          style={styles.input}
-          value={reauthPassword}
-          onChangeText={setReauthPassword}
-          secureTextEntry
-          autoComplete="current-password"
-        />
-      </Card>
-      <Card>
-        <Text style={styles.badge}>{t('notificationPreferences')}</Text>
+      </Surface>
+      <Surface>
+        <View style={[accountStyles.headingRow, rowDirection]}>
+          <AppIcon color={tokens.colors.primaryStrong} name="bell" />
+          <Text
+            accessibilityRole="header"
+            style={[customerStyles.section, textDirection, accountStyles.headingText]}
+          >
+            {t('notificationPreferences')}
+          </Text>
+        </View>
         {(
           [
             ['in_app', t('notificationInApp')],
@@ -160,67 +273,158 @@ export default function Account() {
             ['marketing', t('notificationMarketing')],
           ] as const
         ).map(([key, label]) => (
-          <View key={key} style={styles.row}>
-            <Text style={[styles.lead, { flex: 1 }]}>{label}</Text>
+          <View key={key} style={[accountStyles.notificationRow, rowDirection]}>
+            <Text style={[customerStyles.body, accountStyles.notificationLabel, textDirection]}>
+              {label}
+            </Text>
             <Switch
               accessibilityLabel={label}
+              trackColor={{ false: tokens.colors.borderStrong, true: tokens.colors.primary }}
+              thumbColor={tokens.colors.white}
               value={notifications[key]}
               onValueChange={(enabled) => void updateNotifications(key, enabled)}
             />
           </View>
         ))}
-      </Card>
-      <Button
-        kind="secondary"
-        label={t('requestDataExport')}
-        onPress={() => void command('request_data_export')}
-      />
-      <Button
-        kind="danger"
-        label={t('startAccountDeletion')}
-        onPress={() =>
-          Alert.alert(t('deleteAccount'), t('deletionConfirmBody'), [
-            { text: t('back'), style: 'cancel' },
-            {
-              text: t('continueAction'),
-              style: 'destructive',
-              onPress: () => void command('request_account_deletion'),
-            },
-          ])
-        }
-      />
-      <Button kind="secondary" label={t('logoutAllDevices')} onPress={() => void logout()} />
-      {deletionSummary && (
-        <Card>
-          <Text style={styles.badge}>{t('deletionStatusSummary')}</Text>
-          <Text style={styles.lead}>
-            {formatStatusLabel(
-              typeof deletionSummary.status === 'string' ? deletionSummary.status : 'unknown',
-              locale,
+      </Surface>
+      <Surface style={accountStyles.privacy}>
+        <View style={[accountStyles.headingRow, rowDirection]}>
+          <AppIcon color={tokens.colors.primaryStrong} name="shield" />
+          <Text accessibilityRole="header" style={[customerStyles.section, textDirection]}>
+            {t('privacy')}
+          </Text>
+        </View>
+        <ActionButton
+          label={t('legalDocuments')}
+          onPress={() => router.push('/legal')}
+          variant="ghost"
+        />
+        <ActionButton
+          label={t('support')}
+          onPress={() => router.push('/support')}
+          variant="ghost"
+        />
+        <Text style={[customerStyles.bodyMuted, textDirection]}>{t('reauthLead')}</Text>
+        <Field
+          label={t('currentPassword')}
+          accessibilityHint={t('reauthLead')}
+          style={passwordFocused ? accountStyles.inputFocused : undefined}
+          value={reauthPassword}
+          onChangeText={setReauthPassword}
+          onFocus={() => setPasswordFocused(true)}
+          onBlur={() => setPasswordFocused(false)}
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="current-password"
+          textContentType="password"
+        />
+        <ActionButton
+          variant="secondary"
+          label={t('requestDataExport')}
+          onPress={() => void command('request_data_export')}
+        />
+        <ActionButton
+          variant="danger"
+          label={t('startAccountDeletion')}
+          onPress={() =>
+            Alert.alert(t('deleteAccount'), t('deletionConfirmBody'), [
+              { text: t('back'), style: 'cancel' },
+              {
+                text: t('continueAction'),
+                style: 'destructive',
+                onPress: () => void command('request_account_deletion'),
+              },
+            ])
+          }
+        />
+        {deletionSummary && (
+          <Surface tone="muted">
+            <Text accessibilityRole="header" style={[customerStyles.section, textDirection]}>
+              {t('deletionStatusSummary')}
+            </Text>
+            <Text selectable style={[customerStyles.body, textDirection]}>
+              {formatStatusLabel(
+                typeof deletionSummary.status === 'string' ? deletionSummary.status : 'unknown',
+                locale,
+              )}
+            </Text>
+            <Text style={[customerStyles.bodyMuted, textDirection]}>
+              {t('deletionBlockersSummary', {
+                count: Object.values(
+                  (deletionSummary.blockers as Record<string, unknown> | undefined) ?? {},
+                ).filter((value) => typeof value === 'number' && value > 0).length,
+              })}
+            </Text>
+            {typeof deletionSummary.failureCategory === 'string' && (
+              <Text selectable style={[styles.error, textDirection]}>
+                {String(deletionSummary.failureCategory)}
+              </Text>
             )}
-          </Text>
-          <Text style={styles.lead}>
-            {t('deletionBlockersSummary', {
-              count: Object.values(
-                (deletionSummary.blockers as Record<string, unknown> | undefined) ?? {},
-              ).filter((value) => typeof value === 'number' && value > 0).length,
-            })}
-          </Text>
-          {typeof deletionSummary.failureCategory === 'string' && (
-            <Text style={styles.error}>{String(deletionSummary.failureCategory)}</Text>
-          )}
-          <Button
-            kind="secondary"
-            label={t('refreshDeletionStatus')}
-            onPress={() => void loadDeletionSummary()}
-          />
-        </Card>
-      )}
-      {status.length > 0 && (
-        <Text accessibilityLiveRegion="polite" style={styles.lead}>
-          {status}
-        </Text>
-      )}
-    </Screen>
+            <ActionButton
+              variant="secondary"
+              icon="refresh"
+              label={t('refreshDeletionStatus')}
+              onPress={() => void loadDeletionSummary()}
+            />
+          </Surface>
+        )}
+      </Surface>
+      <ActionButton
+        variant="secondary"
+        label={t('logoutAllDevices')}
+        onPress={() => void logout()}
+      />
+      {status.length > 0 && <Notice live>{status}</Notice>}
+    </ScrollView>
   );
 }
+
+const accountStyles = StyleSheet.create({
+  header: { padding: tokens.spacing.lg },
+  headingRow: { alignItems: 'center', gap: tokens.spacing.sm },
+  headingText: { flex: 1, gap: tokens.spacing.xs },
+  accountIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: tokens.radius.md,
+    backgroundColor: tokens.colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  languages: { flexWrap: 'wrap', gap: tokens.spacing.sm },
+  languageOption: {
+    flexBasis: '45%',
+    flexGrow: 1,
+    minHeight: tokens.touchTarget,
+    padding: tokens.spacing.sm,
+    borderRadius: tokens.radius.md,
+    borderWidth: tokens.focusRing.width,
+    borderColor: tokens.colors.border,
+    backgroundColor: tokens.colors.surface,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: tokens.spacing.xs,
+  },
+  languageSelected: {
+    backgroundColor: tokens.colors.primarySoft,
+    borderColor: tokens.colors.primary,
+  },
+  languageLabel: { ...tokens.type.body, color: tokens.colors.ink, flexShrink: 1 },
+  selectionMark: { width: 20, height: 20 },
+  notificationRow: {
+    alignItems: 'center',
+    gap: tokens.spacing.md,
+    minHeight: tokens.touchTarget,
+    paddingVertical: tokens.spacing.xs,
+    borderTopWidth: 1,
+    borderColor: tokens.colors.border,
+  },
+  notificationLabel: { flex: 1 },
+  privacy: { gap: tokens.spacing.md },
+  inputFocused: {
+    borderWidth: tokens.focusRing.width,
+    borderColor: tokens.focusRing.color,
+    borderRadius: tokens.radius.sm,
+  },
+});

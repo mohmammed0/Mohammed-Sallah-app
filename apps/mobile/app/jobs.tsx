@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { MarketplaceApi } from '@sallah/api';
 import { formatSar, formatStatusLabel, type TranslationKey } from '@sallah/i18n';
 import { Button, Card, LoadingSkeleton, Screen, styles } from '@/components/ui';
+import { ProgressTimeline, resolveTimelineIndex } from '@/design-system/customer-components';
 import { supabase } from '@/lib/supabase';
 import { secureUpload } from '@/lib/secure-upload';
 import { useLocale } from '@/providers/locale-provider';
@@ -15,6 +16,11 @@ import { reduceLocationSharing, type LocationSharingState } from '@/features/job
 import { JobTrackingMap } from '@/features/jobs/job-tracking-map';
 import { allCompletionEvidenceViewed } from '@/features/jobs/completion-evidence';
 import { executeJournaledMutation, type MutationOperation } from '@/lib/mutation-journal';
+import type { MarketplaceReportIntent } from '@sallah/domain/trust';
+import { TrustControls } from '../src/features/trust/trust-controls';
+import { createTrustRpcClient, submitMarketplaceReport } from '../src/features/trust/trust-client';
+
+const trustClient = createTrustRpcClient(supabase);
 
 const changeOrderSchema = z.object({
   id: z.uuid(),
@@ -23,6 +29,14 @@ const changeOrderSchema = z.object({
   revised_total_minor: z.number().int(),
   status: z.string(),
   expires_at: z.string(),
+});
+const ratingSchema = z.object({
+  id: z.uuid(),
+  customer_id: z.uuid(),
+  provider_id: z.uuid(),
+  score: z.number().int().min(1).max(5),
+  review: z.string().nullable(),
+  moderation_status: z.string(),
 });
 const jobSchema = z.object({
   id: z.uuid(),
@@ -67,6 +81,7 @@ const jobSchema = z.object({
       }),
     )
     .default([]),
+  ratings: z.array(ratingSchema).default([]),
 });
 type Job = z.infer<typeof jobSchema>;
 const providerNext: Record<string, string | undefined> = {
@@ -96,6 +111,17 @@ const disputeStatusKeys: Record<string, TranslationKey> = {
   resolved: 'disputeResolved',
   closed: 'disputeClosed',
 };
+const jobTimelineStatuses = [
+  'provider_selected',
+  'scheduled',
+  'en_route',
+  'arrived',
+  'diagnosing',
+  'awaiting_change_order_approval',
+  'in_progress',
+  'completion_submitted',
+  'completed',
+] as const;
 
 export default function Jobs() {
   const { locale, t } = useLocale();
@@ -147,7 +173,7 @@ export default function Jobs() {
       const { data, error } = await supabase
         .from('jobs')
         .select(
-          'id,customer_id,provider_id,status,approved_total_minor,version,created_at,payments(amount_minor,refunded_minor,status),conversations(id),job_location_updates(captured_at,expires_at),change_orders(id,reason,description,revised_total_minor,status,expires_at),cancellation_requests(id,status,reason,created_at),disputes(id,status,reason,created_at,resolved_at)',
+          'id,customer_id,provider_id,status,approved_total_minor,version,created_at,payments(amount_minor,refunded_minor,status),conversations(id),job_location_updates(captured_at,expires_at),change_orders(id,reason,description,revised_total_minor,status,expires_at),cancellation_requests(id,status,reason,created_at),disputes(id,status,reason,created_at,resolved_at),ratings(id,customer_id,provider_id,score,review,moderation_status)',
         )
         .order('created_at', { ascending: false })
         .limit(50);
@@ -177,6 +203,9 @@ export default function Jobs() {
       payload,
       execute,
     });
+  }
+  function submitTrustReport(intent: MarketplaceReportIntent) {
+    return submitMarketplaceReport(trustClient, intent);
   }
   function transition(job: Job, status: string) {
     const transitionReason = reason.trim() || t('jobStatusUpdateReason');
@@ -214,21 +243,29 @@ export default function Jobs() {
     if ((asset.fileSize ?? 0) > 20 * 1024 * 1024) throw new Error('PROOF_TOO_LARGE');
     const response = await fetch(asset.uri);
     const bytes = new Uint8Array(await response.arrayBuffer());
-    const mimeType = asset.mimeType ?? 'image/jpeg';
-    const extension = mimeType === 'video/mp4' ? 'mp4' : mimeType === 'image/png' ? 'png' : 'jpg';
+    const mimeType = asset.mimeType ?? (asset.type === 'video' ? 'video/mp4' : 'image/jpeg');
+    if (!['image/jpeg', 'image/png', 'image/webp', 'video/mp4'].includes(mimeType)) {
+      throw new Error('PROOF_MEDIA_UNSUPPORTED');
+    }
+    const extension =
+      mimeType === 'video/mp4'
+        ? 'mp4'
+        : mimeType === 'image/png'
+          ? 'png'
+          : mimeType === 'image/webp'
+            ? 'webp'
+            : 'jpg';
     const upload = await secureUpload({
       bytes,
       filename: `${globalThis.crypto.randomUUID()}.${extension}`,
       mimeType,
       purpose: 'completion_proof',
       resourceId: job.id,
+      recoveryKey: `completion-proof:${job.id}:${job.version}`,
     });
     const proofs = [
       {
         uploadId: upload.uploadId,
-        storagePath: upload.storagePath,
-        mimeType: upload.mimeType,
-        sizeBytes: upload.sizeBytes,
         description: t('completionEvidenceDescription'),
       },
     ];
@@ -246,9 +283,6 @@ export default function Jobs() {
             proofs: z.array(
               z.object({
                 uploadId: z.uuid(),
-                storagePath: z.string(),
-                mimeType: z.string(),
-                sizeBytes: z.number().int(),
                 description: z.string(),
               }),
             ),
@@ -633,7 +667,14 @@ export default function Jobs() {
           placeholder={t('actionReasonPlaceholder')}
         />
         {query.isPending && <LoadingSkeleton label={t('loadingJobs')} />}
-        {query.isError && <Text style={styles.error}>{t('signInToLoadJobs')}</Text>}
+        {query.isError && (
+          <Card>
+            <Text accessibilityRole="alert" style={styles.error}>
+              {t('signInToLoadJobs')}
+            </Text>
+            <Button kind="secondary" label={t('retry')} onPress={() => void query.refetch()} />
+          </Card>
+        )}
         {query.data?.jobs.map((job) => {
           const customer = job.customer_id === query.data?.userId;
           const openCancellation = job.cancellation_requests.find((item) =>
@@ -645,6 +686,7 @@ export default function Jobs() {
           );
           const latestDispute = openDisputeCase ?? job.disputes[0];
           const jobProofs = proofs[job.id] ?? [];
+          const timelineIndex = resolveTimelineIndex(jobTimelineStatuses, job.status);
           const allProofsViewed = allCompletionEvidenceViewed(
             jobProofs.map((proof) => proof.id),
             proofViewed,
@@ -655,9 +697,25 @@ export default function Jobs() {
               : !customer
                 ? providerNext[job.status]
                 : undefined;
+          const reportableRatings =
+            !customer && job.status === 'completed'
+              ? job.ratings.filter(
+                  (item) =>
+                    item.provider_id === query.data?.userId && item.customer_id === job.customer_id,
+                )
+              : [];
           return (
             <Card key={job.id}>
               <Text style={styles.badge}>{formatStatusLabel(job.status, locale)}</Text>
+              {timelineIndex !== null ? (
+                <ProgressTimeline
+                  currentIndex={timelineIndex}
+                  steps={jobTimelineStatuses.map((status) => ({
+                    id: status,
+                    label: formatStatusLabel(status, locale),
+                  }))}
+                />
+              ) : null}
               <Text>
                 {t('approvedTotal', { amount: formatSar(job.approved_total_minor, locale) })}
               </Text>
@@ -856,6 +914,20 @@ export default function Jobs() {
                   <Button kind="secondary" label={t('openConversation')} />
                 </Link>
               )}
+              {reportableRatings.map((item) => (
+                <Card key={item.id}>
+                  <Text style={styles.lead}>{t('trustRatingTitle')}</Text>
+                  <Text>{t('trustRatingScore', { score: item.score })}</Text>
+                  {item.review ? <Text style={styles.lead}>{item.review}</Text> : null}
+                  <TrustControls
+                    onCompleted={async () => {
+                      await query.refetch();
+                    }}
+                    onSubmitReport={submitTrustReport}
+                    target={{ targetType: 'rating', targetId: item.id }}
+                  />
+                </Card>
+              ))}
               {!['completed', 'cancelled', 'disputed'].includes(job.status) &&
                 !openCancellation && (
                   <Button

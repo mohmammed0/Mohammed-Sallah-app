@@ -65,28 +65,16 @@ export const pages = {
     ],
   },
   contact: {
-    ar: [
-      'تواصل معنا',
-      'بريد الدعم النهائي مطلوب قبل الإطلاق. يستخدم التطوير support@example.invalid فقط.',
-    ],
-    en: [
-      'Contact us',
-      'A final support address is required before launch. Development uses support@example.invalid only.',
-    ],
+    ar: [translate('ar', 'publicContact'), translate('ar', 'publicContactUnavailable')],
+    en: [translate('en', 'publicContact'), translate('en', 'publicContactUnavailable')],
   },
   privacy: {
-    ar: [
-      'قالب إشعار الخصوصية',
-      'نجمع الحد الأدنى اللازم لتشغيل السوق. هذا القالب يحتاج مراجعة قانونية سعودية قبل النشر.',
-    ],
-    en: [
-      'Privacy notice template',
-      'We minimize data needed to operate the marketplace. Saudi legal counsel must review this template before publication.',
-    ],
+    ar: [translate('ar', 'privacy'), translate('ar', 'publicLegalUnavailable')],
+    en: [translate('en', 'privacy'), translate('en', 'publicLegalUnavailable')],
   },
   terms: {
-    ar: ['قالب شروط الاستخدام', 'هذه مسودة جاهزة للمراجعة وليست إقرارًا بالامتثال القانوني.'],
-    en: ['Terms template', 'This is a review-ready draft and not a claim of legal compliance.'],
+    ar: [translate('ar', 'terms'), translate('ar', 'publicLegalUnavailable')],
+    en: [translate('en', 'terms'), translate('en', 'publicLegalUnavailable')],
   },
   cancellation: {
     ar: [
@@ -109,14 +97,8 @@ export const pages = {
     ],
   },
   'community-standards': {
-    ar: [
-      'معايير المحتوى والمجتمع',
-      'يُمنع الإساءة والاحتيال ومشاركة بيانات شخصية لا يحتاجها تنفيذ الخدمة.',
-    ],
-    en: [
-      'Community standards',
-      'Abuse, fraud, and unnecessary sharing of personal information are prohibited.',
-    ],
+    ar: [translate('ar', 'publicCommunityStandards'), translate('ar', 'publicLegalUnavailable')],
+    en: [translate('en', 'publicCommunityStandards'), translate('en', 'publicLegalUnavailable')],
   },
   'data-export': {
     ar: ['تصدير البيانات', 'اطلب حزمة خاصة موقعة مؤقتًا من إعدادات حسابك أو نموذج الدعم.'],
@@ -127,3 +109,4 @@ export const pages = {
   },
 } as const;
 export type PublicSlug = keyof typeof pages;
+import { translate } from '@sallah/i18n';
