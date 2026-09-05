@@ -1707,6 +1707,8 @@ const en: TranslationShape = {
 };
 const ur: TranslationShape = {
   ...en,
+  privacy: 'رازداری',
+  terms: 'شرائط',
   welcomeBadge: 'سعودی عرب میں خدمات',
   welcomeLead:
     'مسئلہ بیان کریں، درخواست کا جائزہ لیں اور اہل فراہم کنندگان کی نجی پیشکشوں کا موازنہ کریں۔',
@@ -2172,6 +2174,8 @@ const ur: TranslationShape = {
 };
 const hi: TranslationShape = {
   ...en,
+  privacy: 'गोपनीयता',
+  terms: 'नियम और शर्तें',
   welcomeBadge: 'सऊदी अरब में सेवाएँ',
   welcomeLead:
     'समस्या बताएं, अनुरोध की समीक्षा करें और योग्य सेवा प्रदाताओं के निजी प्रस्तावों की तुलना करें।',

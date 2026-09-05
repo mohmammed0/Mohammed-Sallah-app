@@ -3,7 +3,7 @@ appId: sa.example.sallah
 - launchApp:
     clearState: true
 - assertVisible: 'صلّح'
-- tapOn: 'AR'
+- tapOn: 'العربية'
 - tapOn: 'الرئيسية'
 - tapOn: 'اطلب خدمة'
 - tapOn: 'اشرح المشكلة'

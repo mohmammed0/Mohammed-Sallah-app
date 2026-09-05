@@ -2,6 +2,36 @@ import { describe, expect, it } from 'vitest';
 import { direction, formatStatusLabel, resources, supportedLocales, translate } from '../src';
 
 describe('localization', () => {
+  it.each(['ur', 'hi'] as const)(
+    'does not fall back to English in the %s launch entry and policy reader',
+    (locale) => {
+      const keys = [
+        'welcomeBadge',
+        'welcomeLead',
+        'signIn',
+        'privacy',
+        'terms',
+        'retry',
+        'publicLegalUnavailable',
+        'publicContactUnavailable',
+        'publicContactLead',
+        'publicCommunityStandards',
+        'publicContact',
+        'publicNavigation',
+        'publicSkipToContent',
+        'publicHome',
+        'publicLegalLoading',
+        'publicDocumentLanguage',
+      ] as const;
+      for (const key of keys) {
+        const value = translate(locale, key);
+        expect(value, `${locale}.${key}`).not.toBe(translate('en', key));
+        expect(value, `${locale}.${key}`).toMatch(
+          locale === 'ur' ? /[\u0600-\u06ff]/u : /[\u0900-\u097f]/u,
+        );
+      }
+    },
+  );
   it('keeps key parity', () => {
     const base = Object.keys(resources.ar.translation).sort();
     for (const locale of supportedLocales)
