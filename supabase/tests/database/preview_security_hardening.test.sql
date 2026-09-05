@@ -59,9 +59,10 @@ select is(
      and has_function_privilege('anon',p.oid,'EXECUTE')),
   array[
     'private.provider_public_profile_rows()',
+    'public.get_legal_consent_context(text)',
     'public.request_external_account_deletion(text, text)'
   ]::text[],
-  'anon can execute only the two reviewed public contracts'
+  'anon can execute only the three reviewed public contracts including the approved-policy reader'
 );
 select ok(
   not has_function_privilege('authenticated','public.get_data_export_manifest_v3()','EXECUTE'),
