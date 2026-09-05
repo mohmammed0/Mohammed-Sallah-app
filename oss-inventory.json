@@ -1,6 +1,38 @@
 {
   "generatedAt": "2026-09-05",
   "policy": "Exact versions from pnpm lock; ship permissive dependencies. Package-scoped build/data exceptions are documented.",
+  "ciActions": [
+    {
+      "action": "actions/upload-artifact",
+      "version": "7.0.1",
+      "commit": "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+      "license": "MIT",
+      "licenseSource": "https://github.com/actions/upload-artifact/blob/043fb46d1a93c77aae656e7c1c64a875d1fc6a0a/LICENSE",
+      "source": "https://github.com/actions/upload-artifact/releases/tag/v7.0.1",
+      "workflows": [".github/workflows/ci.yml"],
+      "scope": "Reviewed CI action source; not an application runtime dependency or a complete inventory of the hosted runner"
+    },
+    {
+      "action": "actions/setup-node",
+      "version": "7.0.0",
+      "commit": "820762786026740c76f36085b0efc47a31fe5020",
+      "license": "MIT",
+      "licenseSource": "https://github.com/actions/setup-node/blob/820762786026740c76f36085b0efc47a31fe5020/LICENSE",
+      "source": "https://github.com/actions/setup-node/releases/tag/v7.0.0",
+      "workflows": [".github/workflows/ci.yml", ".github/workflows/release-readiness.yml"],
+      "scope": "Reviewed CI action source; retains the project Node version from .nvmrc and the separately pinned pnpm toolchain"
+    },
+    {
+      "action": "supabase/setup-cli",
+      "version": "3.0.0",
+      "commit": "46f7f98c7f948ad727d22c1e67fab04c223a0520",
+      "license": "MIT",
+      "licenseSource": "https://github.com/supabase/setup-cli/blob/46f7f98c7f948ad727d22c1e67fab04c223a0520/LICENSE",
+      "source": "https://github.com/supabase/setup-cli/releases/tag/v3.0.0",
+      "workflows": [".github/workflows/ci.yml"],
+      "scope": "Reviewed CI action source; installs the unchanged Supabase CLI 2.114.0 via npm in a temporary prefix. Its explicit version input does not verify the repository pnpm lockfile integrity. The CLI and action dependencies retain their own licenses"
+    }
+  ],
   "securityOverrides": [
     {
       "package": "decode-uri-component",
@@ -128,7 +160,7 @@
     {
       "project": "vercel/next.js",
       "package": "next",
-      "version": "16.3.1",
+      "version": "16.3.4",
       "license": "MIT",
       "use": "public web and operations portal",
       "security": "Vercel security policy/advisories"
@@ -326,6 +358,20 @@
       "packages": ["caniuse-lite", "spdx-exceptions"],
       "license": "CC-BY-4.0 / CC-BY-3.0",
       "reason": "build/SPDX data; attribution preserved"
+    }
+  ],
+  "securityPatchDecisions": [
+    {
+      "package": "next",
+      "previousVersion": "16.3.1",
+      "version": "16.3.4",
+      "license": "MIT",
+      "advisories": [
+        "https://github.com/vercel/next.js/security/advisories/GHSA-p293-qw3h-jr36",
+        "https://github.com/vercel/next.js/security/advisories/GHSA-2xp9-vwfh-vxw4"
+      ],
+      "scope": "Includes the 16.3.3 security fixes and 16.3.4 follow-up. Windows-hosted serving is relevant; the AVIF image-optimization path remains disabled by images.unoptimized and excluded sharp dependencies. Registry audit alone did not report these published upstream advisories.",
+      "review": "docs/oss/DEPENDENCY_REVIEW_2026-09-05.md"
     }
   ]
 }

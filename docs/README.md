@@ -129,6 +129,7 @@ status, and audience.
 | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------ | --------------------------- | ---------------- |
 | [OSS evaluation](oss/OSS_EVALUATION.md)                                                                 | قرارات قبول ورفض المصادر المفتوحة                | CURRENT SUPPORTING DOCUMENT | الهندسة والقانون |
 | [OSS inventory](oss/OSS_INVENTORY.md)                                                                   | طريقة قراءة السجل المولد                         | CURRENT SUPPORTING DOCUMENT | الهندسة والقانون |
+| [Dependency review](oss/DEPENDENCY_REVIEW_2026-09-05.md)                                                | التصحيح الأمني وقرارات تحديث التبعيات            | CURRENT SUPPORTING DOCUMENT | الهندسة والأمن   |
 | [مراجعة مراجع الواجهة](design/UI_REFERENCE_AUDIT.md)                                                    | المصادر المقبولة والمرفوضة وحدود إعادة الاستخدام | CURRENT SUPPORTING DOCUMENT | التصميم والقانون |
 | [تدقيق خط الأساس](design/UI_BASELINE_AUDIT.md)                                                          | عيوب تجربة Preview قبل التحسين                   | CURRENT SUPPORTING DOCUMENT | التصميم والمنتج  |
 | [نظام تصميم صلح](design/SALLAH_DESIGN_SYSTEM.md)                                                        | اتجاه Saudi Premium Service Marketplace          | CURRENT SOURCE OF TRUTH     | التصميم والهندسة |

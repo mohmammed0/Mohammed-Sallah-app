@@ -3,16 +3,17 @@
 هذه الحزمة هي بوابة التسليم المرجعية بعد انتهاء أعمال Codex. العربية هي لغة المنتج
 الأولى، وتُكتب العقود التقنية الدقيقة بالإنجليزية لتفادي الغموض بين الأدوات.
 
-مرشح التكامل الحالي هو [PR #36](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/36)
-إلى `main` مباشرة. وسم `sallah-multitool-handoff-v1` مخطط بعد دمج مصرح به والتحقق منه، ولم يُنشأ بعد.
+دُمج [PR #36](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/36) في `main`، وأُنشئ
+وسم `sallah-multitool-handoff-v1` لنقطة التسليم المتحقق منها. الوسم ثابت؛ يبدأ العمل الجديد
+من رأس `main` الحالي، كما يوضح [دليل ما قبل الإطلاق](../release/PRELAUNCH.md).
 
 This directory is the canonical handoff gateway for Figma, Claude Code, Canva,
 and delivery tooling. Every tool starts from a clean checkout of `main` and
-resolves the exact checkout with `git rev-parse HEAD`. The current integration
-candidate is [PR #36](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/36), directly to `main`;
-resolve its current head when reviewing that PR. The immutable handoff tag
-`sallah-multitool-handoff-v1` is planned after an authorized, verified merge and has not been created.
-A tracked file cannot safely embed the hash of the commit that contains itself.
+resolves the exact checkout with `git rev-parse HEAD`. [PR #36](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/36)
+was merged into `main`. The immutable handoff tag `sallah-multitool-handoff-v1` exists at
+`2cf253bb44d417a02fd483395a862ff66bb4b053`; it preserves that verified checkpoint and does not move
+with later `main` changes. The [prelaunch guide](../release/PRELAUNCH.md) records its CI and tag identity.
+A tracked file cannot safely embed the hash of the commit that contains itself; resolve current `main` afresh.
 
 ## Start here
 

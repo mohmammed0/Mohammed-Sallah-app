@@ -14,11 +14,12 @@ description, but it does not approve a provider, publish a request, or execute a
 
 ## Repository status
 
-The repository is in **code and GitHub prelaunch preparation**:
+**Code and GitHub prelaunch preparation** has been integrated into `main`:
 
-- [PR #36](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/36) is the current integration
-  candidate directly to `main`. Use its current head and matching CI run for current results;
-  earlier pull requests and their history remain preserved evidence.
+- [PR #36](https://github.com/mohmammed0/Mohammed-Sallah-app/pull/36) was merged, and
+  [all six merge-head checks passed](https://github.com/mohmammed0/Mohammed-Sallah-app/actions/runs/33994499891).
+  Tag `sallah-multitool-handoff-v1` preserves that handoff checkpoint; new work starts from current
+  `main` with matching checks. Earlier pull requests and their history remain preserved evidence.
 - The [prelaunch gate](docs/release/PRELAUNCH.md) combines code validation, Android/iOS exports,
   consent-enabled HTTP journeys in a disposable test environment, and a source/migration/artifact packet.
 - Earlier Supabase Preview, Storage, outbound scanner, and OpenAI evidence retains its recorded
@@ -84,10 +85,10 @@ device with the app installed. See the [testing guide](docs/TESTING.md) for resu
 ## Branch model
 
 - `main`: canonical integration branch; new work starts from its clean head under the [starting rules](docs/handoff/TOOLS_MUST_START_FROM.md).
-- `codex/launch-readiness-v1`: PR #36 candidate to `main`; resolve its current head when reviewing the PR.
+- Task branches: start from verified `main` and return through review.
 - Earlier RC, beta, and milestone branches: historical evidence, not parallel integration sources.
 
-This finalization does not merge a branch or deploy Production or stores.
+The PR #36 merge and handoff tag are engineering actions; neither deployed Production or submitted an app to stores.
 
 ## Key links
 
