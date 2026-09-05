@@ -1,7 +1,15 @@
+/// <reference types="node" />
+
 import type { ConfigContext, ExpoConfig } from 'expo/config';
+import { withAndroidManifest } from 'expo/config-plugins';
+import { closeSync, fstatSync, openSync, readSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { branding } from '@sallah/config/branding';
 import { appEnvironmentSchema } from '@sallah/config/env';
-import { nativeReleaseIdentitySchema } from '@sallah/config/release';
+import {
+  nativeReleaseIdentitySchema,
+  validateGoogleServicesConfiguration,
+} from '@sallah/config/release';
 import { supportedLocales, translate } from '@sallah/i18n';
 
 const defaultEasOwner = 'binmuhayas-team';
@@ -23,8 +31,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   // Build-time only. This key is restricted in Google Cloud to the Android
   // package name and signing certificate; it is never exposed through EXPO_PUBLIC_*.
   const androidMapsApiKey = process.env.SALLAH_ANDROID_GOOGLE_MAPS_API_KEY;
-  // EAS resolves this file variable into a temporary build-only path. The
-  // Firebase client config is never committed and contains no server key.
+  // Secret files are unavailable during local EAS config resolution. EAS_BUILD
+  // is true on cloud/local build workers, where EAS provides the actual file.
+  // Native prebuild also enforces a readable file below, without this marker.
   const googleServicesFile = process.env.GOOGLE_SERVICES_JSON;
   const configuredAndroidPackage = process.env.SALLAH_ANDROID_PACKAGE;
   const configuredIosBundleIdentifier = process.env.SALLAH_IOS_BUNDLE_ID;
@@ -62,7 +71,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       'Preview and production mobile builds require a restricted Android Maps API key',
     );
   }
-  if (previewOrProduction && requiresAndroidMaps && !googleServicesFile) {
+  if (
+    previewOrProduction &&
+    requiresAndroidMaps &&
+    process.env.EAS_BUILD === 'true' &&
+    !googleServicesFile
+  ) {
     throw new Error(
       'Preview and production Android builds require the Firebase app configuration file',
     );
@@ -70,7 +84,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   if (environment === 'preview' && (!configuredAndroidPackage || !configuredIosBundleIdentifier)) {
     throw new Error('Preview mobile build requires explicit Android and iOS identifiers');
   }
-  return {
+  const expoConfig: ExpoConfig = {
     ...config,
     name: branding.displayName.ar,
     slug: branding.slug,
@@ -183,4 +197,34 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       maps: { androidConfigured: Boolean(androidMapsApiKey) },
     },
   };
+  if (!previewOrProduction) return expoConfig;
+  return withAndroidManifest(expoConfig, (nativeConfig) => {
+    const file = nativeConfig.android?.googleServicesFile;
+    let descriptor: number | undefined;
+    try {
+      if (!file) throw new Error('FIREBASE_FILE_MISSING');
+      const absoluteFile = resolve(nativeConfig.modRequest.projectRoot, file);
+      descriptor = openSync(absoluteFile, 'r');
+      const metadata = fstatSync(descriptor);
+      const maximumBytes = 262_144;
+      if (!metadata.isFile() || metadata.size > maximumBytes) {
+        throw new Error('FIREBASE_FILE_INVALID');
+      }
+      // Bound the read too, including a file that grows after fstat.
+      const buffer = Buffer.alloc(maximumBytes + 1);
+      const bytes = readSync(descriptor, buffer, 0, buffer.length, 0);
+      if (bytes > maximumBytes) throw new Error('FIREBASE_FILE_TOO_LARGE');
+      validateGoogleServicesConfiguration(
+        buffer.subarray(0, bytes).toString('utf8'),
+        nativeConfig.android?.package,
+      );
+    } catch {
+      throw new Error(
+        'Android native builds require a valid Firebase client configuration matching the Android package',
+      );
+    } finally {
+      if (descriptor !== undefined) closeSync(descriptor);
+    }
+    return nativeConfig;
+  });
 };

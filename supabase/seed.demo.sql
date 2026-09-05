@@ -47,7 +47,6 @@ from (values
 ) demo(id,email)
 on conflict(provider_id,provider) do nothing;
 
-update public.profiles set status='suspended' where id='d2000000-0000-4000-8000-000000000003';
 insert into public.user_roles(user_id,role) values
  ('d2000000-0000-4000-8000-000000000001','provider'),
  ('d2000000-0000-4000-8000-000000000002','provider'),
@@ -76,6 +75,9 @@ insert into public.provider_profiles(
  ('d2000000-0000-4000-8000-000000000002','company','شركة المنافس التجريبية','حساب عرض محلي فقط','hi','verified',true,35,4.55,17,29,.90),
  ('d2000000-0000-4000-8000-000000000003','individual','مقدم موقوف تجريبي','حساب عرض محلي فقط','ar','suspended',false,20,3.10,4,3,.40)
 on conflict(user_id) do nothing;
+
+-- Create historical content before suspension; inactive accounts cannot create content.
+update public.profiles set status='suspended' where id='d2000000-0000-4000-8000-000000000003';
 
 insert into public.provider_services(provider_id,category_id)
 select provider_id,category.id

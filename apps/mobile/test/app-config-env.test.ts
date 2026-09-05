@@ -14,6 +14,7 @@ const keys = [
   'SALLAH_ANDROID_PACKAGE',
   'SALLAH_IOS_BUNDLE_ID',
   'EAS_BUILD_PLATFORM',
+  'EAS_BUILD',
 ] as const;
 const saved = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
 
@@ -64,12 +65,34 @@ describe('mobile Expo APP_ENV boundary', () => {
 
   it('fails closed for an Android Preview build without its Firebase app config', () => {
     configurePreview();
+    process.env.EAS_BUILD = 'true';
     process.env.EAS_BUILD_PLATFORM = 'android';
     process.env.SALLAH_ANDROID_GOOGLE_MAPS_API_KEY = 'restricted-preview-key';
     delete process.env.GOOGLE_SERVICES_JSON;
 
     expect(build).toThrow(/Preview and production Android builds require.*Firebase/i);
   });
+
+  it.each(['preview', 'production'] as const)(
+    'resolves local %s submission config without the EAS-only secret file',
+    (environment) => {
+      configurePreview();
+      process.env.EXPO_PUBLIC_APP_ENV = environment;
+      process.env.EAS_PROJECT_ID = 'f098f941-ae73-4007-b582-ba6fb1b8aa7a';
+      process.env.SALLAH_ANDROID_PACKAGE = 'sa.sallah.app';
+      process.env.SALLAH_IOS_BUNDLE_ID = 'sa.sallah.app';
+      process.env.SALLAH_ANDROID_GOOGLE_MAPS_API_KEY = 'restricted-test-key';
+      delete process.env.GOOGLE_SERVICES_JSON;
+      delete process.env.EAS_BUILD;
+
+      const result = build();
+      expect(result.extra?.appEnvironment).toBe(environment);
+      expect(result.android?.googleServicesFile).toBeUndefined();
+
+      process.env.EAS_BUILD = 'true';
+      expect(build).toThrow(/Preview and production Android builds require.*Firebase/i);
+    },
+  );
 
   it('fails closed for Preview without Supabase public configuration', () => {
     configurePreview();
