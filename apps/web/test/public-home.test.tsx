@@ -1,7 +1,11 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { resources, translate } from '@sallah/i18n';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import Home from '../app/[locale]/page';
+import { DocumentLocale } from '../src/components/document-locale';
+
+const navigation = vi.hoisted(() => ({ pathname: '/ar' }));
+vi.mock('next/navigation', () => ({ usePathname: () => navigation.pathname }));
 
 describe('public marketplace home', () => {
   it.each([
@@ -10,10 +14,17 @@ describe('public marketplace home', () => {
   ] as const)(
     'keeps %s navigation and a keyboard-accessible main destination',
     async (locale, dir) => {
-      const html = renderToStaticMarkup(await Home({ params: Promise.resolve({ locale }) }));
+      navigation.pathname = `/${locale}`;
+      const html = renderToStaticMarkup(
+        <>
+          <DocumentLocale />
+          {await Home({ params: Promise.resolve({ locale }) })}
+        </>,
+      );
 
       expect(html).toContain(`lang="${locale}" dir="${dir}"`);
-      expect(html).toContain(`href="#main">${translate(locale, 'publicSkipToContent')}</a>`);
+      expect(html.match(/href="#main"/gu)).toHaveLength(1);
+      expect(html).toContain(`${translate(locale, 'publicSkipToContent')}</a>`);
       expect(html).toContain('<main id="main" tabindex="-1">');
       expect(html.match(/<h1\b/gu)).toHaveLength(1);
       expect(html).toContain('href="/login?mode=customer"');

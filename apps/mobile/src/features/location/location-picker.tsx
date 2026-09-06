@@ -16,6 +16,7 @@ import {
 } from '@/design-system/customer-components';
 import { SectionHeader, customerStyles } from '@/design-system/primitives';
 import { customerTokens as tokens } from '@/design-system/tokens';
+import { logicalRowStyle, logicalTextStyle } from '@/design-system/rtl';
 import { useLocale } from '@/providers/locale-provider';
 import {
   coordinatesSchema,
@@ -43,7 +44,7 @@ function asRegion(coordinates: Coordinates): Region {
 }
 
 export function LocationPicker({ onDone }: { onDone: () => void }) {
-  const { dir, locale, t } = useLocale();
+  const { locale, t } = useLocale();
   const location = useCustomerLocation();
   const mapRef = useRef<MapView | null>(null);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
@@ -66,7 +67,7 @@ export function LocationPicker({ onDone }: { onDone: () => void }) {
   const [mapTimedOut, setMapTimedOut] = useState(false);
   const [permissionRecovery, setPermissionRecovery] = useState<'retry' | 'settings' | null>(null);
   const canRenderMap = isCustomerMapConfigured();
-  const directionStyle = dir === 'rtl' ? styles.rtl : styles.ltr;
+  const directionStyle = logicalTextStyle(locale);
 
   const resolvePointRef = useRef<(value: Coordinates) => void>(() => undefined);
   const debouncedResolver = useMemo(
@@ -300,7 +301,7 @@ export function LocationPicker({ onDone }: { onDone: () => void }) {
                 onPress={() => void selectSaved(address.id)}
                 selected={location.activeLocation?.savedAddressId === address.id}
               />
-              <View style={[styles.actionRow, dir === 'rtl' && styles.rowReverse]}>
+              <View style={[styles.actionRow, logicalRowStyle(locale)]}>
                 <GhostButton label={t('editLocation')} onPress={() => startEditor(address.id)} />
                 {!address.isDefault ? (
                   <GhostButton
@@ -407,7 +408,7 @@ export function LocationPicker({ onDone }: { onDone: () => void }) {
           onChangeText={setFormattedAddress}
           value={formattedAddress}
         />
-        <View style={[styles.fieldRow, dir === 'rtl' && styles.rowReverse]}>
+        <View style={[styles.fieldRow, logicalRowStyle(locale)]}>
           <View style={styles.flex}>
             <FormField
               label={t('building')}
@@ -428,7 +429,7 @@ export function LocationPicker({ onDone }: { onDone: () => void }) {
           value={accessNotes}
         />
         {editingAddressId ? null : (
-          <View style={[styles.defaultRow, dir === 'rtl' && styles.rowReverse]}>
+          <View style={[styles.defaultRow, logicalRowStyle(locale)]}>
             <Text style={[customerStyles.body, directionStyle]}>{t('makeDefault')}</Text>
             <Switch
               accessibilityLabel={t('makeDefault')}
@@ -482,7 +483,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  rowReverse: { flexDirection: 'row-reverse' },
-  rtl: { textAlign: 'right', writingDirection: 'rtl' },
-  ltr: { textAlign: 'left', writingDirection: 'ltr' },
 });

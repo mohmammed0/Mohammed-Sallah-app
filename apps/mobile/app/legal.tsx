@@ -15,9 +15,10 @@ import { useSessionContext } from '@/providers/session-provider';
 import { useLegalConsent } from '@/features/legal/legal-consent-provider';
 import { productLandingRoute } from '@/features/auth/route-policy';
 import { customerTokens as tokens } from '@/design-system/tokens';
+import { logicalTextStyle } from '@/design-system/rtl';
 
 export default function LegalScreen() {
-  const { t, dir, locale } = useLocale();
+  const { t, locale } = useLocale();
   const { session, context: sessionContext } = useSessionContext();
   const legal = useLegalConsent();
   const [selected, setSelected] = useState<string[]>([]);
@@ -93,13 +94,7 @@ export default function LegalScreen() {
                 language: localeNativeNames[document.locale],
               })}
             </Text>
-            <Text
-              selectable
-              style={[
-                customerStyles.body,
-                { writingDirection: dir, textAlign: dir === 'rtl' ? 'right' : 'left' },
-              ]}
-            >
+            <Text selectable style={[customerStyles.body, logicalTextStyle(locale)]}>
               {document.body}
             </Text>
             {selectable && document.requiresAcceptance && !document.accepted ? (

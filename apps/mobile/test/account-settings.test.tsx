@@ -164,6 +164,46 @@ describe('account preferences and privacy controls', () => {
     );
   });
 
+  it('keeps account rows and physical text edges stable through all four warm locale changes', async () => {
+    const renderer = await renderAccount();
+    const flatten = (value: unknown): Record<string, unknown> =>
+      Array.isArray(value)
+        ? Object.assign({}, ...value.map(flatten))
+        : value && typeof value === 'object'
+          ? (value as Record<string, unknown>)
+          : {};
+    for (const locale of ['ur', 'hi', 'ar', 'en'] as const) {
+      const choice = renderer.root.find(
+        (node) =>
+          node.type === 'Pressable' &&
+          node.props.accessibilityRole === 'radio' &&
+          node.props.accessibilityLabel === localeNativeNames[locale],
+      );
+      await act(async () => choice.props.onPress());
+      const rtl = locale === 'ar' || locale === 'ur';
+      expect(
+        flatten(renderer.root.findByType('ScrollView').props.contentContainerStyle).direction,
+      ).toBe(rtl ? 'rtl' : 'ltr');
+      const rows = renderer.root
+        .findAll((node) => typeof node.type === 'string')
+        .map((node) => flatten(node.props.style))
+        .filter((style) => style.flexDirection === 'row' || style.flexDirection === 'row-reverse');
+      expect(rows.length).toBeGreaterThan(8);
+      for (const row of rows)
+        expect(row).toMatchObject({ direction: 'ltr', flexDirection: rtl ? 'row-reverse' : 'row' });
+      expect(flatten(renderer.root.findByType('TextInput').props.style)).toMatchObject({
+        direction: 'ltr',
+        textAlign: rtl ? 'right' : 'left',
+        writingDirection: rtl ? 'rtl' : 'ltr',
+      });
+      for (const text of renderer.root.findAllByType('Text')) {
+        const style = flatten(text.props.style);
+        if (style.textAlign === 'left' || style.textAlign === 'right')
+          expect(style.direction).toBe('ltr');
+      }
+    }
+  });
+
   it('requires deletion confirmation and a current password before sending a privacy command', async () => {
     const renderer = await renderAccount();
     await act(async () => {

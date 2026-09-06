@@ -1,7 +1,8 @@
 import { act, create } from 'react-test-renderer';
+import { View } from 'react-native';
 import { describe, expect, it, vi } from 'vitest';
 
-const localeState = vi.hoisted(() => ({ locale: 'ar' as 'ar' | 'en' }));
+const localeState = vi.hoisted(() => ({ locale: 'ar' as 'ar' | 'en' | 'ur' | 'hi' }));
 
 vi.mock('react-native', () => ({
   Image: 'Image',
@@ -43,7 +44,7 @@ vi.mock('../src/design-system/icon', () => ({
 vi.mock('../src/providers/locale-provider', () => ({
   useLocale: () => ({
     locale: localeState.locale,
-    dir: localeState.locale === 'ar' ? 'rtl' : 'ltr',
+    dir: localeState.locale === 'ar' || localeState.locale === 'ur' ? 'rtl' : 'ltr',
     t: (key: string) => key,
   }),
 }));
@@ -52,6 +53,82 @@ vi.mock('../src/providers/locale-provider', () => ({
   true;
 
 describe('customer marketplace components', () => {
+  it.each(['ar', 'en', 'ur', 'hi'] as const)(
+    'keeps %s physical row and text edges stable inside an inherited RTL screen',
+    async (locale) => {
+      localeState.locale = locale;
+      const { BottomSheet, BottomTabs, ChatComposer, LocationHeader, ReviewSummaryCard } =
+        await import('../src/design-system/customer-components');
+      const rtl = locale === 'ar' || locale === 'ur';
+      const flatten = (value: unknown): Record<string, unknown> =>
+        Array.isArray(value)
+          ? Object.assign({}, ...value.map(flatten))
+          : value && typeof value === 'object'
+            ? (value as Record<string, unknown>)
+            : {};
+      let renderer: ReturnType<typeof create> | undefined;
+      await act(() => {
+        renderer = create(
+          <View style={{ direction: 'rtl' }}>
+            <LocationHeader
+              address="Address"
+              changeLabel="Change"
+              label="Location"
+              onPress={() => undefined}
+            />
+            <ReviewSummaryCard
+              editLabel="Edit"
+              icon="requests"
+              onEdit={() => undefined}
+              title="Review"
+              value="Details"
+            />
+            <BottomTabs
+              activeKey="home"
+              onSelect={() => undefined}
+              tabs={[{ key: 'home', label: 'Home', icon: 'home' }]}
+            />
+            <ChatComposer
+              cameraLabel="Camera"
+              galleryLabel="Gallery"
+              voiceLabel="Voice"
+              sendLabel="Send"
+              placeholder="Describe"
+              value=""
+              onChangeText={() => undefined}
+              onCamera={() => undefined}
+              onGallery={() => undefined}
+              onVoice={() => undefined}
+              onSend={() => undefined}
+            />
+            <BottomSheet dismissLabel="Close" onDismiss={() => undefined} title="Details" visible>
+              <View />
+            </BottomSheet>
+          </View>,
+        );
+      });
+      const hostNodes = renderer?.root.findAll((node) => typeof node.type === 'string') ?? [];
+      const rows = hostNodes
+        .map((node) => flatten(node.props.style))
+        .filter((style) => style.flexDirection === 'row' || style.flexDirection === 'row-reverse');
+      expect(rows.length).toBeGreaterThanOrEqual(7);
+      for (const row of rows) {
+        expect(row.direction).toBe('ltr');
+        expect(row.flexDirection).toBe(rtl ? 'row-reverse' : 'row');
+      }
+      const texts = hostNodes
+        .filter((node) => node.type === 'Text' || node.type === 'TextInput')
+        .map((node) => flatten(node.props.style));
+      expect(texts).toHaveLength(7);
+      for (const text of texts) {
+        expect(text.direction).toBe('ltr');
+        expect(text.textAlign).toBe(rtl ? 'right' : 'left');
+        expect(text.writingDirection).toBe(rtl ? 'rtl' : 'ltr');
+      }
+      await act(() => renderer?.unmount());
+    },
+  );
+
   it('keeps an unknown job state out of the visible progress sequence', async () => {
     const components = (await import('../src/design-system/customer-components')) as Record<
       string,

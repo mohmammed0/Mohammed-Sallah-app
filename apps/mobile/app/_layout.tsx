@@ -15,6 +15,8 @@ import { CustomerLocationProvider } from '@/features/location/location-provider'
 import { SecureUploadRecoveryCoordinator } from '@/features/media/secure-upload-recovery';
 import { NotificationCoordinator } from '@/features/notifications/notification-coordinator';
 import { LegalConsentProvider, useLegalConsent } from '@/features/legal/legal-consent-provider';
+import { NavigationBackButton } from '@/design-system/navigation-back-button';
+import { NavigationDirectionProvider } from '@/providers/navigation-direction-provider';
 
 function LocalizedStack() {
   const { t } = useLocale();
@@ -104,6 +106,8 @@ function LocalizedStack() {
       <Stack
         screenOptions={{
           headerBackTitle: t('back'),
+          headerBackVisible: false,
+          headerLeft: ({ canGoBack }) => <NavigationBackButton canGoBack={Boolean(canGoBack)} />,
           headerTitleAlign: 'center',
           contentStyle: { backgroundColor: '#F6F0E7' },
         }}
@@ -150,15 +154,17 @@ export default function RootLayout() {
   return (
     <MobileAppErrorBoundary>
       <LocaleProvider>
-        <SessionProvider>
-          <AppQueryProvider>
-            <LegalConsentProvider>
-              <CustomerLocationProvider>
-                <LocalizedStack />
-              </CustomerLocationProvider>
-            </LegalConsentProvider>
-          </AppQueryProvider>
-        </SessionProvider>
+        <NavigationDirectionProvider>
+          <SessionProvider>
+            <AppQueryProvider>
+              <LegalConsentProvider>
+                <CustomerLocationProvider>
+                  <LocalizedStack />
+                </CustomerLocationProvider>
+              </LegalConsentProvider>
+            </AppQueryProvider>
+          </SessionProvider>
+        </NavigationDirectionProvider>
       </LocaleProvider>
     </MobileAppErrorBoundary>
   );

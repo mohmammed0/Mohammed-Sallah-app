@@ -16,11 +16,7 @@ import {
 } from '@/design-system/primitives';
 import { AppIcon } from '@/design-system/icon';
 import { customerTokens as tokens } from '@/design-system/tokens';
-import {
-  logicalFlexDirection,
-  logicalTextAlignment,
-  logicalWritingDirection,
-} from '@/design-system/rtl';
+import { logicalRowStyle, logicalTextStyle } from '@/design-system/rtl';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/providers/locale-provider';
 import { loadProviderBriefs } from '@/features/provider/provider-feed-resilience';
@@ -123,11 +119,8 @@ export default function ProviderFeed() {
   const [mediaUrls, setMediaUrls] = useState<Record<string, string>>({});
   const [mediaErrors, setMediaErrors] = useState<Record<string, boolean>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const rowDirection = { flexDirection: logicalFlexDirection(locale) } as const;
-  const textDirection = {
-    textAlign: logicalTextAlignment(locale),
-    writingDirection: logicalWritingDirection(locale),
-  } as const;
+  const rowDirection = logicalRowStyle(locale);
+  const textDirection = logicalTextStyle(locale);
   const labels = useQuery({
     queryKey: ['provider-brief-labels', locale],
     queryFn: async () => {

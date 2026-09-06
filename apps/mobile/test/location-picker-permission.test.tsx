@@ -16,6 +16,7 @@ vi.mock('react-native', () => ({
   View: 'View',
 }));
 vi.mock('react-native-maps', () => ({ default: 'MapView' }));
+vi.mock('@/design-system/rtl', async () => import('../src/design-system/rtl'));
 vi.mock('expo-location', () => ({ reverseGeocodeAsync: vi.fn(async () => []) }));
 vi.mock('@/design-system/customer-components', () => ({
   AddressCard: 'AddressCard',

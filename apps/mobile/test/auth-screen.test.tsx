@@ -31,6 +31,7 @@ vi.mock('@/design-system/primitives', () => ({
 }));
 vi.mock('@/design-system/icon', () => ({ AppIcon: 'AppIcon' }));
 vi.mock('@/design-system/tokens', async () => import('../src/design-system/tokens'));
+vi.mock('@/design-system/rtl', async () => import('../src/design-system/rtl'));
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;

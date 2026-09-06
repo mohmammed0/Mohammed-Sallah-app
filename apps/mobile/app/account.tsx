@@ -14,11 +14,7 @@ import {
 } from '@/design-system/primitives';
 import { AppIcon } from '@/design-system/icon';
 import { customerTokens as tokens } from '@/design-system/tokens';
-import {
-  logicalFlexDirection,
-  logicalTextAlignment,
-  logicalWritingDirection,
-} from '@/design-system/rtl';
+import { logicalRowStyle, logicalTextStyle, logicalWritingDirection } from '@/design-system/rtl';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/providers/locale-provider';
 import { useSessionContext } from '@/providers/session-provider';
@@ -58,11 +54,8 @@ export default function Account() {
   const [deletionSummary, setDeletionSummary] = useState<Record<string, unknown> | null>(null);
   const { context, setActiveRole, signOutAll } = useSessionContext();
   const { activeLocation } = useCustomerLocation();
-  const textDirection = {
-    textAlign: logicalTextAlignment(locale),
-    writingDirection: logicalWritingDirection(locale),
-  } as const;
-  const rowDirection = { flexDirection: logicalFlexDirection(locale) } as const;
+  const textDirection = logicalTextStyle(locale);
+  const rowDirection = logicalRowStyle(locale);
   useEffect(() => {
     if (!providerSwitchPending || context?.activeRole !== 'provider') return;
     setProviderSwitchPending(false);
@@ -289,15 +282,7 @@ export default function Account() {
                 locale === code && accountStyles.languageSelected,
               ]}
             >
-              <Text
-                style={[
-                  accountStyles.languageLabel,
-                  {
-                    textAlign: logicalTextAlignment(code),
-                    writingDirection: logicalWritingDirection(code),
-                  },
-                ]}
-              >
+              <Text style={[accountStyles.languageLabel, logicalTextStyle(code)]}>
                 {localeNativeNames[code]}
               </Text>
               <View style={accountStyles.selectionMark}>

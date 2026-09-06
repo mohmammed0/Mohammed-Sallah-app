@@ -15,6 +15,7 @@ export default function ProviderTabs() {
       fontSize: 12,
       fontWeight: '800' as const,
       paddingBottom: 4,
+      direction: 'ltr' as const,
       writingDirection: dir,
       textAlign: dir === 'rtl' ? ('right' as const) : ('left' as const),
     },

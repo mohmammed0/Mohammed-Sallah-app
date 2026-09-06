@@ -27,7 +27,12 @@ import {
 import { AppIcon, categoryIconName } from '@/design-system/icon';
 import { customerTokens as tokens } from '@/design-system/tokens';
 import { ChatComposer, MediaPreview, QuickReplyChip } from '@/design-system/customer-components';
-import { logicalChevron } from '@/design-system/rtl';
+import {
+  logicalChevron,
+  logicalRowStyle,
+  logicalTextStyle,
+  logicalWritingDirection,
+} from '@/design-system/rtl';
 import { supabase } from '@/lib/supabase';
 import { secureUpload, type CleanUpload } from '@/lib/secure-upload';
 import { useLocale } from '@/providers/locale-provider';
@@ -133,7 +138,8 @@ const restoredSessionSchema = z.object({
 
 export function RequestComposer() {
   const { category: initialCategory } = useLocalSearchParams<{ category?: string }>();
-  const { dir, locale, t } = useLocale();
+  const { locale, t } = useLocale();
+  const textDirection = logicalTextStyle(locale);
   const customerLocation = useCustomerLocation();
   const activeLocation = customerLocation.activeLocation;
   const coordinates = activeLocation?.coordinates ?? null;
@@ -1492,13 +1498,13 @@ export function RequestComposer() {
           <Text
             accessibilityLiveRegion="polite"
             accessibilityRole="header"
-            style={customerStyles.display}
+            style={[customerStyles.display, textDirection]}
           >
             {t('publishSuccessTitle')}
           </Text>
-          <Text style={customerStyles.bodyMuted}>{t('publishSuccessBody')}</Text>
+          <Text style={[customerStyles.bodyMuted, textDirection]}>{t('publishSuccessBody')}</Text>
           {publishedRequestId ? (
-            <Text selectable style={customerStyles.caption}>
+            <Text selectable style={[customerStyles.caption, textDirection]}>
               {t('requestNumber', { id: publishedRequestId })}
             </Text>
           ) : null}
@@ -1575,7 +1581,7 @@ export function RequestComposer() {
               {t('catalogLoadFailed')}
             </Notice>
           ) : null}
-          <View style={[journeyStyles.categoryGrid, dir === 'rtl' && journeyStyles.rowReverse]}>
+          <View style={[journeyStyles.categoryGrid, logicalRowStyle(locale)]}>
             {catalog.data?.categories.map((category) => {
               const selected = selectedCategorySlug === category.slug;
               const translation = category.service_category_translations[0];
@@ -1595,6 +1601,7 @@ export function RequestComposer() {
                   }}
                   style={({ pressed }) => [
                     journeyStyles.categoryCard,
+                    { direction: logicalWritingDirection(locale) },
                     selected && journeyStyles.categoryCardSelected,
                     pressed && journeyStyles.pressed,
                   ]}
@@ -1609,6 +1616,7 @@ export function RequestComposer() {
                   <Text
                     style={[
                       journeyStyles.categoryName,
+                      textDirection,
                       selected && journeyStyles.categoryNameSelected,
                     ]}
                   >
@@ -1618,6 +1626,7 @@ export function RequestComposer() {
                     numberOfLines={2}
                     style={[
                       customerStyles.caption,
+                      textDirection,
                       selected && journeyStyles.categoryDescriptionSelected,
                     ]}
                   >
@@ -1629,8 +1638,10 @@ export function RequestComposer() {
           </View>
           {selectedCategorySlug ? (
             <Surface tone="muted">
-              <Text style={customerStyles.section}>{t('optionalSubcategory')}</Text>
-              <View style={[customerStyles.wrap, dir === 'rtl' && journeyStyles.rowReverse]}>
+              <Text style={[customerStyles.section, textDirection]}>
+                {t('optionalSubcategory')}
+              </Text>
+              <View style={[customerStyles.wrap, logicalRowStyle(locale)]}>
                 <Pill
                   label={t('noSubcategory')}
                   onPress={() => setSelectedSubcategorySlug('')}
@@ -1701,7 +1712,7 @@ export function RequestComposer() {
               userLabel={t('you')}
             />
             {diagnostic?.quickReplies.length ? (
-              <View style={[customerStyles.wrap, dir === 'rtl' && journeyStyles.rowReverse]}>
+              <View style={[customerStyles.wrap, logicalRowStyle(locale)]}>
                 {diagnostic.quickReplies.map((reply) => (
                   <QuickReplyChip
                     key={reply}
@@ -1720,11 +1731,13 @@ export function RequestComposer() {
             ) : null}
             {diagnostic ? (
               <Surface tone="muted">
-                <View style={[customerStyles.row, dir === 'rtl' && journeyStyles.rowReverse]}>
+                <View style={[customerStyles.row, logicalRowStyle(locale)]}>
                   <AppIcon color={tokens.colors.primaryStrong} name="sparkles" size={20} />
-                  <Text style={customerStyles.section}>{t('aiAssistantName')}</Text>
+                  <Text style={[customerStyles.section, textDirection]}>
+                    {t('aiAssistantName')}
+                  </Text>
                 </View>
-                <Text style={customerStyles.caption}>
+                <Text style={[customerStyles.caption, textDirection]}>
                   {t('confidenceSummary', {
                     confidence: Math.round(diagnostic.confidence * 100),
                   })}
@@ -1745,7 +1758,9 @@ export function RequestComposer() {
               </Notice>
             ) : null}
             {title.trim().length < 3 || summary.trim().length < 10 ? (
-              <Text style={customerStyles.caption}>{t('informationIncomplete')}</Text>
+              <Text style={[customerStyles.caption, textDirection]}>
+                {t('informationIncomplete')}
+              </Text>
             ) : null}
           </ScrollView>
 
@@ -1791,8 +1806,12 @@ export function RequestComposer() {
             ) : null}
             {transcriptReviewTurn ? (
               <Surface testID="transcript-review" tone="accent">
-                <Text style={customerStyles.section}>{t('transcriptReviewTitle')}</Text>
-                <Text style={customerStyles.caption}>{t('transcriptReviewBody')}</Text>
+                <Text style={[customerStyles.section, textDirection]}>
+                  {t('transcriptReviewTitle')}
+                </Text>
+                <Text style={[customerStyles.caption, textDirection]}>
+                  {t('transcriptReviewBody')}
+                </Text>
                 <Field
                   label={t('transcriptReviewField')}
                   maxLength={8_000}
@@ -1893,20 +1912,22 @@ export function RequestComposer() {
           ) : null}
           {activeLocation ? (
             <Surface tone="accent">
-              <View style={[journeyStyles.locationLead, dir === 'rtl' && journeyStyles.rowReverse]}>
+              <View style={[journeyStyles.locationLead, logicalRowStyle(locale)]}>
                 <AppIcon color={tokens.colors.primaryStrong} name="location" size={24} />
                 <View style={journeyStyles.flex}>
-                  <Text style={customerStyles.section}>{activeLocation.label}</Text>
-                  <Text numberOfLines={3} style={customerStyles.body}>
+                  <Text style={[customerStyles.section, textDirection]}>
+                    {activeLocation.label}
+                  </Text>
+                  <Text numberOfLines={3} style={[customerStyles.body, textDirection]}>
                     {activeLocation.formattedAddress}
                   </Text>
-                  <Text style={customerStyles.caption}>
+                  <Text style={[customerStyles.caption, textDirection]}>
                     {locale === 'ar' || locale === 'ur'
                       ? activeLocation.cityNameAr
                       : activeLocation.cityNameEn}
                   </Text>
                   {building || unit || accessNotes ? (
-                    <Text style={customerStyles.caption}>
+                    <Text style={[customerStyles.caption, textDirection]}>
                       {[building, unit, accessNotes].filter(Boolean).join(' · ')}
                     </Text>
                   ) : null}
@@ -1972,7 +1993,7 @@ export function RequestComposer() {
                 }}
                 style={[
                   journeyStyles.choiceCard,
-                  dir === 'rtl' && journeyStyles.rowReverse,
+                  logicalRowStyle(locale),
                   schedule === value && journeyStyles.choiceCardSelected,
                 ]}
               >
@@ -1982,14 +2003,14 @@ export function RequestComposer() {
                   size={24}
                 />
                 <View style={journeyStyles.flex}>
-                  <Text style={customerStyles.section}>
+                  <Text style={[customerStyles.section, textDirection]}>
                     {value === 'asap'
                       ? t('timingAsap')
                       : value === 'scheduled'
                         ? t('schedule')
                         : t('timingFlexible')}
                   </Text>
-                  <Text style={customerStyles.caption}>
+                  <Text style={[customerStyles.caption, textDirection]}>
                     {value === 'flexible' ? t('providerPrivacyNotice') : t('timingStepBody')}
                   </Text>
                 </View>
@@ -2001,8 +2022,8 @@ export function RequestComposer() {
           </View>
           {schedule === 'scheduled' ? (
             <Surface tone="muted">
-              <Text style={customerStyles.section}>{t('schedule')}</Text>
-              <View style={[customerStyles.wrap, dir === 'rtl' && journeyStyles.rowReverse]}>
+              <Text style={[customerStyles.section, textDirection]}>{t('schedule')}</Text>
+              <View style={[customerStyles.wrap, logicalRowStyle(locale)]}>
                 {(['morning', 'afternoon', 'evening'] as const).map((preset) => {
                   const window = buildRiyadhScheduleWindow(preset);
                   return (
@@ -2025,12 +2046,12 @@ export function RequestComposer() {
                   );
                 })}
               </View>
-              <Text style={customerStyles.body}>{timingSummary}</Text>
+              <Text style={[customerStyles.body, textDirection]}>{timingSummary}</Text>
             </Surface>
           ) : null}
           <Surface>
-            <Text style={customerStyles.section}>{t('priority')}</Text>
-            <View style={[customerStyles.wrap, dir === 'rtl' && journeyStyles.rowReverse]}>
+            <Text style={[customerStyles.section, textDirection]}>{t('priority')}</Text>
+            <View style={[customerStyles.wrap, logicalRowStyle(locale)]}>
               {(['flexible', 'normal', 'urgent'] as const).map((value) => (
                 <Pill
                   key={value}
@@ -2062,8 +2083,8 @@ export function RequestComposer() {
       {journeyStep === 'review' ? (
         <>
           <Surface>
-            <View style={[customerStyles.between, dir === 'rtl' && journeyStyles.rowReverse]}>
-              <Text style={customerStyles.section}>{t('requestDetails')}</Text>
+            <View style={[customerStyles.between, logicalRowStyle(locale)]}>
+              <Text style={[customerStyles.section, textDirection]}>{t('requestDetails')}</Text>
               <ActionButton
                 label={t('editSection')}
                 onPress={() => moveToStep('chat')}
@@ -2091,8 +2112,8 @@ export function RequestComposer() {
             />
           </Surface>
           <Surface>
-            <View style={[customerStyles.between, dir === 'rtl' && journeyStyles.rowReverse]}>
-              <Text style={customerStyles.section}>{t('structuredAnswers')}</Text>
+            <View style={[customerStyles.between, logicalRowStyle(locale)]}>
+              <Text style={[customerStyles.section, textDirection]}>{t('structuredAnswers')}</Text>
               <ActionButton
                 label={t('editSection')}
                 onPress={() => moveToStep('chat')}
@@ -2101,46 +2122,51 @@ export function RequestComposer() {
             </View>
             {structuredAnswers.length ? (
               structuredAnswers.map((answer, index) => (
-                <Text key={answer.clientMessageId ?? index} style={customerStyles.body}>
+                <Text
+                  key={answer.clientMessageId ?? index}
+                  style={[customerStyles.body, textDirection]}
+                >
                   {index + 1}. {answer.text}
                 </Text>
               ))
             ) : (
-              <Text style={customerStyles.caption}>{t('noStructuredAnswers')}</Text>
+              <Text style={[customerStyles.caption, textDirection]}>
+                {t('noStructuredAnswers')}
+              </Text>
             )}
           </Surface>
           <Surface>
-            <View style={[customerStyles.between, dir === 'rtl' && journeyStyles.rowReverse]}>
-              <Text style={customerStyles.section}>{t('serviceCategories')}</Text>
+            <View style={[customerStyles.between, logicalRowStyle(locale)]}>
+              <Text style={[customerStyles.section, textDirection]}>{t('serviceCategories')}</Text>
               <ActionButton
                 label={t('editSection')}
                 onPress={() => moveToStep('category')}
                 variant="ghost"
               />
             </View>
-            <Text style={customerStyles.body}>
+            <Text style={[customerStyles.body, textDirection]}>
               {selectedCategory?.service_category_translations[0]?.name ?? selectedCategorySlug}
               {selectedSubcategory
                 ? ` · ${selectedSubcategory.service_subcategory_translations[0]?.name ?? selectedSubcategory.slug}`
                 : ''}
             </Text>
             {suggestedCategorySlug ? (
-              <Text style={customerStyles.caption}>
+              <Text style={[customerStyles.caption, textDirection]}>
                 {t('editableAiCategory')}:{' '}
                 {suggestedCategory?.service_category_translations[0]?.name ?? t('categoryUnknown')}
               </Text>
             ) : null}
           </Surface>
           <Surface>
-            <View style={[customerStyles.between, dir === 'rtl' && journeyStyles.rowReverse]}>
-              <Text style={customerStyles.section}>{t('requestAttachments')}</Text>
+            <View style={[customerStyles.between, logicalRowStyle(locale)]}>
+              <Text style={[customerStyles.section, textDirection]}>{t('requestAttachments')}</Text>
               <ActionButton
                 label={t('editSection')}
                 onPress={() => moveToStep('chat')}
                 variant="ghost"
               />
             </View>
-            <Text style={customerStyles.body}>
+            <Text style={[customerStyles.body, textDirection]}>
               {t('attachedImagesCount', { count: attachedImageCount })}
             </Text>
             {reviewImages.map((media) => (
@@ -2151,73 +2177,73 @@ export function RequestComposer() {
                 label={t('attachedImageA11y')}
               />
             ))}
-            <Text style={customerStyles.body}>{voiceReview}</Text>
+            <Text style={[customerStyles.body, textDirection]}>{voiceReview}</Text>
           </Surface>
           <Surface>
-            <View style={[customerStyles.between, dir === 'rtl' && journeyStyles.rowReverse]}>
-              <Text style={customerStyles.section}>{t('serviceLocation')}</Text>
+            <View style={[customerStyles.between, logicalRowStyle(locale)]}>
+              <Text style={[customerStyles.section, textDirection]}>{t('serviceLocation')}</Text>
               <ActionButton
                 label={t('editSection')}
                 onPress={() => moveToStep('location')}
                 variant="ghost"
               />
             </View>
-            <Text style={customerStyles.section}>{addressLabel}</Text>
-            <Text style={customerStyles.body}>{formattedAddress}</Text>
+            <Text style={[customerStyles.section, textDirection]}>{addressLabel}</Text>
+            <Text style={[customerStyles.body, textDirection]}>{formattedAddress}</Text>
             {building ? (
-              <Text style={customerStyles.caption}>
+              <Text style={[customerStyles.caption, textDirection]}>
                 {t('building')}: {building}
               </Text>
             ) : null}
             {unit ? (
-              <Text style={customerStyles.caption}>
+              <Text style={[customerStyles.caption, textDirection]}>
                 {t('unit')}: {unit}
               </Text>
             ) : null}
             {accessNotes ? (
-              <Text style={customerStyles.caption}>
+              <Text style={[customerStyles.caption, textDirection]}>
                 {t('accessNotes')}: {accessNotes}
               </Text>
             ) : null}
             <Notice>{t('customerPrivacyNotice')}</Notice>
           </Surface>
           <Surface>
-            <View style={[customerStyles.between, dir === 'rtl' && journeyStyles.rowReverse]}>
-              <Text style={customerStyles.section}>{t('requestedTiming')}</Text>
+            <View style={[customerStyles.between, logicalRowStyle(locale)]}>
+              <Text style={[customerStyles.section, textDirection]}>{t('requestedTiming')}</Text>
               <ActionButton
                 label={t('editSection')}
                 onPress={() => moveToStep('timing')}
                 variant="ghost"
               />
             </View>
-            <Text style={customerStyles.body}>{timingSummary}</Text>
-            <Text style={customerStyles.body}>
+            <Text style={[customerStyles.body, textDirection]}>{timingSummary}</Text>
+            <Text style={[customerStyles.body, textDirection]}>
               {t('urgencyReview')}: {urgencySummary}
             </Text>
           </Surface>
           <Surface>
-            <View style={[customerStyles.between, dir === 'rtl' && journeyStyles.rowReverse]}>
-              <Text style={customerStyles.section}>{t('safetyReview')}</Text>
+            <View style={[customerStyles.between, logicalRowStyle(locale)]}>
+              <Text style={[customerStyles.section, textDirection]}>{t('safetyReview')}</Text>
               <ActionButton
                 label={t('editSection')}
                 onPress={() => moveToStep('chat')}
                 variant="ghost"
               />
             </View>
-            <Text style={customerStyles.body}>
+            <Text style={[customerStyles.body, textDirection]}>
               {diagnostic?.safetyFlags.length ? t('safetyGuidance') : t('noSafetyFlags')}
             </Text>
           </Surface>
           <Surface>
-            <View style={[customerStyles.between, dir === 'rtl' && journeyStyles.rowReverse]}>
-              <Text style={customerStyles.section}>{t('aiReviewState')}</Text>
+            <View style={[customerStyles.between, logicalRowStyle(locale)]}>
+              <Text style={[customerStyles.section, textDirection]}>{t('aiReviewState')}</Text>
               <ActionButton
                 label={t('editSection')}
                 onPress={() => moveToStep('chat')}
                 variant="ghost"
               />
             </View>
-            <Text style={customerStyles.body}>{aiReview}</Text>
+            <Text style={[customerStyles.body, textDirection]}>{aiReview}</Text>
           </Surface>
           <Pressable
             accessibilityRole="checkbox"
@@ -2225,14 +2251,16 @@ export function RequestComposer() {
             onPress={() => setApproved((value) => !value)}
             style={[
               journeyStyles.approval,
-              dir === 'rtl' && journeyStyles.rowReverse,
+              logicalRowStyle(locale),
               approved && journeyStyles.approvalSelected,
             ]}
           >
             <View style={journeyStyles.checkbox}>
               {approved ? <AppIcon color={tokens.colors.white} name="check" size={18} /> : null}
             </View>
-            <Text style={journeyStyles.approvalText}>{t('customerApprovalLabel')}</Text>
+            <Text style={[journeyStyles.approvalText, textDirection]}>
+              {t('customerApprovalLabel')}
+            </Text>
           </Pressable>
           {!approved ? <Notice tone="warning">{t('approvalRequired')}</Notice> : null}
           {error ? (
@@ -2301,7 +2329,6 @@ const journeyStyles = StyleSheet.create({
   },
   locationSection: { gap: tokens.spacing.sm },
   locationLead: { flexDirection: 'row', alignItems: 'flex-start', gap: tokens.spacing.sm },
-  rowReverse: { flexDirection: 'row-reverse' },
   savedAddress: {
     minHeight: 70,
     flexDirection: 'row',

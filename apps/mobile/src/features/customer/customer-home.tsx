@@ -19,7 +19,12 @@ import {
 import { LocationHeader } from '@/design-system/customer-components';
 import { AppIcon, categoryIconName } from '@/design-system/icon';
 import { customerTokens as tokens } from '@/design-system/tokens';
-import { logicalChevron } from '@/design-system/rtl';
+import {
+  logicalChevron,
+  logicalRowStyle,
+  logicalTextStyle,
+  logicalWritingDirection,
+} from '@/design-system/rtl';
 import { useCustomerLocation } from '@/features/location/location-provider';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/providers/locale-provider';
@@ -53,7 +58,8 @@ const activeStatuses = new Set([
 ]);
 
 export function CustomerHome() {
-  const { dir, locale, t } = useLocale();
+  const { locale, t } = useLocale();
+  const textDirection = logicalTextStyle(locale);
   const { activeLocation: defaultAddress } = useCustomerLocation();
   const [search, setSearch] = useState('');
   const catalog = useQuery({
@@ -119,10 +125,10 @@ export function CustomerHome() {
       />
 
       <View style={styles.hero}>
-        <Text accessibilityRole="header" style={styles.heroTitle}>
+        <Text accessibilityRole="header" style={[styles.heroTitle, textDirection]}>
           {t('customerHomeTitle')}
         </Text>
-        <Text style={styles.heroLead}>{t('customerHomeLead')}</Text>
+        <Text style={[styles.heroLead, textDirection]}>{t('customerHomeLead')}</Text>
         <ActionButton
           icon="plus"
           label={t('newRequest')}
@@ -143,14 +149,14 @@ export function CustomerHome() {
               accessibilityLabel={`${activeRequest.title}, ${formatStatusLabel(activeRequest.status, locale)}`}
               accessibilityRole="button"
               onPress={() => router.push('/requests')}
-              style={[styles.requestLink, dir === 'rtl' && styles.rowReverse]}
+              style={[styles.requestLink, logicalRowStyle(locale)]}
             >
               <View style={styles.flex}>
-                <Text style={styles.requestTitle}>{activeRequest.title}</Text>
-                <Text style={styles.requestStatus}>
+                <Text style={[styles.requestTitle, textDirection]}>{activeRequest.title}</Text>
+                <Text style={[styles.requestStatus, textDirection]}>
                   {formatStatusLabel(activeRequest.status, locale)}
                 </Text>
-                <Text style={customerStyles.caption}>
+                <Text style={[customerStyles.caption, textDirection]}>
                   {new Date(activeRequest.created_at).toLocaleString(
                     locale === 'ar' ? 'ar-SA' : locale,
                     { timeZone: 'Asia/Riyadh', dateStyle: 'medium', timeStyle: 'short' },
@@ -165,7 +171,7 @@ export function CustomerHome() {
             </InteractivePressable>
             {receivingOffers.length > 0 ? (
               <View style={styles.offersSummary}>
-                <Text style={customerStyles.bodyMuted}>
+                <Text style={[customerStyles.bodyMuted, textDirection]}>
                   {t('newOffersCount', { count: receivingOffers.length })}
                 </Text>
                 <ActionButton
@@ -225,7 +231,7 @@ export function CustomerHome() {
               : { actionLabel: t('openHelp'), onAction: () => router.push('/support') })}
           />
         ) : null}
-        <View style={[styles.categoryGrid, dir === 'rtl' && styles.rowReverse]}>
+        <View style={[styles.categoryGrid, logicalRowStyle(locale)]}>
           {filteredCategories.map((category) => {
             const translation = category.service_category_translations[0];
             return (
@@ -240,7 +246,7 @@ export function CustomerHome() {
                     params: { category: category.slug },
                   })
                 }
-                style={styles.categoryCard}
+                style={[styles.categoryCard, { direction: logicalWritingDirection(locale) }]}
               >
                 <View style={styles.categoryIcon}>
                   <AppIcon
@@ -249,8 +255,12 @@ export function CustomerHome() {
                     size={24}
                   />
                 </View>
-                <Text style={styles.categoryName}>{translation?.name ?? category.slug}</Text>
-                <Text style={customerStyles.caption}>{translation?.description ?? ''}</Text>
+                <Text style={[styles.categoryName, textDirection]}>
+                  {translation?.name ?? category.slug}
+                </Text>
+                <Text style={[customerStyles.caption, textDirection]}>
+                  {translation?.description ?? ''}
+                </Text>
               </InteractivePressable>
             );
           })}
@@ -263,13 +273,13 @@ export function CustomerHome() {
         accessibilityRole="button"
         onPress={() => router.push('/request/new')}
       >
-        <Surface tone="muted" style={[styles.supportRow, dir === 'rtl' && styles.rowReverse]}>
+        <Surface tone="muted" style={[styles.supportRow, logicalRowStyle(locale)]}>
           <View style={styles.aiIcon}>
             <AppIcon color={tokens.colors.primaryStrong} name="sparkles" size={24} />
           </View>
           <View style={styles.flex}>
-            <Text style={customerStyles.section}>{t('aiRequestPrompt')}</Text>
-            <Text style={customerStyles.caption}>{t('aiRequestBody')}</Text>
+            <Text style={[customerStyles.section, textDirection]}>{t('aiRequestPrompt')}</Text>
+            <Text style={[customerStyles.caption, textDirection]}>{t('aiRequestBody')}</Text>
           </View>
           <AppIcon
             color={tokens.colors.primaryStrong}
@@ -296,11 +306,11 @@ export function CustomerHome() {
         </Surface>
       ) : null}
       {requests.isSuccess && !activeRequest ? (
-        <Surface tone="muted" style={[styles.supportRow, dir === 'rtl' && styles.rowReverse]}>
+        <Surface tone="muted" style={[styles.supportRow, logicalRowStyle(locale)]}>
           <AppIcon color={tokens.colors.textMuted} name="requests" size={24} />
           <View style={styles.flex}>
-            <Text style={styles.requestTitle}>{t('noActiveRequests')}</Text>
-            <Text style={customerStyles.caption}>{t('noActiveRequestsBody')}</Text>
+            <Text style={[styles.requestTitle, textDirection]}>{t('noActiveRequests')}</Text>
+            <Text style={[customerStyles.caption, textDirection]}>{t('noActiveRequestsBody')}</Text>
           </View>
         </Surface>
       ) : null}
@@ -315,8 +325,8 @@ export function CustomerHome() {
           {recentRequests.map((request) => (
             <Surface key={request.id}>
               <View style={styles.section}>
-                <Text style={styles.requestTitle}>{request.title}</Text>
-                <Text style={customerStyles.caption}>
+                <Text style={[styles.requestTitle, textDirection]}>{request.title}</Text>
+                <Text style={[customerStyles.caption, textDirection]}>
                   {formatStatusLabel(request.status, locale)}
                 </Text>
               </View>
@@ -326,11 +336,13 @@ export function CustomerHome() {
       ) : null}
 
       <Surface tone="muted">
-        <View style={[customerStyles.row, dir === 'rtl' && styles.rowReverse]}>
+        <View style={[customerStyles.row, logicalRowStyle(locale)]}>
           <AppIcon color={tokens.colors.primaryStrong} name="shield" size={24} />
           <View style={styles.flex}>
-            <Text style={customerStyles.section}>{t('safetyAndSupport')}</Text>
-            <Text style={customerStyles.bodyMuted}>{t('safetyAndSupportBody')}</Text>
+            <Text style={[customerStyles.section, textDirection]}>{t('safetyAndSupport')}</Text>
+            <Text style={[customerStyles.bodyMuted, textDirection]}>
+              {t('safetyAndSupportBody')}
+            </Text>
           </View>
         </View>
         <ActionButton
@@ -344,7 +356,6 @@ export function CustomerHome() {
 }
 
 const styles = StyleSheet.create({
-  rowReverse: { flexDirection: 'row-reverse' },
   hero: {
     borderRadius: tokens.radius.lg,
     backgroundColor: tokens.colors.primaryStrong,

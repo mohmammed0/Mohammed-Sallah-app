@@ -14,11 +14,7 @@ import {
 } from '@/design-system/primitives';
 import { AppIcon } from '@/design-system/icon';
 import { customerTokens as tokens } from '@/design-system/tokens';
-import {
-  logicalFlexDirection,
-  logicalTextAlignment,
-  logicalWritingDirection,
-} from '@/design-system/rtl';
+import { logicalRowStyle, logicalTextStyle } from '@/design-system/rtl';
 import { MarketplaceApi } from '@sallah/api';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/providers/locale-provider';
@@ -148,22 +144,14 @@ export default function ProviderOffer() {
           accessibilityRole="checkbox"
           accessibilityState={{ checked: materialsIncluded }}
           onPress={() => setMaterialsIncluded((value) => !value)}
-          style={[styles.materialsChoice, { flexDirection: logicalFlexDirection(locale) }]}
+          style={[styles.materialsChoice, logicalRowStyle(locale)]}
         >
           <View style={[styles.checkbox, materialsIncluded && styles.checkboxSelected]}>
             {materialsIncluded ? (
               <AppIcon color={tokens.colors.white} name="check" size={18} />
             ) : null}
           </View>
-          <Text
-            style={[
-              styles.materialsLabel,
-              {
-                textAlign: logicalTextAlignment(locale),
-                writingDirection: logicalWritingDirection(locale),
-              },
-            ]}
-          >
+          <Text style={[styles.materialsLabel, logicalTextStyle(locale)]}>
             {t('materialsIncluded')}
           </Text>
         </InteractivePressable>

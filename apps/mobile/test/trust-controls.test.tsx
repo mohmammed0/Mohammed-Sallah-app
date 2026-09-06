@@ -93,6 +93,23 @@ describe('marketplace trust controls', () => {
 
     await act(() => pressable(renderer, 'trustReasonHarassment').props.onPress());
     const explanation = renderer.root.findByType('TextInput');
+    const flatten = (value: unknown): Record<string, unknown> =>
+      Array.isArray(value)
+        ? Object.assign({}, ...value.map(flatten))
+        : value && typeof value === 'object'
+          ? (value as Record<string, unknown>)
+          : {};
+    expect(flatten(explanation.props.style)).toMatchObject({
+      direction: 'ltr',
+      textAlign: 'right',
+      writingDirection: 'rtl',
+    });
+    const actionRows = renderer.root
+      .findAllByType('View')
+      .map((node) => flatten(node.props.style))
+      .filter((style) => style.flexDirection === 'row-reverse');
+    expect(actionRows.length).toBeGreaterThan(0);
+    for (const row of actionRows) expect(row.direction).toBe('ltr');
     await act(() => explanation.props.onChangeText('  Useful context  '));
     await act(async () => pressable(renderer, 'trustSubmitReport').props.onPress());
 

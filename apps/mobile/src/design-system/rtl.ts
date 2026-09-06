@@ -18,6 +18,21 @@ export function logicalWritingDirection(locale: CustomerLocale): 'ltr' | 'rtl' {
   return isRtlLocale(locale) ? 'rtl' : 'ltr';
 }
 
+// These helpers already choose physical left/right or reverse the row. Keep
+// their Yoga coordinates LTR so inherited RTL cannot apply a second reversal.
+// Android text alignment is also resolved against the Yoga paragraph direction.
+export function logicalRowStyle(locale: CustomerLocale) {
+  return { direction: 'ltr', flexDirection: logicalFlexDirection(locale) } as const;
+}
+
+export function logicalTextStyle(locale: CustomerLocale) {
+  return {
+    direction: 'ltr',
+    textAlign: logicalTextAlignment(locale),
+    writingDirection: logicalWritingDirection(locale),
+  } as const;
+}
+
 export function logicalChevron(locale: CustomerLocale, action: 'back' | 'forward'): AppIconName {
   const forward = action === 'forward';
   if (isRtlLocale(locale)) return forward ? 'chevron-back' : 'chevron-forward';

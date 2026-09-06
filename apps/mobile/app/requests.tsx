@@ -16,7 +16,7 @@ import {
   customerStyles,
 } from '@/design-system/primitives';
 import { AppIcon } from '@/design-system/icon';
-import { logicalChevron, logicalFlexDirection } from '@/design-system/rtl';
+import { logicalChevron, logicalRowStyle, logicalTextStyle } from '@/design-system/rtl';
 import { customerTokens as tokens } from '@/design-system/tokens';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/providers/locale-provider';
@@ -74,10 +74,12 @@ export default function Requests() {
   return (
     <CustomerScreen testID="customer-requests">
       <View style={styles.header}>
-        <Text accessibilityRole="header" style={customerStyles.display}>
+        <Text accessibilityRole="header" style={[customerStyles.display, logicalTextStyle(locale)]}>
           {t('requestsAndOffers')}
         </Text>
-        <Text style={customerStyles.bodyMuted}>{t('requestsPrivacyNotice')}</Text>
+        <Text style={[customerStyles.bodyMuted, logicalTextStyle(locale)]}>
+          {t('requestsPrivacyNotice')}
+        </Text>
       </View>
       <View style={customerStyles.wrap}>
         <Pill label={t('seeAll')} onPress={() => setFilter('all')} selected={filter === 'all'} />
@@ -119,13 +121,15 @@ export default function Requests() {
           }}
         >
           <Surface>
-            <View style={[customerStyles.between, { flexDirection: logicalFlexDirection(locale) }]}>
+            <View style={[customerStyles.between, logicalRowStyle(locale)]}>
               <View style={styles.icon}>
                 <AppIcon color={tokens.colors.primaryStrong} name="requests" size={22} />
               </View>
               <View style={styles.flex}>
-                <Text style={customerStyles.section}>{request.title}</Text>
-                <Text style={customerStyles.caption}>
+                <Text style={[customerStyles.section, logicalTextStyle(locale)]}>
+                  {request.title}
+                </Text>
+                <Text style={[customerStyles.caption, logicalTextStyle(locale)]}>
                   {new Date(request.created_at).toLocaleString(locale === 'ar' ? 'ar-SA' : locale, {
                     timeZone: 'Asia/Riyadh',
                     dateStyle: 'medium',
@@ -140,8 +144,10 @@ export default function Requests() {
               />
             </View>
             <View style={customerStyles.wrap}>
-              <Text style={styles.status}>{formatStatusLabel(request.status, locale)}</Text>
-              <Text style={styles.meta}>
+              <Text style={[styles.status, logicalTextStyle(locale)]}>
+                {formatStatusLabel(request.status, locale)}
+              </Text>
+              <Text style={[styles.meta, logicalTextStyle(locale)]}>
                 {request.timing_mode === 'flexible'
                   ? t('timingFlexible')
                   : request.timing_mode === 'scheduled'
@@ -150,7 +156,9 @@ export default function Requests() {
               </Text>
             </View>
             {request.status === 'receiving_offers' ? (
-              <Text style={styles.linkLabel}>{t('viewPrivateComparison')}</Text>
+              <Text style={[styles.linkLabel, logicalTextStyle(locale)]}>
+                {t('viewPrivateComparison')}
+              </Text>
             ) : null}
           </Surface>
         </InteractivePressable>

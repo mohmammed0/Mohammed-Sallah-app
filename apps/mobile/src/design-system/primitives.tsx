@@ -18,12 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppIcon, type AppIconName } from './icon';
 import { customerTokens as tokens } from './tokens';
-import {
-  isRtlLocale,
-  logicalFlexDirection,
-  logicalTextAlignment,
-  logicalWritingDirection,
-} from './rtl';
+import { isRtlLocale, logicalRowStyle, logicalTextStyle } from './rtl';
 import { useLocale } from '../providers/locale-provider';
 import { useKeyboardFocusScroll } from './use-keyboard-focus-scroll';
 
@@ -190,7 +185,7 @@ export function ActionButton({
       disabled={disabled}
       style={[
         styles.action,
-        { flexDirection: logicalFlexDirection(locale) },
+        logicalRowStyle(locale),
         variant === 'secondary' && styles.actionSecondary,
         variant === 'ghost' && styles.actionGhost,
         variant === 'danger' && styles.actionDanger,
@@ -256,12 +251,9 @@ export function SectionHeader({
   onAction?: () => void;
 }) {
   const { locale } = useLocale();
-  const textDirection = {
-    textAlign: logicalTextAlignment(locale),
-    writingDirection: logicalWritingDirection(locale),
-  } as const;
+  const textDirection = logicalTextStyle(locale);
   return (
-    <View style={[styles.sectionHeader, { flexDirection: logicalFlexDirection(locale) }]}>
+    <View style={[styles.sectionHeader, logicalRowStyle(locale)]}>
       <Text accessibilityRole="header" style={[styles.sectionTitle, textDirection]}>
         {title}
       </Text>
@@ -285,20 +277,11 @@ export function Field({
 }: TextInputProps & { label: string; icon?: AppIconName }) {
   const { locale } = useLocale();
   const [focused, setFocused] = useState(false);
-  const textDirection = {
-    textAlign: logicalTextAlignment(locale),
-    writingDirection: logicalWritingDirection(locale),
-  } as const;
+  const textDirection = logicalTextStyle(locale);
   return (
     <View style={styles.fieldGroup}>
       <Text style={[styles.fieldLabel, textDirection]}>{label}</Text>
-      <View
-        style={[
-          styles.fieldShell,
-          focused && styles.fieldFocused,
-          { flexDirection: logicalFlexDirection(locale) },
-        ]}
-      >
+      <View style={[styles.fieldShell, focused && styles.fieldFocused, logicalRowStyle(locale)]}>
         {icon ? <AppIcon color={tokens.colors.textMuted} name={icon} size={20} /> : null}
         <TextInput
           {...props}
@@ -344,25 +327,14 @@ export function Notice({
       accessibilityLiveRegion={live ? 'polite' : 'none'}
       style={[
         styles.notice,
-        { flexDirection: logicalFlexDirection(locale) },
+        logicalRowStyle(locale),
         tone === 'warning' && styles.noticeWarning,
         tone === 'danger' && styles.noticeDanger,
         tone === 'success' && styles.noticeSuccess,
       ]}
     >
       <AppIcon color={color} name={icon} size={20} />
-      <Text
-        style={[
-          styles.noticeText,
-          {
-            color,
-            textAlign: logicalTextAlignment(locale),
-            writingDirection: logicalWritingDirection(locale),
-          },
-        ]}
-      >
-        {children}
-      </Text>
+      <Text style={[styles.noticeText, { color }, logicalTextStyle(locale)]}>{children}</Text>
     </View>
   );
 }
@@ -386,14 +358,7 @@ export function Pill({
       style={[styles.pill, selected && styles.pillSelected]}
     >
       <Text
-        style={[
-          styles.pillText,
-          {
-            textAlign: logicalTextAlignment(locale),
-            writingDirection: logicalWritingDirection(locale),
-          },
-          selected && styles.pillTextSelected,
-        ]}
+        style={[styles.pillText, logicalTextStyle(locale), selected && styles.pillTextSelected]}
       >
         {label}
       </Text>
@@ -415,10 +380,7 @@ export function EmptyState({
   onAction?: () => void;
 }) {
   const { locale } = useLocale();
-  const textDirection = {
-    textAlign: logicalTextAlignment(locale),
-    writingDirection: logicalWritingDirection(locale),
-  } as const;
+  const textDirection = logicalTextStyle(locale);
   return (
     <Surface style={styles.empty}>
       <View style={styles.emptyIcon}>
@@ -455,10 +417,7 @@ export function StepHeader({
   total: number;
 }) {
   const { locale } = useLocale();
-  const textDirection = {
-    textAlign: logicalTextAlignment(locale),
-    writingDirection: logicalWritingDirection(locale),
-  } as const;
+  const textDirection = logicalTextStyle(locale);
   return (
     <View style={styles.stepHeader}>
       <Text style={[styles.eyebrow, textDirection]}>{eyebrow}</Text>

@@ -14,11 +14,7 @@ import {
 } from '@/design-system/primitives';
 import { AppIcon } from '@/design-system/icon';
 import { customerTokens as tokens } from '@/design-system/tokens';
-import {
-  logicalFlexDirection,
-  logicalTextAlignment,
-  logicalWritingDirection,
-} from '@/design-system/rtl';
+import { logicalRowStyle, logicalTextStyle } from '@/design-system/rtl';
 import { supabase } from '@/lib/supabase';
 import { formatSar } from '@sallah/i18n';
 import { useLocale } from '@/providers/locale-provider';
@@ -47,11 +43,8 @@ const offerSchema = z.object({
 
 export default function Offers() {
   const { locale, t } = useLocale();
-  const rowDirection = { flexDirection: logicalFlexDirection(locale) } as const;
-  const textDirection = {
-    textAlign: logicalTextAlignment(locale),
-    writingDirection: logicalWritingDirection(locale),
-  } as const;
+  const rowDirection = logicalRowStyle(locale);
+  const textDirection = logicalTextStyle(locale);
   const { requestId } = useLocalSearchParams<{ requestId?: string }>();
   const [error, setError] = useState('');
   const queryClient = useQueryClient();

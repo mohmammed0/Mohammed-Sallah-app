@@ -14,6 +14,7 @@ import {
 } from '@/design-system/primitives';
 import { AppIcon } from '@/design-system/icon';
 import { customerTokens as tokens } from '@/design-system/tokens';
+import { logicalRowStyle } from '@/design-system/rtl';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/providers/locale-provider';
 
@@ -22,7 +23,7 @@ type AuthAction = AuthMode | 'reset' | 'resend';
 const emailSchema = z.email().max(320);
 
 export default function Auth() {
-  const { dir, locale, t } = useLocale();
+  const { locale, t } = useLocale();
   const [mode, setMode] = useState<AuthMode>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -124,7 +125,7 @@ export default function Auth() {
         <View
           accessibilityRole="tablist"
           accessibilityLabel={t('authModeLabel')}
-          style={[styles.modeControl, { flexDirection: dir === 'rtl' ? 'row-reverse' : 'row' }]}
+          style={[styles.modeControl, logicalRowStyle(locale)]}
         >
           {(['signin', 'signup'] as const).map((option) => (
             <InteractivePressable

@@ -45,6 +45,7 @@ vi.mock('@/design-system/primitives', () => ({
   customerStyles: {},
 }));
 vi.mock('@/design-system/tokens', async () => import('../src/design-system/tokens'));
+vi.mock('@/design-system/rtl', async () => import('../src/design-system/rtl'));
 vi.mock('@/features/auth/route-policy', async () => import('../src/features/auth/route-policy'));
 vi.mock(
   '@/features/legal/legal-consent-provider',

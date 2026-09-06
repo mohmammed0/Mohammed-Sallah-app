@@ -12,12 +12,7 @@ import {
 } from '@/design-system/primitives';
 import { AppIcon } from '@/design-system/icon';
 import { customerTokens as tokens } from '@/design-system/tokens';
-import {
-  logicalFlexDirection,
-  logicalChevron,
-  logicalTextAlignment,
-  logicalWritingDirection,
-} from '@/design-system/rtl';
+import { logicalRowStyle, logicalChevron, logicalTextStyle } from '@/design-system/rtl';
 import { useLocale } from '@/providers/locale-provider';
 import { useSessionContext } from '@/providers/session-provider';
 
@@ -25,10 +20,7 @@ export default function ProviderHome() {
   const { locale, t } = useLocale();
   const { context, setActiveRole } = useSessionContext();
   const verified = context?.providerVerificationStatus === 'verified';
-  const textDirection = {
-    textAlign: logicalTextAlignment(locale),
-    writingDirection: logicalWritingDirection(locale),
-  } as const;
+  const textDirection = logicalTextStyle(locale);
   const accountActions = [
     { icon: 'shield' as const, label: t('providerOnboarding'), route: '/provider/onboarding' },
     { icon: 'bell' as const, label: t('notifications'), route: '/notifications' },
@@ -50,7 +42,7 @@ export default function ProviderHome() {
   return (
     <CustomerScreen testID="provider-dashboard">
       <Surface>
-        <View style={[styles.header, { flexDirection: logicalFlexDirection(locale) }]}>
+        <View style={[styles.header, logicalRowStyle(locale)]}>
           <View style={styles.headerIcon}>
             <AppIcon color={tokens.colors.primaryStrong} name="tools" size={24} />
           </View>
@@ -68,7 +60,7 @@ export default function ProviderHome() {
             {t('providerRestrictedUntilVerified')}
           </Notice>
         ) : (
-          <View style={[styles.verified, { flexDirection: logicalFlexDirection(locale) }]}>
+          <View style={[styles.verified, logicalRowStyle(locale)]}>
             <AppIcon color={tokens.colors.success} name="shield" size={18} />
             <Text style={[styles.verifiedLabel, textDirection]}>
               {formatStatusLabel('verified', locale)}
@@ -103,7 +95,7 @@ export default function ProviderHome() {
                   onPress={() => router.push(action.route)}
                   style={[
                     styles.actionRow,
-                    { flexDirection: logicalFlexDirection(locale) },
+                    logicalRowStyle(locale),
                     index > 0 && styles.actionDivider,
                   ]}
                 >

@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fixture = vi.hoisted(() => ({
+  locale: 'en' as 'ar' | 'en' | 'ur' | 'hi',
   read: vi.fn(),
   push: vi.fn(),
 }));
@@ -35,7 +36,11 @@ vi.mock('@/lib/supabase', () => ({
   },
 }));
 vi.mock('@/providers/locale-provider', () => ({
-  useLocale: () => ({ locale: 'en', dir: 'ltr', t: (key: string) => key }),
+  useLocale: () => ({
+    locale: fixture.locale,
+    dir: fixture.locale === 'ar' || fixture.locale === 'ur' ? 'rtl' : 'ltr',
+    t: (key: string) => key,
+  }),
 }));
 vi.mock('@/features/location/location-provider', () => ({
   useCustomerLocation: () => ({ activeLocation: null }),
@@ -49,7 +54,11 @@ vi.mock('../src/design-system/icon', () => ({
   categoryIconName: () => 'tools',
 }));
 vi.mock('../src/providers/locale-provider', () => ({
-  useLocale: () => ({ locale: 'en', dir: 'ltr', t: (key: string) => key }),
+  useLocale: () => ({
+    locale: fixture.locale,
+    dir: fixture.locale === 'ar' || fixture.locale === 'ur' ? 'rtl' : 'ltr',
+    t: (key: string) => key,
+  }),
 }));
 vi.mock('@/design-system/primitives', async () => import('../src/design-system/primitives'));
 vi.mock('@/design-system/tokens', async () => import('../src/design-system/tokens'));
@@ -108,6 +117,7 @@ async function settle(expectation: () => void) {
 }
 
 beforeEach(() => {
+  fixture.locale = 'en';
   fixture.push.mockReset();
   fixture.read.mockImplementation((table: string) => ({
     data: table === 'service_categories' ? [category] : [],
@@ -124,6 +134,40 @@ afterEach(async () => {
 });
 
 describe('customer home recovery', () => {
+  it.each(['ar', 'en', 'ur', 'hi'] as const)(
+    'keeps %s category order physical while preserving the card locale and text edge',
+    async (locale) => {
+      fixture.locale = locale;
+      const screen = await renderHome();
+      await settle(() => expect(textOf(screen)).toContain('Plumbing'));
+      const flatten = (value: unknown): Record<string, unknown> =>
+        Array.isArray(value)
+          ? Object.assign({}, ...value.map(flatten))
+          : value && typeof value === 'object'
+            ? (value as Record<string, unknown>)
+            : {};
+      const categoryCard = screen.root.find(
+        (node) => node.type === 'Pressable' && node.props.testID === 'home-category-plumbing',
+      );
+      const rtl = locale === 'ar' || locale === 'ur';
+      expect(flatten(categoryCard.props.style).direction).toBe(rtl ? 'rtl' : 'ltr');
+      let grid = categoryCard.parent;
+      while (grid && (grid.type !== 'View' || flatten(grid.props.style).flexWrap !== 'wrap'))
+        grid = grid.parent;
+      expect(flatten(grid?.props.style)).toMatchObject({
+        direction: 'ltr',
+        flexDirection: rtl ? 'row-reverse' : 'row',
+      });
+      for (const text of categoryCard.findAllByType('Text')) {
+        expect(flatten(text.props.style)).toMatchObject({
+          direction: 'ltr',
+          writingDirection: rtl ? 'rtl' : 'ltr',
+          textAlign: rtl ? 'right' : 'left',
+        });
+      }
+    },
+  );
+
   it('explains an unmatched search and lets the customer restore service choices', async () => {
     const screen = await renderHome();
     await settle(() => expect(textOf(screen)).toContain('Plumbing'));

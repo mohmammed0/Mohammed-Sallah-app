@@ -26,9 +26,6 @@ export function SiteShell({
 }) {
   return (
     <div className="public-site" lang={locale} dir={direction(locale)}>
-      <a className="skip-link" href="#main">
-        {translate(locale, 'publicSkipToContent')}
-      </a>
       <header className="site-header">
         <nav className="shell nav" aria-label={translate(locale, 'publicNavigation')}>
           <Link className="brand" href={`/${locale}`}>

@@ -19,11 +19,7 @@ import type {
   MarketplaceUserReportTarget,
 } from '@sallah/domain/trust';
 import type { TranslationKey } from '@sallah/i18n';
-import {
-  logicalFlexDirection,
-  logicalTextAlignment,
-  logicalWritingDirection,
-} from '../../design-system/rtl';
+import { logicalRowStyle, logicalTextStyle } from '../../design-system/rtl';
 import { useLocale } from '../../providers/locale-provider';
 import { TrustClientError, type TrustErrorCategory } from './trust-client';
 
@@ -130,10 +126,7 @@ export function TrustControls({
   const [feedbackKey, setFeedbackKey] = useState<TranslationKey | null>(null);
   const [feedbackTone, setFeedbackTone] = useState<'success' | 'error'>('success');
   const [lastAction, setLastAction] = useState<PendingAction | null>(null);
-  const textDirection = {
-    textAlign: logicalTextAlignment(locale),
-    writingDirection: logicalWritingDirection(locale),
-  } as const;
+  const textDirection = logicalTextStyle(locale);
   const desiredBlockedState = !blockedByMe;
 
   function dismissModal() {
@@ -201,7 +194,7 @@ export function TrustControls({
 
   return (
     <View style={[styles.root, { direction: locale === 'ar' || locale === 'ur' ? 'rtl' : 'ltr' }]}>
-      <View style={[styles.actionRow, { flexDirection: logicalFlexDirection(locale) }]}>
+      <View style={[styles.actionRow, logicalRowStyle(locale)]}>
         <TrustButton
           disabled={disabled || pending}
           label={t(reportActionKey(target.targetType))}
@@ -346,9 +339,7 @@ export function TrustControls({
                         ) : null}
                       </View>
                     ) : null}
-                    <View
-                      style={[styles.actionRow, { flexDirection: logicalFlexDirection(locale) }]}
-                    >
+                    <View style={[styles.actionRow, logicalRowStyle(locale)]}>
                       <TrustButton disabled={pending} label={t('cancel')} onPress={dismissModal} />
                       <TrustButton
                         disabled={pending || !reason}
@@ -390,9 +381,7 @@ export function TrustControls({
                         ) : null}
                       </View>
                     ) : null}
-                    <View
-                      style={[styles.actionRow, { flexDirection: logicalFlexDirection(locale) }]}
-                    >
+                    <View style={[styles.actionRow, logicalRowStyle(locale)]}>
                       <TrustButton disabled={pending} label={t('cancel')} onPress={dismissModal} />
                       <TrustButton
                         danger={desiredBlockedState}
