@@ -25,6 +25,7 @@ import {
   logicalWritingDirection,
 } from './rtl';
 import { useLocale } from '../providers/locale-provider';
+import { useKeyboardFocusScroll } from './use-keyboard-focus-scroll';
 
 export function InteractivePressable({
   children,
@@ -78,6 +79,7 @@ export function CustomerScreen({
   testID?: string;
 }) {
   const { locale } = useLocale();
+  const keyboardFocusScroll = useKeyboardFocusScroll(keyboardAware);
   const screenRef = useRef<React.ElementRef<typeof SafeAreaView>>(null);
   const [keyboardVerticalOffset, setKeyboardVerticalOffset] = useState(0);
   const measureScreenOrigin = useCallback(() => {
@@ -104,6 +106,7 @@ export function CustomerScreen({
   );
   const body = scroll ? (
     <ScrollView
+      {...keyboardFocusScroll}
       contentContainerStyle={styles.scrollContent}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
