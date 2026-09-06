@@ -48,6 +48,12 @@ errors, prompts, responses, transcripts, and private media are never operational
 usage events contain only operation, safe category, attempts, latency, correlation identifier, and
 bounded usage counts. Exhausted quota and billing errors are terminal and are not retried.
 
+Content-free operational telemetry is separate from private business records. The diagnostic
+endpoint currently writes the original user text into both `ai_messages.original_content` and
+`ai_messages.redacted_content`; the latter field does not apply redaction. Prompts, transcripts,
+diagnostic output, translations, and customer edits stored for the product remain content-bearing
+data subject to the applicable access, retention, deletion, and privacy review requirements.
+
 | Operation                  | Model            | Deadline | Attempts  | Response bound                   |
 | -------------------------- | ---------------- | -------- | --------- | -------------------------------- |
 | Diagnostic                 | `gpt-5.6-terra`  | 30 s     | At most 2 | 1,200 output tokens              |
@@ -101,10 +107,14 @@ suggestion is null; only an authoritative diagnostic can populate it. Selection 
 separate customer-owned command with explicit category confirmation
 and approval. The transaction creates the request, binds clean request media, links diagnostics and
 applicable transcriptions, records the approval snapshot, and marks the owned active session
-published. Deterministic output is available only through an explicit local/test provider selection.
-In Preview and production, invalid provider output, provider failure, network interruption, and
-unsupported vision fail explicitly; they never become synthetic content labeled as a live result.
-The client retains the editable/manual intake and retry path. Safety flags show conservative immediate
+published. The Edge deterministic provider requires an explicit local/test selection. In Preview and
+production, invalid provider output, provider failure, network interruption, and unsupported vision
+produce an explicit Edge failure. Separately, the mobile client can create a visibly temporary
+deterministic advisory draft after eligible failed or offline processing in any environment. Consent
+denials, transcripts awaiting review, and incomplete voice transcription follow their own blocking or
+retry paths. Temporary drafts are marked as fallback output, reconciled with later server replies,
+and remain subject to customer review and approval. The client retains the editable/manual intake
+and retry path. Safety flags show conservative immediate
 guidance and escalate to manual review. Original content, translations, customer edits, media
 bindings, and provider-generated output remain separate.
 
@@ -132,17 +142,21 @@ text/image turns cannot smuggle a request-audio upload into the diagnostic path.
 ## Provider brief translation
 
 `translate-provider-brief` authorizes the current provider against an unexpired match and derives the
-target locale from that provider profile. The live adapter uses OpenAI Responses with
-`gpt-5.6-luna`, `store: false`, a strict target-locale schema limited to Arabic, English, Urdu, and
-Hindi, a 20-second overall deadline, at most two attempts, and an 800-output-token cap. User text is
-untrusted data rather than prompt instruction.
+target locale from that provider profile. Source and target locale inputs are restricted to Arabic,
+English, Urdu, and Hindi. The live adapter uses OpenAI Responses with `gpt-5.6-luna`, `store: false`,
+a strict schema for the returned text fields, a 20-second overall deadline, at most two attempts,
+and an 800-output-token cap. The prompt requests the target language and treats user text as
+untrusted data.
 
-The original brief is always returned and displayed. Category/service and city/location terms plus
-numbers are verified against the source; category/city identifiers, district identifier, urgency,
-requested time, timing mode, and request version are copied from authoritative data and cannot be
-translation-authored. Invalid JSON, a locale mismatch, a preservation mismatch, or provider failure
-discards the candidate translation. The request then records an explicit failed state with the
-unchanged original instead of silently substituting deterministic output.
+The original brief is always returned and displayed. Validation requires exact copies of the source
+category and city names and inclusion of extracted protected tokens, including numbers, in the
+corresponding translated fields. Category/city identifiers, district identifier, urgency, requested
+time, timing mode, and request version are copied from authoritative data and cannot be
+translation-authored. There is no returned-language classifier or general semantic-equivalence
+check; structurally valid text in the wrong language or with altered meaning can pass these checks.
+Invalid JSON, invalid output fields, a protected-token or immutable-name mismatch, or provider
+failure discards the candidate translation. The request then records an explicit failed state with
+the unchanged original instead of silently substituting deterministic output.
 
 Results and failures store the source hash, locale pair, provider/model/prompt version, attempts,
 safe error category, bounded usage, and status. A cache entry is reused only for the same source and

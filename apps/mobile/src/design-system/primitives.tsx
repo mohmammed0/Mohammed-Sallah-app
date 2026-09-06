@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -78,8 +78,27 @@ export function CustomerScreen({
   testID?: string;
 }) {
   const { locale } = useLocale();
+  const screenRef = useRef<React.ElementRef<typeof SafeAreaView>>(null);
+  const [keyboardVerticalOffset, setKeyboardVerticalOffset] = useState(0);
+  const measureScreenOrigin = useCallback(() => {
+    if (!keyboardAware || Platform.OS === 'web') return;
+    const screen = screenRef.current;
+    // Native headers and modal frames move this parent relative to keyboard coordinates.
+    screen?.measureInWindow((_x, y) => {
+      if (screenRef.current === screen && Number.isFinite(y)) {
+        setKeyboardVerticalOffset(y);
+      }
+    });
+  }, [keyboardAware]);
+  useLayoutEffect(measureScreenOrigin, [measureScreenOrigin]);
   const content = (
-    <View style={[styles.content, { direction: isRtlLocale(locale) ? 'rtl' : 'ltr' }]}>
+    <View
+      style={[
+        styles.content,
+        scroll ? styles.scrollableContent : styles.flex,
+        { direction: isRtlLocale(locale) ? 'rtl' : 'ltr' },
+      ]}
+    >
       {children}
     </View>
   );
@@ -95,10 +114,17 @@ export function CustomerScreen({
     content
   );
   return (
-    <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safe} testID={testID}>
+    <SafeAreaView
+      ref={screenRef}
+      edges={['left', 'right', 'bottom']}
+      onLayout={measureScreenOrigin}
+      style={styles.safe}
+      testID={testID}
+    >
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         enabled={keyboardAware}
+        keyboardVerticalOffset={keyboardVerticalOffset}
         style={styles.flex}
       >
         {body}
@@ -444,8 +470,9 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: tokens.colors.canvas },
   flex: { flex: 1 },
   scrollContent: { flexGrow: 1 },
+  // Preserve tall forms' intrinsic height so every field remains reachable by scrolling.
+  scrollableContent: { flexGrow: 1, flexShrink: 0 },
   content: {
-    flex: 1,
     paddingHorizontal: tokens.spacing.lg,
     paddingTop: tokens.spacing.md,
     paddingBottom: 110,
