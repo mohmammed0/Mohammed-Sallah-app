@@ -15,7 +15,7 @@ import { CustomerLocationProvider } from '@/features/location/location-provider'
 import { SecureUploadRecoveryCoordinator } from '@/features/media/secure-upload-recovery';
 import { NotificationCoordinator } from '@/features/notifications/notification-coordinator';
 import { LegalConsentProvider, useLegalConsent } from '@/features/legal/legal-consent-provider';
-import { NavigationBackButton } from '@/design-system/navigation-back-button';
+import { NavigationHeader } from '@/design-system/navigation-header';
 import { NavigationDirectionProvider } from '@/providers/navigation-direction-provider';
 
 function LocalizedStack() {
@@ -105,10 +105,9 @@ function LocalizedStack() {
       />
       <Stack
         screenOptions={{
-          headerBackTitle: t('back'),
-          headerBackVisible: false,
-          headerLeft: ({ canGoBack }) => <NavigationBackButton canGoBack={Boolean(canGoBack)} />,
-          headerTitleAlign: 'center',
+          header: ({ back, options }) => (
+            <NavigationHeader title={options.title ?? t('appName')} canGoBack={Boolean(back)} />
+          ),
           contentStyle: { backgroundColor: '#F6F0E7' },
         }}
       >

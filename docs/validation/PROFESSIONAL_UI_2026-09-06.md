@@ -35,19 +35,22 @@ The containing commit and matching CI belong in the PR evidence; this file canno
   reverse their position twice. This covers shared cards, request and location forms, offers,
   account preferences and trust controls while retaining the locale direction of their containers.
 - The selected locale also updates native navigation direction without remounting screens. The
-  native back control has a localized accessible name and matching arrow in all four languages.
+  shared header has a localized accessible back control and matching arrow in all four languages.
+  It keeps the title centered between equal side slots, includes safe-area insets and lets the
+  native stack measure its height as localized text grows.
   The public website has one keyboard skip link owned by the document layout.
 
 ## Validation scope
 
-The latest source execution record is retained under ignored `artifacts/professional-ui-rtl-final/`.
-Earlier candidate records remain under `artifacts/professional-ui/` and `artifacts/professional-ui-final/`.
+The latest source execution record is retained under ignored `artifacts/professional-ui-header-final/`.
+Earlier candidate records remain under `artifacts/professional-ui/`, `artifacts/professional-ui-final/`
+and `artifacts/professional-ui-rtl-final/`.
 Browser rendering
 of actual mobile components uses explicit synthetic DOM adapters. It proves only the recorded
 browser layout and interactions, not native rendering or authenticated marketplace acceptance.
 The website production build is served locally with its existing CSP; it is not a deployment.
 
-Mobile checks passed 440 tests in 64 files; web checks passed 120 tests in 18 files; localization
+Mobile checks passed 447 tests in 65 files; web checks passed 120 tests in 18 files; localization
 passed 13 tests. These counts are distinct suites, not a count of repeated executions.
 One unchanged media-scanner test is skipped locally because Windows symlink permission is
 unavailable. A separate Docker-context export test is skipped because the Docker daemon is unavailable.
@@ -73,8 +76,18 @@ Android Preview26, built from predecessor `2a3dc4700aec5f7564285693d6f73f2b21be5
 and its bytes matched the verified signed APK. Its eight guest entry routes and four-language 2x
 text/password/keyboard cases passed, but actual native images exposed the Arabic/Urdu double
 reversal and the untranslated native back label. Those failures drove the native RTL corrections
-above; Preview26 is baseline evidence, not acceptance of the containing source. A new exact-source
-signed APK and native rerun are required after this source freeze.
+above; Preview26 is baseline evidence, not acceptance of the containing source.
+
+Preview27, built from `9f861c845ad519eca41374224c95031c4167ec8d`, corrected those fields, tabs and
+back controls in all eight guest routes. Its Arabic and Urdu native header titles disappeared,
+while English and Hindi remained visible. The pinned Android header implementation used a
+physical left coordinate as the start inset: the RTL back control produced a 912px inset instead
+of 42px, leaving no width for the centered title. Its doubled-text run was stopped, and its
+acceptance record is **FAIL**. The shared header uses Expo's supported custom `header` option to
+avoid that native inset calculation while retaining the native stack and authorization guards.
+See [Expo's stack header API](https://docs.expo.dev/router/advanced/stack/).
+A new exact-source signed APK and native rerun are required after this source freeze. Earlier
+builds do not establish acceptance of this source.
 
 Representative mobile DOM captures, **not device screenshots**:
 
