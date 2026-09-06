@@ -29,6 +29,45 @@ export function messageProxyLifetimeSeconds(requestedSeconds: number) {
   return Math.min(requestedSeconds, maxMessageProxyTtlSeconds);
 }
 
+const originSchema = z.string().refine((raw) => !/[\s\\\p{Cc}]/u.test(raw)).pipe(
+  z.string().url().refine((raw) => {
+    const url = new URL(raw);
+    return ['http:', 'https:'].includes(url.protocol) &&
+      !url.username && !url.password && url.pathname === '/' && !url.search && !url.hash;
+  }).transform((raw) => new URL(raw)),
+);
+const localPortSchema = z.string().regex(/^[1-9]\d{0,4}$/).transform(Number).pipe(
+  z.number().int().min(1).max(65535),
+);
+const loopbackHosts = new Set(['localhost', '127.0.0.1', '[::1]', '10.0.2.2']);
+
+function mediaOrigins(environment: ReturnType<typeof parseAppEnvironment>) {
+  const backend = originSchema.safeParse(Deno.env.get('SUPABASE_URL'));
+  if (!backend.success) throw new Error('SERVER_CONFIG');
+  const local = environment === 'local' || environment === 'test';
+  const configured = Deno.env.get('SUPABASE_PUBLIC_URL');
+  let publicOrigin: URL;
+  if (configured !== undefined) {
+    const parsed = originSchema.safeParse(configured);
+    if (!parsed.success) throw new Error('PUBLIC_STORAGE_URL_NOT_CONFIGURED');
+    publicOrigin = parsed.data;
+  } else if (backend.data.protocol === 'https:' || loopbackHosts.has(backend.data.hostname)) {
+    publicOrigin = new URL(backend.data.origin);
+  } else if (local) {
+    // The CLI supplies its actual gateway port, including isolated custom-port projects.
+    const port = localPortSchema.safeParse(Deno.env.get('SUPABASE_INTERNAL_HOST_PORT') ?? '54321');
+    if (!port.success) throw new Error('PUBLIC_STORAGE_URL_NOT_CONFIGURED');
+    publicOrigin = new URL(`http://127.0.0.1:${port.data}`);
+  } else {
+    throw new Error('PUBLIC_STORAGE_URL_NOT_CONFIGURED');
+  }
+  if (
+    (publicOrigin.protocol !== 'https:' && !(local && loopbackHosts.has(publicOrigin.hostname))) ||
+    (!local && loopbackHosts.has(publicOrigin.hostname))
+  ) throw new Error('PUBLIC_STORAGE_URL_NOT_CONFIGURED');
+  return { backend: backend.data, publicOrigin };
+}
+
 type PrivateStorageStreamOptions = {
   supabaseUrl?: string;
   serviceRoleKey?: string;
@@ -174,8 +213,8 @@ export async function handleMediaAccess(request: Request) {
     const authorized = authorizationSchema.parse(data);
     if (authorized.deliveryMode === 'authenticated_proxy') {
       const expiresAt = Date.now() + messageProxyLifetimeSeconds(input.expiresInSeconds) * 1000;
-      const accessUrl = new URL(request.url);
-      accessUrl.search = '';
+      const { publicOrigin } = mediaOrigins(environment);
+      const accessUrl = new URL('/functions/v1/media-access', publicOrigin);
       accessUrl.searchParams.set('uploadId', authorized.uploadId);
       accessUrl.searchParams.set('subject', user.id);
       accessUrl.searchParams.set('expiresAt', String(expiresAt));
@@ -197,16 +236,16 @@ export async function handleMediaAccess(request: Request) {
       .from(authorized.bucket)
       .createSignedUrl(authorized.path, input.expiresInSeconds);
     if (signError || !signed?.signedUrl) throw new Error('MEDIA_SIGNING_FAILED');
-    const signedUrl = new URL(signed.signedUrl, request.url);
-    if (signedUrl.hostname === 'kong') {
-      const configuredPublicUrl = Deno.env.get('SUPABASE_PUBLIC_URL');
-      if (!configuredPublicUrl && !['local', 'test'].includes(environment)) {
-        throw new Error('PUBLIC_STORAGE_URL_NOT_CONFIGURED');
-      }
-      const publicOrigin = new URL(configuredPublicUrl ?? 'http://127.0.0.1:54321');
-      signedUrl.protocol = publicOrigin.protocol;
-      signedUrl.host = publicOrigin.host;
-    }
+    const { backend, publicOrigin } = mediaOrigins(environment);
+    const signedUrl = new URL(signed.signedUrl, backend);
+    if (
+      ![backend.origin, publicOrigin.origin].includes(signedUrl.origin) ||
+      signedUrl.username || signedUrl.password || signedUrl.hash ||
+      !signedUrl.pathname.startsWith('/storage/v1/object/sign/')
+    ) throw new Error('MEDIA_SIGNING_FAILED');
+    signedUrl.protocol = publicOrigin.protocol;
+    signedUrl.hostname = publicOrigin.hostname;
+    signedUrl.port = publicOrigin.port;
     return json(request, {
       uploadId: authorized.uploadId,
       mimeType: authorized.mimeType,

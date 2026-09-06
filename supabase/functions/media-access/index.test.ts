@@ -259,3 +259,180 @@ Deno.test('media-access rejects an unauthenticated POST inside the custom-auth h
   assertContract(response.status === 401, `unexpected unauthenticated status ${response.status}`);
   assertContract(body.code === 'AUTH_REQUIRED', 'unauthenticated POST must fail as AUTH_REQUIRED');
 });
+
+async function issueTestMediaLink(
+  overrides: Record<string, string | undefined>,
+  deliveryMode: 'signed_url' | 'authenticated_proxy' = 'signed_url',
+  requestUrl = 'http://kong:8081/media-access',
+) {
+  const environment: Record<string, string | undefined> = {
+    APP_ENV: 'test',
+    SUPABASE_URL: 'http://kong:8000',
+    SUPABASE_PUBLIC_URL: undefined,
+    SUPABASE_INTERNAL_HOST_PORT: '54421',
+    SUPABASE_SERVICE_ROLE_KEY: 'synthetic-server-key',
+    SUPABASE_ANON_KEY: 'synthetic-publishable-key',
+    ...overrides,
+  };
+  const previous = new Map(Object.keys(environment).map((key) => [key, Deno.env.get(key)]));
+  const originalFetch = globalThis.fetch;
+  const userId = '11111111-1111-4111-8111-111111111111';
+  const uploadId = '22222222-2222-4222-8222-222222222222';
+  for (const [key, value] of Object.entries(environment)) {
+    if (value === undefined) Deno.env.delete(key);
+    else Deno.env.set(key, value);
+  }
+  globalThis.fetch = (input) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    let body: unknown;
+    if (url.pathname === '/auth/v1/user') body = { id: userId };
+    else if (url.pathname === '/rest/v1/rpc/authorize_protected_media') {
+      body = {
+        bucket: 'completion-proof',
+        path: 'proof.png',
+        mimeType: 'image/png',
+        sizeBytes: 20,
+        uploadId,
+        deliveryMode,
+      };
+    } else if (url.pathname === '/storage/v1/object/sign/completion-proof/proof.png') {
+      body = { signedURL: '/object/sign/completion-proof/proof.png?token=synthetic-signature' };
+    } else throw new Error('UNEXPECTED_TEST_FETCH');
+    return Promise.resolve(Response.json(body));
+  };
+  try {
+    const response = await handleMediaAccess(
+      new Request(requestUrl, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: 'Bearer synthetic-user-token',
+        },
+        body: JSON.stringify({ uploadId, expiresInSeconds: 300 }),
+      }),
+    );
+    return { status: response.status, body: await response.json() as Record<string, unknown> };
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const [key, value] of previous) {
+      if (value === undefined) Deno.env.delete(key);
+      else Deno.env.set(key, value);
+    }
+  }
+}
+
+Deno.test('protected proof links use the actual isolated CLI port and preserve the storage token', async () => {
+  const { status, body } = await issueTestMediaLink({});
+  assertContract(status === 200, 'authorized proof signing failed');
+  const url = new URL(String(body.signedUrl));
+  assertContract(
+    url.origin === 'http://127.0.0.1:54421',
+    'proof link points at another local project',
+  );
+  assertContract(
+    url.pathname === '/storage/v1/object/sign/completion-proof/proof.png',
+    'storage path changed',
+  );
+  assertContract(
+    url.searchParams.get('token') === 'synthetic-signature',
+    'storage signature changed',
+  );
+});
+
+Deno.test('message proxy delivery uses the public functions path instead of the internal request URL', async () => {
+  const { status, body } = await issueTestMediaLink(
+    {},
+    'authenticated_proxy',
+    'http://internal-runtime:8081/media-access?untrusted=discard',
+  );
+  assertContract(status === 200, 'authorized proxy signing failed');
+  const url = new URL(String(body.signedUrl));
+  assertContract(url.origin === 'http://127.0.0.1:54421', 'proxy leaked the internal origin');
+  assertContract(url.pathname === '/functions/v1/media-access', 'public proxy path is missing');
+  assertContract(!url.searchParams.has('untrusted'), 'incoming query leaked into the capability');
+  assertContract(url.searchParams.get('token')?.length === 43, 'bounded proxy HMAC is missing');
+});
+
+Deno.test('production refuses an insecure configured public media origin', async () => {
+  const { status, body } = await issueTestMediaLink({
+    APP_ENV: 'production',
+    SUPABASE_PUBLIC_URL: 'http://media.example.com',
+  });
+  assertContract(status !== 200, 'production returned a capability over HTTP');
+  assertContract(!('signedUrl' in body), 'failed configuration leaked a capability');
+});
+
+for (
+  const scenario of [
+    {
+      name: 'named CLI container',
+      overrides: { SUPABASE_URL: 'http://supabase_kong_disposable:8000' },
+      origin: 'http://127.0.0.1:54421',
+    },
+    {
+      name: 'legacy default CLI port',
+      overrides: { SUPABASE_INTERNAL_HOST_PORT: undefined },
+      origin: 'http://127.0.0.1:54321',
+    },
+    {
+      name: 'explicit custom local port',
+      overrides: { SUPABASE_PUBLIC_URL: 'http://127.0.0.1:54429' },
+      origin: 'http://127.0.0.1:54429',
+    },
+    {
+      name: 'hosted HTTPS backend',
+      overrides: { APP_ENV: 'production', SUPABASE_URL: 'https://project.supabase.co' },
+      origin: 'https://project.supabase.co',
+    },
+    {
+      name: 'configured HTTPS gateway',
+      overrides: { APP_ENV: 'production', SUPABASE_PUBLIC_URL: 'https://media.example.com' },
+      origin: 'https://media.example.com',
+    },
+  ]
+) {
+  Deno.test(`protected media supports ${scenario.name} without changing signed storage paths`, async () => {
+    const { status, body } = await issueTestMediaLink(scenario.overrides);
+    assertContract(status === 200, 'valid media configuration failed');
+    const url = new URL(String(body.signedUrl));
+    assertContract(
+      url.origin === scenario.origin,
+      'public origin or port did not match configuration',
+    );
+    assertContract(
+      url.pathname === '/storage/v1/object/sign/completion-proof/proof.png',
+      'signed path changed',
+    );
+    assertContract(
+      url.searchParams.get('token') === 'synthetic-signature',
+      'signature query changed',
+    );
+  });
+}
+
+Deno.test('invalid public origins and CLI ports fail closed without returning capabilities', async () => {
+  const invalidConfigs: Record<string, string>[] = [
+    ...['0', '65536', '054421', '54421/redirect', 'invalid'].map((value) => ({
+      SUPABASE_INTERNAL_HOST_PORT: value,
+    })),
+    ...[
+      'https://user:password@media.example.com',
+      'https://media.example.com/path',
+      'https://media.example.com?token=private',
+      'https://media.example.com#fragment',
+      ' https://media.example.com',
+      'https://media.example.com\\path',
+      'http://outside.example.com',
+      'file:///tmp/media',
+    ].map((value) => ({ SUPABASE_PUBLIC_URL: value })),
+    { APP_ENV: 'production', SUPABASE_PUBLIC_URL: 'https://localhost' },
+    { APP_ENV: 'production' },
+  ];
+  for (const overrides of invalidConfigs) {
+    const { status, body } = await issueTestMediaLink(overrides);
+    assertContract(status !== 200, 'invalid media configuration returned success');
+    assertContract(!('signedUrl' in body), 'invalid configuration returned a capability');
+    assertContract(body.code === 'PUBLIC_STORAGE_URL_NOT_CONFIGURED', 'error must stay bounded');
+    assertContract(!JSON.stringify(body).includes('private'), 'error leaked raw configuration');
+  }
+});

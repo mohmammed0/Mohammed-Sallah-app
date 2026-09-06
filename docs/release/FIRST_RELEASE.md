@@ -19,6 +19,10 @@ integrated into canonical `main` through the repository's required checks.
 - Customer tracking distinguishes provider completion submission from customer
   acceptance. Viewing the required completion evidence remains a prerequisite;
   rejection and dispute controls remain available.
+- Protected proof and message links use the validated public Supabase gateway.
+  Local CLI projects retain their actual configured port, and message proxy links
+  use the public function route. Production rejects insecure public origins;
+  authentication, authorization and capability lifetimes remain unchanged.
 - Arabic and Urdu remain RTL; English and Hindi remain LTR. New customer copy
   is explicit in all four languages. System reduced motion preserves static
   status meaning. Animations stop when the app or screen becomes inactive.
@@ -76,7 +80,9 @@ must never be promoted into production to make a release appear complete.
 ## Rollback
 
 This customer experience change introduces no database migrations, authorization
-policy changes or new dependencies. Revert the reviewed UI/version commits or
-restore the prior validated client artifact through a normal reviewed change.
+policy changes or new dependencies. Deploy the reviewed `media-access` Edge
+Function with the client candidate and verify protected-media readback against
+the configured public gateway. Revert the reviewed UI/version/broker commits or
+restore the prior validated client and Edge Function artifacts through a normal reviewed change.
 Preserve server state, audit records and the existing mutation journal. Do not
 reset a database or rewrite release history as a client rollback.
