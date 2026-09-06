@@ -46,6 +46,12 @@ export function validateProductionConfiguration(environment) {
     const value = environment[key];
     if (value && isReleasePlaceholder(value)) missing.push(`${key}(placeholder)`);
   }
+  if (
+    environment.SALLAH_SUPABASE_PUBLIC_URL !== undefined &&
+    isReleasePlaceholder(environment.SALLAH_SUPABASE_PUBLIC_URL)
+  ) {
+    missing.push('SALLAH_SUPABASE_PUBLIC_URL(placeholder)');
+  }
   const ai = environment.AI_PROVIDER;
   if (ai !== 'openai') missing.push('AI_PROVIDER(openai)');
   if (ai === 'openai' && !environment.OPENAI_API_KEY?.trim()) missing.push('OPENAI_API_KEY');

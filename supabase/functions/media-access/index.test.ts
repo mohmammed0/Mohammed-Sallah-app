@@ -269,7 +269,7 @@ async function issueTestMediaLink(
     APP_ENV: 'test',
     SUPABASE_URL: 'http://kong:8000',
     SUPABASE_PUBLIC_URL: undefined,
-    SUPABASE_INTERNAL_HOST_PORT: '54421',
+    SALLAH_SUPABASE_PUBLIC_URL: 'http://127.0.0.1:54421',
     SUPABASE_SERVICE_ROLE_KEY: 'synthetic-server-key',
     SUPABASE_ANON_KEY: 'synthetic-publishable-key',
     ...overrides,
@@ -321,7 +321,7 @@ async function issueTestMediaLink(
   }
 }
 
-Deno.test('protected proof links use the actual isolated CLI port and preserve the storage token', async () => {
+Deno.test('protected proof links use the nonreserved isolated public origin and preserve the storage token', async () => {
   const { status, body } = await issueTestMediaLink({});
   assertContract(status === 200, 'authorized proof signing failed');
   const url = new URL(String(body.signedUrl));
@@ -356,7 +356,7 @@ Deno.test('message proxy delivery uses the public functions path instead of the 
 Deno.test('production refuses an insecure configured public media origin', async () => {
   const { status, body } = await issueTestMediaLink({
     APP_ENV: 'production',
-    SUPABASE_PUBLIC_URL: 'http://media.example.com',
+    SALLAH_SUPABASE_PUBLIC_URL: 'http://media.example.com',
   });
   assertContract(status !== 200, 'production returned a capability over HTTP');
   assertContract(!('signedUrl' in body), 'failed configuration leaked a capability');
@@ -371,23 +371,36 @@ for (
     },
     {
       name: 'legacy default CLI port',
-      overrides: { SUPABASE_INTERNAL_HOST_PORT: undefined },
+      overrides: { SALLAH_SUPABASE_PUBLIC_URL: undefined },
       origin: 'http://127.0.0.1:54321',
     },
     {
       name: 'explicit custom local port',
-      overrides: { SUPABASE_PUBLIC_URL: 'http://127.0.0.1:54429' },
+      overrides: { SALLAH_SUPABASE_PUBLIC_URL: 'http://127.0.0.1:54429' },
       origin: 'http://127.0.0.1:54429',
     },
     {
       name: 'hosted HTTPS backend',
-      overrides: { APP_ENV: 'production', SUPABASE_URL: 'https://project.supabase.co' },
+      overrides: {
+        APP_ENV: 'production',
+        SUPABASE_URL: 'https://project.supabase.co',
+        SALLAH_SUPABASE_PUBLIC_URL: undefined,
+      },
       origin: 'https://project.supabase.co',
     },
     {
       name: 'configured HTTPS gateway',
-      overrides: { APP_ENV: 'production', SUPABASE_PUBLIC_URL: 'https://media.example.com' },
+      overrides: { APP_ENV: 'production', SALLAH_SUPABASE_PUBLIC_URL: 'https://media.example.com' },
       origin: 'https://media.example.com',
+    },
+    {
+      name: 'self-hosted legacy public origin',
+      overrides: {
+        APP_ENV: 'production',
+        SALLAH_SUPABASE_PUBLIC_URL: undefined,
+        SUPABASE_PUBLIC_URL: 'https://legacy.example.com',
+      },
+      origin: 'https://legacy.example.com',
     },
   ]
 ) {
@@ -410,12 +423,11 @@ for (
   });
 }
 
-Deno.test('invalid public origins and CLI ports fail closed without returning capabilities', async () => {
+Deno.test('invalid public origins fail closed without returning capabilities', async () => {
   const invalidConfigs: Record<string, string>[] = [
-    ...['0', '65536', '054421', '54421/redirect', 'invalid'].map((value) => ({
-      SUPABASE_INTERNAL_HOST_PORT: value,
-    })),
     ...[
+      'http://127.0.0.1:0',
+      'http://127.0.0.1:65536',
       'https://user:password@media.example.com',
       'https://media.example.com/path',
       'https://media.example.com?token=private',
@@ -424,8 +436,8 @@ Deno.test('invalid public origins and CLI ports fail closed without returning ca
       'https://media.example.com\\path',
       'http://outside.example.com',
       'file:///tmp/media',
-    ].map((value) => ({ SUPABASE_PUBLIC_URL: value })),
-    { APP_ENV: 'production', SUPABASE_PUBLIC_URL: 'https://localhost' },
+    ].map((value) => ({ SALLAH_SUPABASE_PUBLIC_URL: value })),
+    { APP_ENV: 'production', SALLAH_SUPABASE_PUBLIC_URL: 'https://localhost' },
     { APP_ENV: 'production' },
   ];
   for (const overrides of invalidConfigs) {

@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { validateServerEnvironment } from '../src/env';
+import { publicEnvironmentSchema, validateServerEnvironment } from '../src/env';
 import {
   productionRequiredKeys,
   validateProductionConfiguration,
@@ -93,6 +93,163 @@ function runProductionGate(overrides: Record<string, string | undefined>) {
 }
 
 describe('environment safety', () => {
+  it('keeps the media origin override optional and server-only', () => {
+    expect(validateServerEnvironment(base)).not.toHaveProperty('SALLAH_SUPABASE_PUBLIC_URL');
+    expect(productionRequiredKeys).not.toContain('SALLAH_SUPABASE_PUBLIC_URL');
+    expect(validateProductionConfiguration(productionGateBase).ok).toBe(true);
+    const input = { ...base, SALLAH_SUPABASE_PUBLIC_URL: 'http://127.0.0.1:54421' };
+    expect(validateServerEnvironment(input)).toHaveProperty(
+      'SALLAH_SUPABASE_PUBLIC_URL',
+      input.SALLAH_SUPABASE_PUBLIC_URL,
+    );
+    expect(publicEnvironmentSchema.parse(input)).not.toHaveProperty('SALLAH_SUPABASE_PUBLIC_URL');
+  });
+
+  it('accepts exact local media origins on each supported local/test host', () => {
+    for (const APP_ENV of ['local', 'test']) {
+      for (const host of ['127.0.0.1', 'localhost', '[::1]', '10.0.2.2']) {
+        for (const ending of ['', '/']) {
+          const value = `http://${host}:54421${ending}`;
+          expect(
+            validateServerEnvironment({ ...base, APP_ENV, SALLAH_SUPABASE_PUBLIC_URL: value }),
+          ).toHaveProperty('SALLAH_SUPABASE_PUBLIC_URL', value);
+        }
+      }
+    }
+  });
+
+  it('accepts exact HTTPS media origins in each environment', () => {
+    for (const APP_ENV of ['local', 'test', 'preview', 'production']) {
+      for (const value of [
+        'https://project.supabase.co',
+        'https://media.sallah-fixture.com:8443/',
+      ]) {
+        expect(
+          validateServerEnvironment({
+            ...productionBase,
+            APP_ENV,
+            SALLAH_SUPABASE_PUBLIC_URL: value,
+          }),
+        ).toHaveProperty('SALLAH_SUPABASE_PUBLIC_URL', value);
+      }
+    }
+  });
+
+  it('rejects HTTP media origins outside local/test and non-loopback HTTP within it', () => {
+    for (const APP_ENV of ['preview', 'production']) {
+      for (const host of [
+        '127.0.0.1',
+        'localhost',
+        '[::1]',
+        '10.0.2.2',
+        'media.sallah-fixture.com',
+      ]) {
+        expect(() =>
+          validateServerEnvironment({
+            ...productionBase,
+            APP_ENV,
+            SALLAH_SUPABASE_PUBLIC_URL: `http://${host}:54421`,
+          }),
+        ).toThrow(/SALLAH_SUPABASE_PUBLIC_URL/);
+      }
+    }
+    for (const APP_ENV of ['local', 'test']) {
+      for (const host of [
+        '192.168.1.10',
+        '0.0.0.0',
+        'media.sallah-fixture.com',
+        'localhost.example.com',
+      ]) {
+        expect(() =>
+          validateServerEnvironment({
+            ...base,
+            APP_ENV,
+            SALLAH_SUPABASE_PUBLIC_URL: `http://${host}`,
+          }),
+        ).toThrow(/SALLAH_SUPABASE_PUBLIC_URL/);
+      }
+    }
+  });
+
+  it('rejects non-root or malformed media origins before URL normalization', () => {
+    for (const value of [
+      '',
+      ' ',
+      ' https://project.supabase.co',
+      'https://project.supabase.co\n',
+      'https://pro\tject.supabase.co',
+      'https://user:private-value@project.supabase.co',
+      'https://@project.supabase.co',
+      'https://project.supabase.co/storage/v1',
+      'https://project.supabase.co/..',
+      'https://project.supabase.co/%2e',
+      'https://project.supabase.co?',
+      'https://project.supabase.co#',
+      'https://project.supabase.co?token=private-value',
+      'https://project.supabase.co#private-value',
+      'https://project.supabase.co\\',
+      'https://project.supabase.co:0',
+      'http://127.0.0.1:0',
+      'http://localhost:65536',
+      'ftp://project.supabase.co',
+      '//project.supabase.co',
+      'not-a-url',
+    ]) {
+      expect(() =>
+        validateServerEnvironment({ ...base, SALLAH_SUPABASE_PUBLIC_URL: value }),
+      ).toThrow(/SALLAH_SUPABASE_PUBLIC_URL/);
+    }
+  });
+
+  it('rejects even HTTPS loopback media origins outside local/test', () => {
+    for (const APP_ENV of ['preview', 'production']) {
+      for (const host of ['127.0.0.1', 'localhost', '[::1]', '10.0.2.2']) {
+        expect(() =>
+          validateServerEnvironment({
+            ...productionBase,
+            APP_ENV,
+            SALLAH_SUPABASE_PUBLIC_URL: `https://${host}:54421`,
+          }),
+        ).toThrow(/SALLAH_SUPABASE_PUBLIC_URL/);
+      }
+    }
+  });
+
+  it('makes the production gate reject an explicitly unsafe or placeholder media origin safely', () => {
+    for (const value of [
+      '',
+      'https://media.example.invalid',
+      'http://127.0.0.1:54421',
+      'https://project.supabase.co:0',
+      'https://user:private-value@project.supabase.co',
+      'https://project.supabase.co?token=private-value',
+    ]) {
+      const result = validateProductionConfiguration({
+        ...productionGateBase,
+        SALLAH_SUPABASE_PUBLIC_URL: value,
+      });
+      expect(result.ok).toBe(false);
+      expect(result.message).toContain('SALLAH_SUPABASE_PUBLIC_URL');
+      expect(result.message).not.toContain('private-value');
+      expect(result.message).not.toContain('user:');
+    }
+    expect(
+      validateProductionConfiguration({
+        ...productionGateBase,
+        SALLAH_SUPABASE_PUBLIC_URL: 'https://project.supabase.co',
+      }).ok,
+    ).toBe(true);
+  });
+
+  it('fails the production CLI for a bad media origin without printing embedded credentials', () => {
+    const rejected = runProductionGate({
+      SALLAH_SUPABASE_PUBLIC_URL: 'https://user:private-value@project.supabase.co',
+    });
+    expect(rejected.status).not.toBe(0);
+    expect(`${rejected.stdout}${rejected.stderr}`).toContain('SALLAH_SUPABASE_PUBLIC_URL');
+    expect(`${rejected.stdout}${rejected.stderr}`).not.toContain('private-value');
+  });
+
   it('requires an explicit recognized APP_ENV', () => {
     expect(() => validateServerEnvironment({ ...base, APP_ENV: undefined })).toThrow(
       /APP_ENV|Invalid environment/,

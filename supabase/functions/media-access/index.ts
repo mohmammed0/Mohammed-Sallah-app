@@ -29,15 +29,14 @@ export function messageProxyLifetimeSeconds(requestedSeconds: number) {
   return Math.min(requestedSeconds, maxMessageProxyTtlSeconds);
 }
 
-const originSchema = z.string().refine((raw) => !/[\s\\\p{Cc}]/u.test(raw)).pipe(
-  z.string().url().refine((raw) => {
-    const url = new URL(raw);
+const originSchema = z.string().refine((raw) =>
+  !/[\s\\\p{Cc}]/u.test(raw) && /^https?:\/\/[^/?#@]+\/?$/iu.test(raw)
+).pipe(
+  z.string().url().transform((raw) => new URL(raw)).refine((url) => {
     return ['http:', 'https:'].includes(url.protocol) &&
-      !url.username && !url.password && url.pathname === '/' && !url.search && !url.hash;
-  }).transform((raw) => new URL(raw)),
-);
-const localPortSchema = z.string().regex(/^[1-9]\d{0,4}$/).transform(Number).pipe(
-  z.number().int().min(1).max(65535),
+      !url.username && !url.password && url.port !== '0' && url.pathname === '/' &&
+      !url.search && !url.hash;
+  }),
 );
 const loopbackHosts = new Set(['localhost', '127.0.0.1', '[::1]', '10.0.2.2']);
 
@@ -45,7 +44,9 @@ function mediaOrigins(environment: ReturnType<typeof parseAppEnvironment>) {
   const backend = originSchema.safeParse(Deno.env.get('SUPABASE_URL'));
   if (!backend.success) throw new Error('SERVER_CONFIG');
   const local = environment === 'local' || environment === 'test';
-  const configured = Deno.env.get('SUPABASE_PUBLIC_URL');
+  // The CLI reserves SUPABASE_* user variables and strips its internal runtime values.
+  const configured = Deno.env.get('SALLAH_SUPABASE_PUBLIC_URL') ??
+    Deno.env.get('SUPABASE_PUBLIC_URL');
   let publicOrigin: URL;
   if (configured !== undefined) {
     const parsed = originSchema.safeParse(configured);
@@ -54,10 +55,8 @@ function mediaOrigins(environment: ReturnType<typeof parseAppEnvironment>) {
   } else if (backend.data.protocol === 'https:' || loopbackHosts.has(backend.data.hostname)) {
     publicOrigin = new URL(backend.data.origin);
   } else if (local) {
-    // The CLI supplies its actual gateway port, including isolated custom-port projects.
-    const port = localPortSchema.safeParse(Deno.env.get('SUPABASE_INTERNAL_HOST_PORT') ?? '54321');
-    if (!port.success) throw new Error('PUBLIC_STORAGE_URL_NOT_CONFIGURED');
-    publicOrigin = new URL(`http://127.0.0.1:${port.data}`);
+    // Compatibility for the standard local CLI stack; custom ports require an explicit origin.
+    publicOrigin = new URL('http://127.0.0.1:54321');
   } else {
     throw new Error('PUBLIC_STORAGE_URL_NOT_CONFIGURED');
   }

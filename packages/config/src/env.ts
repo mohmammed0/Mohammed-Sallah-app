@@ -15,6 +15,38 @@ const scannerSecret = (name: string) =>
     }
   });
 
+function validateMediaOrigin(value: string, allowLocalHttp: boolean): void {
+  const message =
+    'SALLAH_SUPABASE_PUBLIC_URL must be an exact HTTPS root origin; HTTP is local/test loopback-only';
+  const hasControlCharacter = Array.from(value).some((character) => {
+    const code = character.charCodeAt(0);
+    return code <= 0x20 || (code >= 0x7f && code <= 0x9f);
+  });
+  if (!/^https?:\/\/[^/?#@\\\s]+\/?$/iu.test(value) || hasControlCharacter) {
+    throw new Error(message);
+  }
+  let origin: URL;
+  try {
+    origin = new URL(value);
+  } catch {
+    throw new Error(message);
+  }
+  const localHost = ['127.0.0.1', 'localhost', '[::1]', '10.0.2.2'].includes(origin.hostname);
+  if (
+    (origin.protocol !== 'https:' &&
+      !(allowLocalHttp && origin.protocol === 'http:' && localHost)) ||
+    (!allowLocalHttp && localHost) ||
+    origin.username !== '' ||
+    origin.password !== '' ||
+    origin.pathname !== '/' ||
+    origin.search !== '' ||
+    origin.hash !== '' ||
+    origin.port === '0'
+  ) {
+    throw new Error(message);
+  }
+}
+
 function validateScannerOrigin(value: string, name: string, allowLocalHttp: boolean): void {
   let origin: URL;
   try {
@@ -52,6 +84,7 @@ export const publicEnvironmentSchema = z.object({
 
 export const serverEnvironmentSchema = publicEnvironmentSchema.extend({
   SUPABASE_SECRET_KEY: z.string().optional(),
+  SALLAH_SUPABASE_PUBLIC_URL: z.string().optional(),
   AI_PROVIDER: z
     .enum(['deterministic', 'openai', 'gemini', 'compatible', 'ollama'])
     .default('deterministic'),
@@ -118,6 +151,9 @@ export function validateServerEnvironment(
   }
   const env = parsed.data;
   const localOrTest = env.APP_ENV === 'local' || env.APP_ENV === 'test';
+  if (env.SALLAH_SUPABASE_PUBLIC_URL !== undefined) {
+    validateMediaOrigin(env.SALLAH_SUPABASE_PUBLIC_URL, localOrTest);
+  }
   if (
     (env.AI_PROVIDER === 'openai' ||
       env.TRANSLATION_PROVIDER === 'openai' ||

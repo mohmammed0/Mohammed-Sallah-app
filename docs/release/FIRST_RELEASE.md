@@ -55,6 +55,12 @@ timestamps, file hashes and actual outcomes in the release artifact directory.
 Run `pnpm validate` after the final change. Keep native captures, hosted CI,
 disposable-backend acceptance and production acceptance separate.
 
+For custom local gateway ports or a reverse proxy, set the server-only
+`SALLAH_SUPABASE_PUBLIC_URL` to the exact public Supabase origin. The Supabase CLI
+reserves user-supplied `SUPABASE_*` names and hides its internal port variables
+from functions. Hosted HTTPS backends need no override. The standard local/test
+stack retains its 54321 fallback; other ports require explicit configuration.
+
 The requested ordering-to-receipt video must identify its actual environment.
 Synthetic accounts in an isolated local database can demonstrate real app
 interactions and real RPC transitions, but cannot demonstrate production legal
