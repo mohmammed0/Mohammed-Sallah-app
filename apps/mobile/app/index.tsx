@@ -107,7 +107,7 @@ export default function Welcome() {
             </View>
           </View>
           <View style={welcomeStyles.actions}>
-            <Link href="/home" asChild>
+            <Link href="/auth" asChild>
               <Button label={t('newRequest')} />
             </Link>
             <Link href="/auth" asChild>

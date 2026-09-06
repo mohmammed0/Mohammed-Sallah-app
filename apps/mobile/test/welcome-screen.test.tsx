@@ -104,17 +104,16 @@ describe('welcome language and navigation access', () => {
   });
 
   it.each(supportedLocales)(
-    'keeps both real routes inside scrollable content with a localized %s sign-in label',
+    'routes both %s guest actions to public auth with their localized labels',
     async (locale) => {
       await renderWelcome(locale);
       const scroll = renderer.root.findByType('ScrollView');
-      expect(scroll.findAllByType('Link').map((link) => link.props.href)).toEqual([
-        '/home',
-        '/auth',
-      ]);
-      expect(scroll.findByProps({ href: '/auth' }).findByType('Text').props.children).toBe(
+      const links = scroll.findAllByType('Link');
+      expect(links.map((link) => link.props.href)).toEqual(['/auth', '/auth']);
+      expect(links.map((link) => link.findByType('Text').props.children)).toEqual([
+        translate(locale, 'newRequest'),
         translate(locale, 'signIn'),
-      );
+      ]);
       expect(flatten(scroll.props.contentContainerStyle).flexGrow).toBe(1);
     },
   );

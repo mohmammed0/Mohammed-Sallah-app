@@ -10,6 +10,8 @@ The containing commit and matching CI belong in the PR evidence; this file canno
 
 - Welcome explains the service journey and exposes the four language choices. Customer home puts
   service discovery and active work first, with consistent search and recovery states.
+  Both guest entry actions open public authentication; a protected home route must not return the
+  visitor to the welcome screen. The prior no-op was reproduced on the Android emulator.
 - Provider home groups work and account actions. Request briefs show schedule, location area and
   qualification context; original content, attachments and translation provenance remain accessible.
   Safety and qualification notices stay visible when supplementary details are collapsed.
