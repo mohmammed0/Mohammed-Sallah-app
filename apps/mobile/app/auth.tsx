@@ -115,7 +115,7 @@ export default function Auth() {
         <View style={styles.mark}>
           <AppIcon color={tokens.colors.white} name="tools" size={34} strokeWidth={2.4} />
         </View>
-        <Text accessibilityRole="header" style={customerStyles.display}>
+        <Text accessibilityRole="header" style={[customerStyles.display, styles.title]}>
           {t('authTitle')}
         </Text>
         <Text style={styles.lead}>{t('authLead')}</Text>
@@ -253,6 +253,7 @@ const styles = StyleSheet.create({
     width: 72,
     ...tokens.shadow.floating,
   },
+  title: { alignSelf: 'stretch', textAlign: 'center' },
   lead: { ...customerStyles.bodyMuted, maxWidth: 420, textAlign: 'center' },
   form: { gap: tokens.spacing.md },
   introduction: { gap: tokens.spacing.xs },
