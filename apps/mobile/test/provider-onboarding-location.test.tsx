@@ -16,7 +16,7 @@ vi.mock('expo-image-picker', () => ({ launchImageLibraryAsync: vi.fn() }));
 vi.mock('@sallah/i18n', () => ({ formatStatusLabel: (status: string) => status }));
 vi.mock('@tanstack/react-query', () => ({
   useMutation: () => ({ isPending: false, mutate: vi.fn() }),
-  useQuery: () => ({ data: undefined, isPending: false, refetch: vi.fn() }),
+  useQuery: () => ({ data: null, isSuccess: true, isPending: false, refetch: vi.fn() }),
 }));
 vi.mock('react-hook-form', () => ({
   Controller: () => null,
@@ -25,6 +25,7 @@ vi.mock('react-hook-form', () => ({
     control: {},
     formState: { errors: {} },
     handleSubmit: vi.fn(),
+    reset: vi.fn(),
     setError: vi.fn(),
   }),
 }));
@@ -41,6 +42,13 @@ vi.mock('@/lib/mutation-journal', () => ({ executeJournaledMutation: vi.fn() }))
 vi.mock('@/providers/locale-provider', () => ({
   useLocale: () => ({ locale: 'ar', t: (key: string) => key }),
 }));
+vi.mock('@/providers/session-provider', () => ({
+  useSessionContext: () => ({ session: { user: { id: '11111111-1111-4111-8111-111111111111' } } }),
+}));
+vi.mock(
+  '@/features/provider/onboarding-draft',
+  async () => import('../src/features/provider/onboarding-draft'),
+);
 vi.mock('@/features/location/location-device', () => ({
   acquireForegroundLocation,
   locationRecoveryForResult: ({ status }: { status: string }) => {

@@ -14,6 +14,11 @@ import {
 } from '@/design-system/primitives';
 import { AppIcon } from '@/design-system/icon';
 import { customerTokens as tokens } from '@/design-system/tokens';
+import {
+  logicalFlexDirection,
+  logicalTextAlignment,
+  logicalWritingDirection,
+} from '@/design-system/rtl';
 import { supabase } from '@/lib/supabase';
 import { formatSar } from '@sallah/i18n';
 import { useLocale } from '@/providers/locale-provider';
@@ -42,6 +47,11 @@ const offerSchema = z.object({
 
 export default function Offers() {
   const { locale, t } = useLocale();
+  const rowDirection = { flexDirection: logicalFlexDirection(locale) } as const;
+  const textDirection = {
+    textAlign: logicalTextAlignment(locale),
+    writingDirection: logicalWritingDirection(locale),
+  } as const;
   const { requestId } = useLocalSearchParams<{ requestId?: string }>();
   const [error, setError] = useState('');
   const queryClient = useQueryClient();
@@ -78,7 +88,11 @@ export default function Offers() {
       });
     },
     onSuccess: async (jobId) => {
-      await queryClient.invalidateQueries({ queryKey: ['customer-requests'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['customer-requests'] }),
+        queryClient.invalidateQueries({ queryKey: ['customer-home-requests'] }),
+        queryClient.invalidateQueries({ queryKey: ['jobs'] }),
+      ]);
       Alert.alert(t('offerSelectedTitle'), t('offerSelectedBody'));
       router.replace({ pathname: '/jobs', params: { jobId } });
     },
@@ -87,7 +101,7 @@ export default function Offers() {
   return (
     <CustomerScreen testID="customer-offers">
       <View style={styles.header}>
-        <Text accessibilityRole="header" style={customerStyles.display}>
+        <Text accessibilityRole="header" style={customerStyles.title}>
           {t('privateOffersTitle')}
         </Text>
         <Text style={customerStyles.bodyMuted}>{t('privateOffersLead')}</Text>
@@ -97,7 +111,7 @@ export default function Offers() {
           {t('missingRequestId')}
         </Notice>
       ) : null}
-      {query.isPending ? <LoadingBlock label={t('loadingOffers')} rows={4} /> : null}
+      {requestId && query.isPending ? <LoadingBlock label={t('loadingOffers')} rows={4} /> : null}
       {query.isError ? (
         <Surface tone="danger">
           <Notice live tone="danger">
@@ -113,13 +127,13 @@ export default function Offers() {
       ) : null}
       {query.data?.map((offer) => (
         <Surface key={offer.id} accessibilityLabel={offer.providerName}>
-          <View style={customerStyles.between}>
+          <View style={[styles.providerHeader, rowDirection]}>
             <View style={styles.providerIcon}>
               <AppIcon color={tokens.colors.primaryStrong} name="customer" size={24} />
             </View>
             <View style={styles.providerSummary}>
-              <Text style={customerStyles.section}>{offer.providerName}</Text>
-              <Text style={customerStyles.caption}>
+              <Text style={[customerStyles.section, textDirection]}>{offer.providerName}</Text>
+              <Text style={[customerStyles.caption, textDirection]}>
                 {t('offerRatingSummary', {
                   rating: offer.rating.toFixed(1),
                   count: offer.ratingCount,
@@ -127,37 +141,75 @@ export default function Offers() {
                 })}
               </Text>
             </View>
-            <Text style={styles.price}>{formatSar(offer.totalAmountMinor, locale)}</Text>
+          </View>
+          <View style={styles.priceSummary}>
+            <Text style={[customerStyles.caption, textDirection]}>{t('totalPriceSar')}</Text>
+            <Text style={[styles.price, textDirection]}>
+              {formatSar(offer.totalAmountMinor, locale)}
+            </Text>
+            <Text style={[customerStyles.caption, textDirection]}>
+              {t('visitFee')}: {formatSar(offer.visitFeeMinor, locale)}
+            </Text>
+            {offer.materialsEstimateMinor !== null ? (
+              <Text style={[customerStyles.caption, textDirection]}>
+                {t('materialsEstimate')}: {formatSar(offer.materialsEstimateMinor, locale)}
+              </Text>
+            ) : null}
           </View>
           <View style={styles.detailGrid}>
-            <View style={styles.detail}>
+            <View style={[styles.detail, rowDirection]}>
               <AppIcon color={tokens.colors.primaryStrong} name="time" size={18} />
-              <Text style={styles.detailText}>
+              <Text style={[styles.detailText, textDirection]}>
                 {t('offerTimingSummary', {
                   arrival: offer.estimatedArrivalMinutes,
                   duration: offer.estimatedDurationMinutes,
                 })}
               </Text>
             </View>
-            <View style={styles.detail}>
+            <View style={[styles.detail, rowDirection]}>
               <AppIcon color={tokens.colors.success} name="shield" size={18} />
-              <Text style={styles.detailText}>
+              <Text style={[styles.detailText, textDirection]}>
                 {t('warrantyDaysSummary', { days: offer.warrantyDays })}
               </Text>
             </View>
-            <View style={styles.detail}>
+            <View style={[styles.detail, rowDirection]}>
               <AppIcon color={tokens.colors.accent} name="tools" size={18} />
-              <Text style={styles.detailText}>
+              <Text style={[styles.detailText, textDirection]}>
                 {offer.materialsIncluded ? t('materialsIncluded') : t('materialsNotIncluded')}
               </Text>
             </View>
           </View>
-          {offer.note.length > 0 ? <Text style={styles.note}>{offer.note}</Text> : null}
+          {offer.note.length > 0 ? (
+            <Text style={[styles.note, textDirection]}>{offer.note}</Text>
+          ) : null}
+          <Text style={[customerStyles.caption, textDirection]}>
+            {t('offerValidUntil', {
+              date: new Date(offer.expiresAt).toLocaleString(locale === 'ar' ? 'ar-SA' : locale, {
+                timeZone: 'Asia/Riyadh',
+                dateStyle: 'medium',
+                timeStyle: 'short',
+              }),
+            })}
+          </Text>
+          {!offer.selectable ? (
+            <Notice tone="warning">
+              {t(
+                offer.ineligibleReason === 'offer_expired'
+                  ? 'offerExpired'
+                  : offer.ineligibleReason === 'offer_withdrawn'
+                    ? 'offerWithdrawn'
+                    : 'offerUnavailable',
+              )}
+            </Notice>
+          ) : null}
           <ActionButton
             disabled={selectOffer.isPending || !offer.selectable}
             label={t('selectThisOffer')}
-            loading={selectOffer.isPending}
-            onPress={() => selectOffer.mutate(offer.id)}
+            loading={selectOffer.isPending && selectOffer.variables === offer.id}
+            onPress={() => {
+              setError('');
+              selectOffer.mutate(offer.id);
+            }}
           />
         </Surface>
       ))}
@@ -175,6 +227,13 @@ export default function Offers() {
 
 const styles = StyleSheet.create({
   header: { gap: tokens.spacing.xs },
+  providerHeader: { alignItems: 'center', gap: tokens.spacing.sm },
+  priceSummary: {
+    borderBottomWidth: 1,
+    borderBottomColor: tokens.colors.border,
+    paddingBottom: tokens.spacing.sm,
+    gap: tokens.spacing.xxs,
+  },
   providerIcon: {
     alignItems: 'center',
     backgroundColor: tokens.colors.primarySoft,
@@ -184,7 +243,7 @@ const styles = StyleSheet.create({
     width: 48,
   },
   providerSummary: { flex: 1, gap: tokens.spacing.xxs },
-  price: { ...tokens.type.section, color: tokens.colors.primaryStrong },
+  price: { ...tokens.type.title, color: tokens.colors.primaryStrong },
   detailGrid: { gap: tokens.spacing.xs },
   detail: {
     alignItems: 'center',

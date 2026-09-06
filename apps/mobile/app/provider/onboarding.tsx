@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Alert, Linking, ScrollView, Text, TextInput, View } from 'react-native';
@@ -9,6 +9,12 @@ import { Button, Card, LoadingSkeleton, Screen, styles } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { secureUpload } from '@/lib/secure-upload';
 import { useLocale } from '@/providers/locale-provider';
+import { useSessionContext } from '@/providers/session-provider';
+import {
+  parseProviderOnboardingDraft,
+  preserveProviderSelections,
+  type ProviderOnboardingDraft,
+} from '@/features/provider/onboarding-draft';
 import { executeJournaledMutation } from '@/lib/mutation-journal';
 import {
   acquireForegroundLocation,
@@ -37,21 +43,37 @@ const citySchema = z.object({
 
 export default function ProviderOnboarding() {
   const { locale, t } = useLocale();
+  const { session } = useSessionContext();
+  const ownerId = session?.user.id;
+  const mounted = useRef(false);
+  const currentOwner = useRef(ownerId);
+  currentOwner.current = ownerId;
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const hydrated = useRef(false);
+  const [savedDraft, setSavedDraft] = useState<ProviderOnboardingDraft | null>(null);
+  const [ready, setReady] = useState(false);
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [cityIds, setCityIds] = useState<string[]>([]);
   const [weekdays, setWeekdays] = useState<number[]>([0, 1, 2, 3, 4]);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationChanged, setLocationChanged] = useState(false);
   const [locationRecovery, setLocationRecovery] = useState<'retry' | 'settings' | null>(null);
   const [documents, setDocuments] = useState<ImagePicker.ImagePickerAsset[]>([]);
-  const { clearErrors, control, handleSubmit, formState, setError } = useForm<OnboardingForm>({
-    defaultValues: {
-      kind: 'individual',
-      businessName: '',
-      commercialRegistrationReference: '',
-      bio: '',
-      serviceRadiusKm: 20,
-    },
-  });
+  const { clearErrors, control, handleSubmit, formState, reset, setError } =
+    useForm<OnboardingForm>({
+      defaultValues: {
+        kind: 'individual',
+        businessName: '',
+        commercialRegistrationReference: '',
+        bio: '',
+        serviceRadiusKm: 20,
+      },
+    });
   const catalog = useQuery({
     queryKey: ['provider-onboarding-catalog', locale],
     queryFn: async () => {
@@ -77,16 +99,80 @@ export default function ProviderOnboarding() {
     },
   });
   const status = useQuery({
-    queryKey: ['provider-onboarding-status'],
+    queryKey: ['provider-onboarding-status', ownerId],
+    enabled: Boolean(ownerId),
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('provider_profiles')
-        .select('verification_status,updated_at')
-        .maybeSingle();
-      if (error) throw error;
-      return data;
+      if (!ownerId) throw new Error('AUTH_REQUIRED');
+      const [profile, services, areas, availability, retainedDocuments] = await Promise.all([
+        supabase
+          .from('provider_profiles')
+          .select(
+            'kind,business_name,commercial_registration_reference,bio,service_radius_km,verification_status,updated_at',
+          )
+          .eq('user_id', ownerId)
+          .maybeSingle(),
+        supabase
+          .from('provider_services')
+          .select('category_id,subcategory_id')
+          .eq('provider_id', ownerId)
+          .eq('enabled', true),
+        supabase
+          .from('provider_service_areas')
+          .select('city_id,center,radius_m')
+          .eq('provider_id', ownerId)
+          .eq('enabled', true),
+        supabase
+          .from('provider_availability')
+          .select('weekday,start_time,end_time')
+          .eq('provider_id', ownerId)
+          .order('weekday'),
+        supabase
+          .from('provider_documents')
+          .select('id')
+          .eq('provider_id', ownerId)
+          .is('deleted_at', null),
+      ]);
+      for (const result of [profile, services, areas, availability, retainedDocuments])
+        if (result.error) throw result.error;
+      return parseProviderOnboardingDraft({
+        profile: profile.data,
+        services: services.data,
+        areas: areas.data,
+        availability: availability.data,
+        documents: retainedDocuments.data,
+      });
     },
   });
+  useEffect(() => {
+    // Only the initial owner snapshot hydrates the form. Background refetches
+    // update review status without replacing unsaved text or selection edits.
+    if (!status.isSuccess || hydrated.current) return;
+    hydrated.current = true;
+    const draft = status.data;
+    setSavedDraft(draft);
+    if (draft) {
+      reset({
+        kind: draft.profile.kind,
+        businessName: draft.profile.business_name ?? '',
+        commercialRegistrationReference: draft.profile.commercial_registration_reference ?? '',
+        bio: draft.profile.bio ?? '',
+        serviceRadiusKm: draft.profile.service_radius_km,
+      });
+      setCategoryIds(draft.services.map((service) => service.categoryId));
+      setCityIds([...new Set(draft.serviceAreas.map((area) => area.cityId))]);
+      setLocation(draft.serviceAreas.find((area) => area.location)?.location ?? null);
+      setWeekdays([...new Set(draft.availability.map((slot) => slot.weekday))]);
+    }
+    setReady(true);
+  }, [status.isSuccess, status.data, reset]);
+  async function assertCurrentOwner() {
+    if (!ownerId || !mounted.current || currentOwner.current !== ownerId)
+      throw new Error('AUTH_CHANGED');
+    const { data, error } = await supabase.auth.getUser();
+    if (error || data.user?.id !== ownerId || !mounted.current || currentOwner.current !== ownerId)
+      throw new Error('AUTH_CHANGED');
+    return ownerId;
+  }
   async function chooseLocation() {
     if (locationRecovery === 'settings') {
       try {
@@ -101,6 +187,7 @@ export default function ProviderOnboarding() {
     try {
       const result = await acquireForegroundLocation(({ coordinates }) => {
         setLocation(coordinates);
+        setLocationChanged(true);
       });
       const recovery = locationRecoveryForResult(result);
       setLocationRecovery(recovery.action);
@@ -132,12 +219,25 @@ export default function ProviderOnboarding() {
   }
   const submit = useMutation({
     mutationFn: async ({ raw, shouldSubmit }: { raw: OnboardingForm; shouldSubmit: boolean }) => {
+      if (!ready || status.isError || catalog.isError) throw new Error('PROVIDER_DRAFT_NOT_READY');
+      await assertCurrentOwner();
+      if (!weekdays.length) throw new Error('PROVIDER_AVAILABILITY_REQUIRED');
       const input = onboardingSchema.parse(raw);
+      const selections = preserveProviderSelections({
+        saved: savedDraft,
+        categoryIds,
+        cityIds,
+        weekdays,
+        location,
+        locationChanged,
+        radiusKm: input.serviceRadiusKm,
+        radiusChanged: Boolean(formState.dirtyFields.serviceRadiusKm),
+      });
       if (
         !categoryIds.length ||
         !cityIds.length ||
-        !location ||
-        (shouldSubmit && !documents.length)
+        selections.serviceAreas.some((area) => !area.location) ||
+        (shouldSubmit && !documents.length && !(status.data?.documentCount ?? 0))
       )
         throw new Error('MISSING_REQUIRED_FIELDS');
       const uploadedDocuments = await Promise.all(
@@ -150,6 +250,7 @@ export default function ProviderOnboarding() {
             input.kind === 'company' && index === 0
               ? 'commercial_registration'
               : 'identity_or_license';
+          await assertCurrentOwner();
           return await secureUpload({
             bytes,
             filename: `${globalThis.crypto.randomUUID()}.${extension}`,
@@ -161,17 +262,7 @@ export default function ProviderOnboarding() {
       );
       const commandPayload = {
         ...input,
-        categoryIds,
-        serviceAreas: cityIds.map((cityId) => ({
-          cityId,
-          location,
-          radiusKm: input.serviceRadiusKm,
-        })),
-        availability: weekdays.map((weekday) => ({
-          weekday,
-          start: '08:00',
-          end: '18:00',
-        })),
+        ...selections,
         locale,
         submit: shouldSubmit,
         documents: uploadedDocuments.map((upload, index) => ({
@@ -182,14 +273,14 @@ export default function ProviderOnboarding() {
               : 'identity_or_license',
         })),
       };
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) throw new Error('AUTH_REQUIRED');
+      const verifiedOwnerId = await assertCurrentOwner();
       return executeJournaledMutation({
-        userId: userData.user.id,
+        userId: verifiedOwnerId,
         operation: 'provider_onboarding',
         entityKey: shouldSubmit ? 'submit' : 'draft',
         payload: commandPayload,
         execute: async (idempotencyKey, persistedPayload) => {
+          await assertCurrentOwner();
           const authoritativePayload = z.record(z.string(), z.unknown()).parse(persistedPayload);
           const { data, error } = await supabase.rpc('upsert_provider_onboarding', {
             payload: { ...authoritativePayload, idempotencyKey },
@@ -199,28 +290,61 @@ export default function ProviderOnboarding() {
         },
       });
     },
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
+      try {
+        await assertCurrentOwner();
+      } catch {
+        return;
+      }
       void status.refetch();
       Alert.alert(
         t('providerSubmissionTitle'),
         t('providerSubmissionStatus', { status: formatStatusLabel(result.status, locale) }),
       );
     },
-    onError: () =>
+    onError: (error) => {
+      if (!mounted.current || currentOwner.current !== ownerId) return;
       setError('root', {
-        message: t('providerSubmissionFailed'),
-      }),
+        message: t(
+          error.message === 'PROVIDER_AVAILABILITY_REQUIRED'
+            ? 'providerAvailabilityRequired'
+            : 'providerSubmissionFailed',
+        ),
+      });
+    },
   });
+  if (catalog.isError || status.isError)
+    return (
+      <Screen>
+        <Text style={styles.title}>{t('providerOnboarding')}</Text>
+        <Text style={styles.error} accessibilityRole="alert">
+          {t('providerDraftLoadFailed')}
+        </Text>
+        <Button
+          label={t('retry')}
+          onPress={() => {
+            void catalog.refetch();
+            void status.refetch();
+          }}
+        />
+      </Screen>
+    );
+  if (!ready || catalog.isPending)
+    return (
+      <Screen>
+        <Text style={styles.title}>{t('providerOnboarding')}</Text>
+        <LoadingSkeleton label={t('loading')} />
+      </Screen>
+    );
   return (
     <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
       <Screen>
         <Text style={styles.title}>{t('providerOnboarding')}</Text>
-        {(catalog.isPending || status.isPending) && <LoadingSkeleton label={t('loading')} />}
         <Card>
           <Text style={styles.lead}>{t('providerDocumentsNotice')}</Text>
           <Text style={styles.badge}>
             {t('providerCurrentStatus', {
-              status: formatStatusLabel(status.data?.verification_status ?? 'new', locale),
+              status: formatStatusLabel(status.data?.profile.verification_status ?? 'new', locale),
             })}
           </Text>
         </Card>
@@ -250,6 +374,7 @@ export default function ProviderOnboarding() {
             <TextInput
               style={styles.input}
               placeholder={t('providerNamePlaceholder')}
+              accessibilityLabel={t('providerNamePlaceholder')}
               value={field.value}
               onBlur={field.onBlur}
               onChangeText={field.onChange}
@@ -263,6 +388,7 @@ export default function ProviderOnboarding() {
             <TextInput
               style={styles.input}
               placeholder={t('commercialRegistrationPlaceholder')}
+              accessibilityLabel={t('commercialRegistrationPlaceholder')}
               value={field.value}
               onBlur={field.onBlur}
               onChangeText={field.onChange}
@@ -277,6 +403,7 @@ export default function ProviderOnboarding() {
               style={[styles.input, { minHeight: 100, textAlignVertical: 'top' }]}
               multiline
               placeholder={t('providerBioPlaceholder')}
+              accessibilityLabel={t('providerBioPlaceholder')}
               value={field.value}
               onBlur={field.onBlur}
               onChangeText={field.onChange}
@@ -291,6 +418,7 @@ export default function ProviderOnboarding() {
               style={styles.input}
               keyboardType="number-pad"
               placeholder={t('serviceRadiusPlaceholder')}
+              accessibilityLabel={t('serviceRadiusPlaceholder')}
               value={String(field.value)}
               onBlur={field.onBlur}
               onChangeText={field.onChange}
@@ -369,6 +497,11 @@ export default function ProviderOnboarding() {
           }
           onPress={() => void chooseDocument()}
         />
+        {Boolean(status.data?.documentCount) && (
+          <Text style={styles.lead}>
+            {t('providerDocumentsRetained', { count: status.data?.documentCount ?? 0 })}
+          </Text>
+        )}
         {formState.errors.root?.message && (
           <Text style={styles.error}>{formState.errors.root.message}</Text>
         )}
@@ -384,7 +517,7 @@ export default function ProviderOnboarding() {
           <Button
             disabled={submit.isPending}
             label={
-              status.data?.verification_status === 'more_information_required'
+              status.data?.profile.verification_status === 'more_information_required'
                 ? t('resubmitForReview')
                 : t('submitForHumanReview')
             }

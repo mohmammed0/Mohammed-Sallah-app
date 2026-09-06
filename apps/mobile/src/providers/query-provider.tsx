@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query';
 import * as Network from 'expo-network';
 import { isNetworkOnline } from '@/features/connectivity/network-state';
+import { useSessionContext } from '@/providers/session-provider';
 
 export function AppQueryProvider({ children }: { children: React.ReactNode }) {
+  const { session } = useSessionContext();
   useEffect(
     () =>
       onlineManager.setEventListener((setOnline) => {
@@ -17,6 +19,12 @@ export function AppQueryProvider({ children }: { children: React.ReactNode }) {
       }),
     [],
   );
+  return (
+    <IdentityQueryProvider key={session?.user.id ?? 'anonymous'}>{children}</IdentityQueryProvider>
+  );
+}
+
+function IdentityQueryProvider({ children }: { children: React.ReactNode }) {
   const [client] = useState(
     () =>
       new QueryClient({
@@ -26,5 +34,8 @@ export function AppQueryProvider({ children }: { children: React.ReactNode }) {
         },
       }),
   );
+  // A different identity must never observe cached data or late responses from
+  // the previous account. Same-user token/context refreshes keep this boundary.
+  useEffect(() => () => client.clear(), [client]);
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }

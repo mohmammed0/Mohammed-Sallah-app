@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { z } from 'zod';
 import { Alert, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { formatStatusLabel, localeNativeNames, supportedLocales } from '@sallah/i18n';
@@ -25,12 +26,13 @@ import { productLandingRoute } from '@/features/auth/route-policy';
 import { useCustomerLocation } from '@/features/location/location-provider';
 import { revokeExpoPushDevice } from '@/features/notifications/expo-push-runtime';
 
-interface NotificationPreferences {
-  in_app: boolean;
-  push: boolean;
-  email: boolean;
-  marketing: boolean;
-}
+const notificationPreferencesSchema = z.object({
+  in_app: z.boolean(),
+  push: z.boolean(),
+  email: z.boolean(),
+  marketing: z.boolean(),
+});
+type NotificationPreferences = z.infer<typeof notificationPreferencesSchema>;
 const defaultNotifications: NotificationPreferences = {
   in_app: true,
   push: true,
@@ -43,6 +45,13 @@ export default function Account() {
   const [status, setStatus] = useState('');
   const [providerSwitchPending, setProviderSwitchPending] = useState(false);
   const [notifications, setNotifications] = useState(defaultNotifications);
+  const [notificationsLoaded, setNotificationsLoaded] = useState(false);
+  const [notificationReadFailed, setNotificationReadFailed] = useState(false);
+  const [notificationWrites, setNotificationWrites] = useState<
+    Array<keyof NotificationPreferences>
+  >([]);
+  const pendingNotificationWrites = useRef(new Set<keyof NotificationPreferences>());
+  const notificationReadVersion = useRef(0);
   const [userId, setUserId] = useState<string | null>(null);
   const [reauthPassword, setReauthPassword] = useState('');
   const [passwordFocused, setPasswordFocused] = useState(false);
@@ -74,18 +83,43 @@ export default function Account() {
       setDeletionSummary(result.data as Record<string, unknown>);
     }
   }
-  useEffect(() => {
-    void supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) return;
-      setUserId(data.user.id);
+  async function loadNotifications(accountId: string) {
+    const version = ++notificationReadVersion.current;
+    setNotificationsLoaded(false);
+    setNotificationReadFailed(false);
+    try {
       const result = await supabase
         .from('notification_preferences')
         .select('in_app,push,email,marketing')
-        .eq('user_id', data.user.id)
+        .eq('user_id', accountId)
         .maybeSingle();
-      if (result.data) setNotifications(result.data);
-      await loadDeletionSummary();
-    });
+      if (result.error) throw result.error;
+      const preferences = notificationPreferencesSchema.parse(result.data);
+      if (version !== notificationReadVersion.current) return;
+      setNotifications(preferences);
+      setNotificationsLoaded(true);
+    } catch {
+      if (version !== notificationReadVersion.current) return;
+      setNotificationReadFailed(true);
+    }
+  }
+  useEffect(() => {
+    let cancelled = false;
+    void supabase.auth
+      .getUser()
+      .then(async ({ data }) => {
+        if (!data.user || cancelled) return;
+        setUserId(data.user.id);
+        await loadNotifications(data.user.id);
+        if (!cancelled) await loadDeletionSummary();
+      })
+      .catch(() => {
+        if (!cancelled) setNotificationReadFailed(true);
+      });
+    return () => {
+      cancelled = true;
+      notificationReadVersion.current += 1;
+    };
   }, []);
   async function updateNotifications(
     key: keyof NotificationPreferences,
@@ -95,13 +129,33 @@ export default function Account() {
       setStatus(t('signInToSaveNotifications'));
       return;
     }
-    const next = { ...notifications, [key]: enabled };
-    setNotifications(next);
-    const { error } = await supabase
-      .from('notification_preferences')
-      .update(next)
-      .eq('user_id', userId);
-    setStatus(error ? t('notificationSaveFailed') : t('notificationSaved'));
+    if (!notificationsLoaded || pendingNotificationWrites.current.has(key)) return;
+    const previous = notifications[key];
+    pendingNotificationWrites.current.add(key);
+    setNotificationWrites([...pendingNotificationWrites.current]);
+    setNotifications((current) => ({ ...current, [key]: enabled }));
+    try {
+      // Independent switches write only their own field. A slower response must
+      // never restore another switch from an earlier full-preferences snapshot.
+      const patch: Partial<NotificationPreferences> = {};
+      patch[key] = enabled;
+      const result = await supabase
+        .from('notification_preferences')
+        .update(patch)
+        .eq('user_id', userId)
+        .select('in_app,push,email,marketing')
+        .single();
+      if (result.error) throw result.error;
+      const confirmed = notificationPreferencesSchema.parse(result.data);
+      if (confirmed[key] !== enabled) throw new Error('NOTIFICATION_UPDATE_NOT_CONFIRMED');
+      setStatus(t('notificationSaved'));
+    } catch {
+      setNotifications((current) => ({ ...current, [key]: previous }));
+      setStatus(t('notificationSaveFailed'));
+    } finally {
+      pendingNotificationWrites.current.delete(key);
+      setNotificationWrites([...pendingNotificationWrites.current]);
+    }
   }
   async function updateLocale(next: 'ar' | 'en' | 'ur' | 'hi'): Promise<void> {
     setLocale(next);
@@ -279,6 +333,7 @@ export default function Account() {
             </Text>
             <Switch
               accessibilityLabel={label}
+              disabled={!notificationsLoaded || notificationWrites.includes(key)}
               trackColor={{ false: tokens.colors.borderStrong, true: tokens.colors.primary }}
               thumbColor={tokens.colors.white}
               value={notifications[key]}
@@ -286,6 +341,20 @@ export default function Account() {
             />
           </View>
         ))}
+        {notificationReadFailed && (
+          <>
+            <Notice live tone="danger">
+              {t('notificationSaveFailed')}
+            </Notice>
+            <ActionButton
+              variant="secondary"
+              label={t('retry')}
+              onPress={() => {
+                if (userId) void loadNotifications(userId);
+              }}
+            />
+          </>
+        )}
       </Surface>
       <Surface style={accountStyles.privacy}>
         <View style={[accountStyles.headingRow, rowDirection]}>

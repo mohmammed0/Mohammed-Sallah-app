@@ -25,22 +25,23 @@ status, and audience.
 
 ## الحالة والبداية | Status and onboarding
 
-| المستند                                                 | الوصف العربي                                       | الحالة                      | الجمهور                |
-| ------------------------------------------------------- | -------------------------------------------------- | --------------------------- | ---------------------- |
-| [فهرس الحالة](status/README.md)                         | يميز الحالة الحالية عن الأدلة التاريخية            | CURRENT SOURCE OF TRUTH     | الجميع                 |
-| [حالة النسخة التجريبية](status/CLOSED_BETA.md)          | الحالة الحالية والمراحل والبوابات والروابط الرسمية | CURRENT SOURCE OF TRUTH     | الجميع                 |
-| [نظرة المشروع العربية](ar/PROJECT_OVERVIEW.md)          | المشكلة والمستخدمون والتدفق والمعمارية             | CURRENT SOURCE OF TRUTH     | المراجعون الجدد        |
-| [ملخص beta العربي](ar/CLOSED_BETA.md)                   | شرح عربي موجز للحالة ودلالات الأدلة                | CURRENT SOURCE OF TRUTH     | المراجعون الجدد        |
-| [التطوير المحلي العربي](ar/LOCAL_DEVELOPMENT.md)        | مسار آمن مختصر إلى المرجع الإنجليزي                | CURRENT SOURCE OF TRUTH     | المطورون               |
-| [التطوير المحلي](LOCAL_DEVELOPMENT.md)                  | البيئة المحلية والحسابات التجريبية الآمنة          | CURRENT SOURCE OF TRUTH     | المطورون               |
-| [الاختبارات العربية](ar/TESTING.md)                     | أوامر التحقق وقاعدة الإبلاغ الصادق                 | CURRENT SOURCE OF TRUTH     | المطورون والمراجعون    |
-| [الاختبارات](TESTING.md)                                | طبقات التحقق ومعنى PASS/NOT RUN                    | CURRENT SOURCE OF TRUTH     | المطورون والمراجعون    |
-| [المدخلات البشرية العربية](ar/HUMAN_INPUTS.md)          | ملخص عربي للقرارات والقيم الخارجية                 | CURRENT SOURCE OF TRUTH     | ملاك الإصدار           |
-| [المدخلات البشرية](HUMAN_INPUTS.md)                     | القيم والاعتمادات والأجهزة التي لا يمكن اختلاقها   | CURRENT SOURCE OF TRUTH     | ملاك الإصدار           |
-| [عقد البيئة](ENVIRONMENT.md)                            | متغيرات العميل والخادم وفشل الإنتاج المغلق         | CURRENT SUPPORTING DOCUMENT | المطورون وSRE          |
-| [تجهيز الكود وGitHub قبل الإطلاق](release/PRELAUNCH.md) | بوابات CI وحزمة تحقق المصدر والترحيلات والحزم      | CURRENT SUPPORTING DOCUMENT | المطورون وملاك الإصدار |
-| [عملية الإصدار](RELEASE.md)                             | التجميد والترقية والموافقات والتراجع               | CURRENT SUPPORTING DOCUMENT | ملاك الإصدار           |
-| [النشر](DEPLOYMENT.md)                                  | ترتيب النشر الآمن وخيارات التراجع                  | CURRENT SUPPORTING DOCUMENT | SRE                    |
+| المستند                                                                     | الوصف العربي                                        | الحالة                      | الجمهور                |
+| --------------------------------------------------------------------------- | --------------------------------------------------- | --------------------------- | ---------------------- |
+| [فهرس الحالة](status/README.md)                                             | يميز الحالة الحالية عن الأدلة التاريخية             | CURRENT SOURCE OF TRUTH     | الجميع                 |
+| [حالة النسخة التجريبية](status/CLOSED_BETA.md)                              | الحالة الحالية والمراحل والبوابات والروابط الرسمية  | CURRENT SOURCE OF TRUTH     | الجميع                 |
+| [نظرة المشروع العربية](ar/PROJECT_OVERVIEW.md)                              | المشكلة والمستخدمون والتدفق والمعمارية              | CURRENT SOURCE OF TRUTH     | المراجعون الجدد        |
+| [ملخص beta العربي](ar/CLOSED_BETA.md)                                       | شرح عربي موجز للحالة ودلالات الأدلة                 | CURRENT SOURCE OF TRUTH     | المراجعون الجدد        |
+| [التطوير المحلي العربي](ar/LOCAL_DEVELOPMENT.md)                            | مسار آمن مختصر إلى المرجع الإنجليزي                 | CURRENT SOURCE OF TRUTH     | المطورون               |
+| [التطوير المحلي](LOCAL_DEVELOPMENT.md)                                      | البيئة المحلية والحسابات التجريبية الآمنة           | CURRENT SOURCE OF TRUTH     | المطورون               |
+| [الاختبارات العربية](ar/TESTING.md)                                         | أوامر التحقق وقاعدة الإبلاغ الصادق                  | CURRENT SOURCE OF TRUTH     | المطورون والمراجعون    |
+| [الاختبارات](TESTING.md)                                                    | طبقات التحقق ومعنى PASS/NOT RUN                     | CURRENT SOURCE OF TRUTH     | المطورون والمراجعون    |
+| [المدخلات البشرية العربية](ar/HUMAN_INPUTS.md)                              | ملخص عربي للقرارات والقيم الخارجية                  | CURRENT SOURCE OF TRUTH     | ملاك الإصدار           |
+| [المدخلات البشرية](HUMAN_INPUTS.md)                                         | القيم والاعتمادات والأجهزة التي لا يمكن اختلاقها    | CURRENT SOURCE OF TRUTH     | ملاك الإصدار           |
+| [عقد البيئة](ENVIRONMENT.md)                                                | متغيرات العميل والخادم وفشل الإنتاج المغلق          | CURRENT SUPPORTING DOCUMENT | المطورون وSRE          |
+| [تجهيز الكود وGitHub قبل الإطلاق](release/PRELAUNCH.md)                     | بوابات CI وحزمة تحقق المصدر والترحيلات والحزم       | CURRENT SUPPORTING DOCUMENT | المطورون وملاك الإصدار |
+| [تحسين الواجهات واستقرار التطبيق](validation/PROFESSIONAL_UI_2026-09-06.md) | مرشح الواجهات الاحترافية وإصلاحات الحسابات والطلبات | CURRENT SUPPORTING DOCUMENT | المنتج والهندسة        |
+| [عملية الإصدار](RELEASE.md)                                                 | التجميد والترقية والموافقات والتراجع                | CURRENT SUPPORTING DOCUMENT | ملاك الإصدار           |
+| [النشر](DEPLOYMENT.md)                                                      | ترتيب النشر الآمن وخيارات التراجع                   | CURRENT SUPPORTING DOCUMENT | SRE                    |
 
 ## الهندسة | Architecture
 

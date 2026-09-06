@@ -1,9 +1,10 @@
 import { router } from 'expo-router';
-import { Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { formatStatusLabel } from '@sallah/i18n';
 import {
   ActionButton,
   CustomerScreen,
+  InteractivePressable,
   Notice,
   SectionHeader,
   Surface,
@@ -13,6 +14,7 @@ import { AppIcon } from '@/design-system/icon';
 import { customerTokens as tokens } from '@/design-system/tokens';
 import {
   logicalFlexDirection,
+  logicalChevron,
   logicalTextAlignment,
   logicalWritingDirection,
 } from '@/design-system/rtl';
@@ -20,27 +22,26 @@ import { useLocale } from '@/providers/locale-provider';
 import { useSessionContext } from '@/providers/session-provider';
 
 export default function ProviderHome() {
-  const { dir, locale, t } = useLocale();
+  const { locale, t } = useLocale();
   const { context, setActiveRole } = useSessionContext();
   const verified = context?.providerVerificationStatus === 'verified';
   const textDirection = {
     textAlign: logicalTextAlignment(locale),
     writingDirection: logicalWritingDirection(locale),
   } as const;
-  const actions = [
+  const accountActions = [
     { icon: 'shield' as const, label: t('providerOnboarding'), route: '/provider/onboarding' },
-    ...(verified
-      ? [
-          { icon: 'requests' as const, label: t('eligibleRequests'), route: '/provider-feed' },
-          { icon: 'tools' as const, label: t('jobs'), route: '/provider-jobs' },
-          { icon: 'messages' as const, label: t('messages'), route: '/provider-messages' },
-          { icon: 'star' as const, label: t('earnings'), route: '/provider/earnings' },
-        ]
-      : []),
     { icon: 'bell' as const, label: t('notifications'), route: '/notifications' },
     { icon: 'alert' as const, label: t('support'), route: '/support' },
     { icon: 'customer' as const, label: t('account'), route: '/account' },
   ];
+  const workActions = verified
+    ? [
+        { icon: 'tools' as const, label: t('jobs'), route: '/provider-jobs' },
+        { icon: 'messages' as const, label: t('messages'), route: '/provider-messages' },
+        { icon: 'star' as const, label: t('earnings'), route: '/provider/earnings' },
+      ]
+    : [];
 
   async function switchToCustomer() {
     await setActiveRole('customer');
@@ -48,39 +49,79 @@ export default function ProviderHome() {
 
   return (
     <CustomerScreen testID="provider-dashboard">
-      <Surface tone="accent">
-        <View style={{ flexDirection: logicalFlexDirection(locale), gap: tokens.spacing.md }}>
-          <View
-            style={{
-              alignItems: 'center',
-              backgroundColor: tokens.colors.primarySoft,
-              borderRadius: 18,
-              height: 48,
-              justifyContent: 'center',
-              width: 48,
-            }}
-          >
+      <Surface>
+        <View style={[styles.header, { flexDirection: logicalFlexDirection(locale) }]}>
+          <View style={styles.headerIcon}>
             <AppIcon color={tokens.colors.primaryStrong} name="tools" size={24} />
           </View>
           <View style={{ flex: 1, gap: tokens.spacing.xs }}>
             <Text accessibilityRole="header" style={[customerStyles.title, textDirection]}>
               {t('providerDashboard')}
             </Text>
-            <Text style={[customerStyles.bodyMuted, textDirection]}>
+            <Text style={[customerStyles.caption, textDirection]}>
               {t('providerPrivacyNotice')}
             </Text>
           </View>
         </View>
+        {!verified ? (
+          <Notice tone="warning" live>
+            {t('providerRestrictedUntilVerified')}
+          </Notice>
+        ) : (
+          <View style={[styles.verified, { flexDirection: logicalFlexDirection(locale) }]}>
+            <AppIcon color={tokens.colors.success} name="shield" size={18} />
+            <Text style={[styles.verifiedLabel, textDirection]}>
+              {formatStatusLabel('verified', locale)}
+            </Text>
+          </View>
+        )}
+        <ActionButton
+          icon={verified ? 'requests' : 'shield'}
+          label={t(verified ? 'eligibleRequests' : 'providerOnboarding')}
+          onPress={() => router.push(verified ? '/provider-feed' : '/provider/onboarding')}
+        />
       </Surface>
 
-      {!verified ? (
-        <Notice tone="warning" live>
-          {t('providerRestrictedUntilVerified')}
-        </Notice>
-      ) : (
-        <Notice tone="success">{formatStatusLabel('verified', locale)}</Notice>
+      {[
+        { title: t('jobs'), actions: workActions },
+        {
+          title: t('account'),
+          actions: accountActions.filter(
+            (action) => verified || action.route !== '/provider/onboarding',
+          ),
+        },
+      ].map((section) =>
+        section.actions.length > 0 ? (
+          <View key={section.title} style={styles.section}>
+            <SectionHeader title={section.title} />
+            <Surface style={styles.actionGroup}>
+              {section.actions.map((action, index) => (
+                <InteractivePressable
+                  key={action.route}
+                  accessibilityLabel={action.label}
+                  accessibilityRole="button"
+                  onPress={() => router.push(action.route)}
+                  style={[
+                    styles.actionRow,
+                    { flexDirection: logicalFlexDirection(locale) },
+                    index > 0 && styles.actionDivider,
+                  ]}
+                >
+                  <View style={styles.actionIcon}>
+                    <AppIcon color={tokens.colors.primaryStrong} name={action.icon} size={22} />
+                  </View>
+                  <Text style={[styles.actionLabel, textDirection]}>{action.label}</Text>
+                  <AppIcon
+                    color={tokens.colors.textMuted}
+                    name={logicalChevron(locale, 'forward')}
+                    size={20}
+                  />
+                </InteractivePressable>
+              ))}
+            </Surface>
+          </View>
+        ) : null,
       )}
-
       {context?.roles.includes('customer') ? (
         <ActionButton
           icon="customer"
@@ -89,34 +130,31 @@ export default function ProviderHome() {
           variant="secondary"
         />
       ) : null}
-
-      <SectionHeader title={verified ? t('jobs') : t('verification')} />
-      {actions.map((action) => (
-        <Surface key={action.route}>
-          <View
-            style={{
-              alignItems: 'center',
-              flexDirection: logicalFlexDirection(locale),
-              gap: tokens.spacing.md,
-            }}
-          >
-            <AppIcon
-              color={tokens.colors.primaryStrong}
-              name={action.icon}
-              size={tokens.iconSize.lg}
-            />
-            <Text style={[customerStyles.section, { flex: 1 }, textDirection]}>{action.label}</Text>
-            <ActionButton
-              label={action.label}
-              onPress={() => router.push(action.route)}
-              variant="secondary"
-            />
-          </View>
-        </Surface>
-      ))}
-      <Text style={[customerStyles.caption, { direction: dir }, textDirection]}>
-        {t('localeCurrencyTimezone', { locale: locale.toUpperCase() })}
-      </Text>
     </CustomerScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  header: { gap: tokens.spacing.sm, alignItems: 'flex-start' },
+  headerIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: tokens.radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: tokens.colors.primarySoft,
+  },
+  section: { gap: tokens.spacing.sm },
+  verified: { alignItems: 'center', gap: tokens.spacing.xs },
+  verifiedLabel: { ...tokens.type.label, color: tokens.colors.success, flexShrink: 1 },
+  actionGroup: { gap: 0, paddingVertical: 0 },
+  actionRow: {
+    alignItems: 'center',
+    gap: tokens.spacing.sm,
+    minHeight: 64,
+    paddingVertical: tokens.spacing.sm,
+  },
+  actionDivider: { borderTopWidth: 1, borderTopColor: tokens.colors.border },
+  actionIcon: { width: 36, alignItems: 'center' },
+  actionLabel: { ...tokens.type.label, color: tokens.colors.ink, flexGrow: 1, flexShrink: 1 },
+});

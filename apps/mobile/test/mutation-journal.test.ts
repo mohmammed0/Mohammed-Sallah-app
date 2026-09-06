@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const stored = vi.hoisted(() => new Map<string, string>());
 vi.mock('../src/lib/secure-storage', () => ({
@@ -17,6 +17,54 @@ import { executeJournaledMutation } from '../src/lib/mutation-journal';
 
 describe('persistent mutation journal', () => {
   beforeEach(() => stored.clear());
+  afterEach(() => vi.useRealTimers());
+
+  it.each(['submit_offer', 'create_change_order'] as const)(
+    'preserves generated %s expiry and the full intent after a lost response and clock advance',
+    async (operation) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-09-06T12:00:00Z'));
+      const seen: Array<{ key: string; payload: unknown }> = [];
+      const input = {
+        userId: '11111111-1111-4111-8111-111111111111',
+        operation,
+        entityKey: 'expiring-draft:4',
+        payload: { amountMinor: 12000, expectedVersion: 4 },
+        expiresInMs: 12 * 60 * 60 * 1000,
+      };
+      await expect(
+        executeJournaledMutation({
+          ...input,
+          execute: async (key, payload) => {
+            seen.push({ key, payload });
+            throw new Error('RESPONSE_LOST_AFTER_COMMIT');
+          },
+        }),
+      ).rejects.toThrow('RESPONSE_LOST_AFTER_COMMIT');
+      vi.setSystemTime(new Date('2026-09-06T12:05:00Z'));
+      const changed = vi.fn(async () => 'unexpected');
+      await expect(
+        executeJournaledMutation({
+          ...input,
+          payload: { amountMinor: 15000, expectedVersion: 4 },
+          execute: changed,
+        }),
+      ).rejects.toThrow('MUTATION_INTENT_STILL_PENDING');
+      expect(changed).not.toHaveBeenCalled();
+      await executeJournaledMutation({
+        ...input,
+        execute: async (key, payload) => {
+          seen.push({ key, payload });
+          return 'committed';
+        },
+      });
+      expect(seen[1]).toEqual(seen[0]);
+      expect(seen[1]?.payload).toEqual({
+        ...input.payload,
+        expiresAt: '2026-09-07T00:00:00.000Z',
+      });
+    },
+  );
 
   it('reuses the original key and exact payload after a committed response is lost', async () => {
     const userId = '11111111-1111-4111-8111-111111111111';

@@ -53,6 +53,7 @@ vi.mock('../src/providers/locale-provider', () => ({
 }));
 vi.mock('@/design-system/primitives', async () => import('../src/design-system/primitives'));
 vi.mock('@/design-system/tokens', async () => import('../src/design-system/tokens'));
+vi.mock('@/design-system/rtl', async () => import('../src/design-system/rtl'));
 vi.mock(
   '@/design-system/customer-components',
   async () => import('../src/design-system/customer-components'),
@@ -128,6 +129,7 @@ describe('customer home recovery', () => {
     await settle(() => expect(textOf(screen)).toContain('Plumbing'));
     await act(() => screen.root.findByType('TextInput').props.onChangeText('no-such-service'));
     expect(textOf(screen)).toContain('homeSearchEmptyTitle');
+    expect(textOf(screen)).not.toContain('Plumbing');
     await act(() => screen.root.findByProps({ testID: 'home-clear-search' }).props.onPress());
     expect(screen.root.findByType('TextInput').props.value).toBe('');
     expect(textOf(screen)).toContain('Plumbing');

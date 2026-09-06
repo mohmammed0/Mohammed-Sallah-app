@@ -4,6 +4,7 @@ import { localeNativeNames, translate } from '@sallah/i18n';
 import { LocaleProvider } from '../src/providers/locale-provider';
 
 const backend = vi.hoisted(() => ({
+  read: vi.fn(),
   update: vi.fn(),
   invoke: vi.fn(),
   rpc: vi.fn(),
@@ -59,14 +60,15 @@ vi.mock('@/lib/supabase', () => ({
     from: (table: string) => ({
       select: () => ({
         eq: () => ({
-          maybeSingle: async () => ({
-            data: { in_app: true, push: true, email: true, marketing: false },
-            error: null,
-          }),
+          maybeSingle: backend.read,
         }),
       }),
       update: (values: Record<string, unknown>) => ({
-        eq: (column: string, value: string) => backend.update(table, values, column, value),
+        eq: (column: string, value: string) => ({
+          then: (resolve: (result: unknown) => unknown, reject: (error: unknown) => unknown) =>
+            backend.update(table, values, column, value).then(resolve, reject),
+          select: () => ({ single: () => backend.update(table, values, column, value) }),
+        }),
       }),
     }),
     functions: { invoke: backend.invoke },
@@ -113,7 +115,14 @@ function confirmDeletion() {
 describe('account preferences and privacy controls', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    backend.update.mockResolvedValue({ data: null, error: null });
+    backend.read.mockResolvedValue({
+      data: { in_app: true, push: true, email: true, marketing: false },
+      error: null,
+    });
+    backend.update.mockImplementation(async (_table, values) => ({
+      data: { in_app: true, push: true, email: true, marketing: false, ...values },
+      error: null,
+    }));
     backend.rpc.mockResolvedValue({ data: {}, error: null });
     backend.invoke.mockResolvedValue({ data: { verified: true }, error: null });
   });
@@ -210,5 +219,102 @@ describe('account preferences and privacy controls', () => {
     expect(backend.rpc).not.toHaveBeenCalledWith('request_data_export');
     expect(renderer.root.findByType('TextInput').props.value).toBe('');
     expect(JSON.stringify(renderer.toJSON())).toContain(translate('ar', 'reauthFailed'));
+  });
+
+  it('persists independent notification changes without reverting another field when responses arrive in reverse order', async () => {
+    const persisted = { in_app: true, push: true, email: true, marketing: false };
+    const finish: Array<() => void> = [];
+    backend.update.mockImplementation(
+      (_table, values) =>
+        new Promise((resolve) => {
+          finish.push(() => {
+            Object.assign(persisted, values);
+            resolve({ data: { ...persisted }, error: null });
+          });
+        }),
+    );
+    const renderer = await renderAccount();
+    const switches = () => renderer.root.findAllByType('Switch');
+    await act(async () => switches()[1]?.props.onValueChange(false));
+    await act(async () => switches()[2]?.props.onValueChange(false));
+    await act(async () => finish[1]?.());
+    await act(async () => finish[0]?.());
+    expect(persisted).toMatchObject({ push: false, email: false });
+    expect(switches().map((control) => control.props.value)).toEqual([true, false, false, false]);
+    expect(backend.update.mock.calls.map((call) => call[1])).toEqual([
+      { push: false },
+      { email: false },
+    ]);
+  });
+
+  it('prevents another write to the same notification while its first save is pending', async () => {
+    let finish!: (value: unknown) => void;
+    backend.update.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const renderer = await renderAccount();
+    await act(async () => renderer.root.findAllByType('Switch')[1]?.props.onValueChange(false));
+    expect(renderer.root.findAllByType('Switch')[1]?.props.disabled).toBe(true);
+    await act(async () => renderer.root.findAllByType('Switch')[1]?.props.onValueChange(true));
+    expect(backend.update).toHaveBeenCalledTimes(1);
+    await act(async () =>
+      finish({ data: { in_app: true, push: false, email: true, marketing: false }, error: null }),
+    );
+    expect(renderer.root.findAllByType('Switch')[1]?.props.disabled).toBe(false);
+  });
+
+  it('rolls back only a failed notification field and leaves another successful choice visible', async () => {
+    backend.update.mockImplementation(async (_table, values) =>
+      values.push !== undefined
+        ? { data: null, error: new Error('SYNTHETIC_SAVE_FAILURE') }
+        : { data: { in_app: true, push: true, email: false, marketing: false }, error: null },
+    );
+    const renderer = await renderAccount();
+    await act(async () => renderer.root.findAllByType('Switch')[2]?.props.onValueChange(false));
+    await act(async () => renderer.root.findAllByType('Switch')[1]?.props.onValueChange(false));
+    expect(renderer.root.findAllByType('Switch').map((control) => control.props.value)).toEqual([
+      true,
+      true,
+      false,
+      false,
+    ]);
+    expect(JSON.stringify(renderer.toJSON())).toContain(translate('ar', 'notificationSaveFailed'));
+  });
+
+  it('keeps notification edits disabled until the stored preferences have loaded', async () => {
+    let finish!: (value: unknown) => void;
+    backend.read.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const renderer = await renderAccount();
+    expect(renderer.root.findAllByType('Switch').every((control) => control.props.disabled)).toBe(
+      true,
+    );
+    await act(async () => renderer.root.findAllByType('Switch')[1]?.props.onValueChange(false));
+    expect(backend.update).not.toHaveBeenCalled();
+    await act(async () =>
+      finish({ data: { in_app: true, push: false, email: false, marketing: false }, error: null }),
+    );
+    expect(renderer.root.findAllByType('Switch').every((control) => !control.props.disabled)).toBe(
+      true,
+    );
+    expect(renderer.root.findAllByType('Switch')[1]?.props.value).toBe(false);
+  });
+
+  it('allows retry after a failed preference read and refuses an unconfirmed save', async () => {
+    backend.read.mockResolvedValueOnce({ data: null, error: new Error('SYNTHETIC_READ_FAILURE') });
+    const renderer = await renderAccount();
+    expect(renderer.root.findAllByType('Switch').every((control) => control.props.disabled)).toBe(
+      true,
+    );
+    await act(async () => action(renderer, translate('ar', 'retry')).props.onPress());
+    backend.update.mockResolvedValueOnce({ data: null, error: null });
+    await act(async () => renderer.root.findAllByType('Switch')[1]?.props.onValueChange(false));
+    expect(renderer.root.findAllByType('Switch')[1]?.props.value).toBe(true);
+    expect(JSON.stringify(renderer.toJSON())).toContain(translate('ar', 'notificationSaveFailed'));
   });
 });

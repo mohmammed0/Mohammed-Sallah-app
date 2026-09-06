@@ -262,11 +262,17 @@ export function SectionHeader({
   } as const;
   return (
     <View style={[styles.sectionHeader, { flexDirection: logicalFlexDirection(locale) }]}>
-      <Text style={[styles.sectionTitle, textDirection]}>{title}</Text>
+      <Text accessibilityRole="header" style={[styles.sectionTitle, textDirection]}>
+        {title}
+      </Text>
       {actionLabel && onAction ? (
-        <Pressable accessibilityRole="button" onPress={onAction}>
+        <InteractivePressable
+          accessibilityRole="button"
+          onPress={onAction}
+          style={styles.sectionActionTarget}
+        >
           <Text style={[styles.sectionAction, textDirection]}>{actionLabel}</Text>
-        </Pressable>
+        </InteractivePressable>
       ) : null}
     </View>
   );
@@ -278,6 +284,7 @@ export function Field({
   ...props
 }: TextInputProps & { label: string; icon?: AppIconName }) {
   const { locale } = useLocale();
+  const [focused, setFocused] = useState(false);
   const textDirection = {
     textAlign: logicalTextAlignment(locale),
     writingDirection: logicalWritingDirection(locale),
@@ -285,10 +292,24 @@ export function Field({
   return (
     <View style={styles.fieldGroup}>
       <Text style={[styles.fieldLabel, textDirection]}>{label}</Text>
-      <View style={[styles.fieldShell, { flexDirection: logicalFlexDirection(locale) }]}>
+      <View
+        style={[
+          styles.fieldShell,
+          focused && styles.fieldFocused,
+          { flexDirection: logicalFlexDirection(locale) },
+        ]}
+      >
         {icon ? <AppIcon color={tokens.colors.textMuted} name={icon} size={20} /> : null}
         <TextInput
           {...props}
+          onFocus={(event) => {
+            setFocused(true);
+            props.onFocus?.(event);
+          }}
+          onBlur={(event) => {
+            setFocused(false);
+            props.onBlur?.(event);
+          }}
           accessibilityLabel={label}
           placeholderTextColor={tokens.colors.textMuted}
           style={[styles.field, textDirection, props.multiline && styles.multiline, props.style]}
@@ -357,7 +378,7 @@ export function Pill({
 }) {
   const { locale } = useLocale();
   return (
-    <Pressable
+    <InteractivePressable
       accessibilityRole={onPress ? 'button' : 'text'}
       accessibilityState={{ selected }}
       disabled={!onPress}
@@ -376,7 +397,7 @@ export function Pill({
       >
         {label}
       </Text>
-    </Pressable>
+    </InteractivePressable>
   );
 }
 
@@ -508,7 +529,7 @@ const styles = StyleSheet.create({
   actionSecondary: {
     backgroundColor: tokens.colors.surface,
     borderWidth: 1,
-    borderColor: tokens.colors.primary,
+    borderColor: tokens.colors.borderStrong,
   },
   actionGhost: { backgroundColor: 'transparent' },
   actionDanger: { backgroundColor: tokens.colors.danger },
@@ -538,7 +559,7 @@ const styles = StyleSheet.create({
     top: 4,
     end: 3,
     minWidth: 17,
-    height: 17,
+    minHeight: 17,
     paddingHorizontal: 3,
     borderRadius: 9,
     alignItems: 'center',
@@ -552,7 +573,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: tokens.spacing.md,
   },
-  sectionTitle: { ...tokens.type.section, color: tokens.colors.ink, textAlign: 'auto' },
+  sectionTitle: { flex: 1, ...tokens.type.section, color: tokens.colors.ink, textAlign: 'auto' },
+  sectionActionTarget: {
+    minHeight: tokens.touchTarget,
+    minWidth: tokens.touchTarget,
+    justifyContent: 'center',
+    paddingHorizontal: tokens.spacing.xs,
+    borderRadius: tokens.radius.sm,
+  },
   sectionAction: { ...tokens.type.label, color: tokens.colors.primaryStrong },
   fieldGroup: { gap: tokens.spacing.xs },
   fieldLabel: { ...tokens.type.label, color: tokens.colors.ink, textAlign: 'auto' },
@@ -574,6 +602,10 @@ const styles = StyleSheet.create({
     ...tokens.type.body,
     textAlign: 'auto',
   },
+  fieldFocused: {
+    borderColor: tokens.colors.primary,
+    boxShadow: '0 0 0 2px rgba(11, 122, 117, 0.16)',
+  },
   multiline: { minHeight: 112, paddingVertical: 12, textAlignVertical: 'top' },
   notice: {
     borderRadius: tokens.radius.md,
@@ -588,9 +620,10 @@ const styles = StyleSheet.create({
   noticeSuccess: { backgroundColor: tokens.colors.successSoft },
   noticeText: { flex: 1, ...tokens.type.caption, textAlign: 'auto' },
   pill: {
-    minHeight: 40,
+    minHeight: tokens.touchTarget,
     borderRadius: tokens.radius.pill,
     paddingHorizontal: tokens.spacing.md,
+    paddingVertical: tokens.spacing.xs,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FlatList, Image, Text, TextInput, View } from 'react-native';
+import { FlatList, Image, ScrollView, Text, TextInput, View } from 'react-native';
 import { Link, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { z } from 'zod';
@@ -685,7 +685,11 @@ export default function Messages() {
     <Screen>
       <Text style={styles.title}>{t('messages')}</Text>
       {!conversationId && (
-        <View style={{ gap: 10 }}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ gap: 10, paddingBottom: 24 }}
+          keyboardShouldPersistTaps="handled"
+        >
           <Card>
             <Text style={styles.lead}>{t('messagesPrivacyNotice')}</Text>
           </Card>
@@ -709,7 +713,7 @@ export default function Messages() {
           {!conversations.length && (
             <Text style={styles.lead}>{actionFeedback.general || t('noConversations')}</Text>
           )}
-        </View>
+        </ScrollView>
       )}
       {conversationId && (
         <>

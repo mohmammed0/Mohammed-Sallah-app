@@ -19,6 +19,7 @@ import {
 import { LocationHeader } from '@/design-system/customer-components';
 import { AppIcon, categoryIconName } from '@/design-system/icon';
 import { customerTokens as tokens } from '@/design-system/tokens';
+import { logicalChevron } from '@/design-system/rtl';
 import { useCustomerLocation } from '@/features/location/location-provider';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/providers/locale-provider';
@@ -118,12 +119,6 @@ export function CustomerHome() {
       />
 
       <View style={styles.hero}>
-        <View style={[customerStyles.between, dir === 'rtl' && styles.rowReverse]}>
-          <Text style={styles.heroEyebrow}>{t('appName')}</Text>
-          <View style={styles.heroIcon}>
-            <AppIcon color={tokens.colors.white} name="tools" size={26} />
-          </View>
-        </View>
         <Text accessibilityRole="header" style={styles.heroTitle}>
           {t('customerHomeTitle')}
         </Text>
@@ -136,105 +131,65 @@ export function CustomerHome() {
         />
       </View>
 
-      <View style={[customerStyles.wrap, dir === 'rtl' && styles.rowReverse]}>
-        <ActionButton
-          icon="requests"
-          label={t('requests')}
-          onPress={() => router.push('/requests')}
-          variant="secondary"
-          style={styles.shortcut}
-        />
-        <ActionButton
-          icon="messages"
-          label={t('messages')}
-          onPress={() => router.push('/messages')}
-          variant="secondary"
-          style={styles.shortcut}
-        />
-      </View>
-
-      <View style={styles.section}>
-        <SectionHeader
-          actionLabel={t('seeAll')}
-          onAction={() => router.push('/requests')}
-          title={t('activeRequest')}
-        />
-        {requests.isPending ? <LoadingBlock label={t('loadingRequests')} /> : null}
-        {requests.isError ? (
+      {activeRequest ? (
+        <View style={styles.section}>
+          <SectionHeader
+            actionLabel={t('seeAll')}
+            onAction={() => router.push('/requests')}
+            title={t('activeRequest')}
+          />
           <Surface>
-            <Notice live tone="danger">
-              {t('loadRequestsFailed')}
-            </Notice>
-            <ActionButton
-              testID="home-retry-requests"
-              icon="refresh"
-              label={t('retry')}
-              loading={requests.isFetching}
-              onPress={() => void requests.refetch()}
-              variant="secondary"
-            />
-          </Surface>
-        ) : null}
-        {activeRequest ? (
-          <InteractivePressable accessibilityRole="button" onPress={() => router.push('/requests')}>
-            <Surface>
-              <View style={[customerStyles.between, dir === 'rtl' && styles.rowReverse]}>
+            <InteractivePressable
+              accessibilityLabel={`${activeRequest.title}, ${formatStatusLabel(activeRequest.status, locale)}`}
+              accessibilityRole="button"
+              onPress={() => router.push('/requests')}
+              style={[styles.requestLink, dir === 'rtl' && styles.rowReverse]}
+            >
+              <View style={styles.flex}>
                 <Text style={styles.requestTitle}>{activeRequest.title}</Text>
-                <Text style={styles.statusPill}>
+                <Text style={styles.requestStatus}>
                   {formatStatusLabel(activeRequest.status, locale)}
                 </Text>
+                <Text style={customerStyles.caption}>
+                  {new Date(activeRequest.created_at).toLocaleString(
+                    locale === 'ar' ? 'ar-SA' : locale,
+                    { timeZone: 'Asia/Riyadh', dateStyle: 'medium', timeStyle: 'short' },
+                  )}
+                </Text>
               </View>
-              <Text style={customerStyles.caption}>
-                {new Date(activeRequest.created_at).toLocaleString(
-                  locale === 'ar' ? 'ar-SA' : locale,
-                  { timeZone: 'Asia/Riyadh', dateStyle: 'medium', timeStyle: 'short' },
-                )}
-              </Text>
-            </Surface>
-          </InteractivePressable>
-        ) : !requests.isPending && !requests.isError ? (
-          <EmptyState
-            actionLabel={t('createFirstRequest')}
-            body={t('noActiveRequestsBody')}
-            icon="requests"
-            onAction={() => router.push('/request/new')}
-            title={t('noActiveRequests')}
-          />
-        ) : null}
-      </View>
-
-      {receivingOffers.length > 0 ? (
-        <Surface tone="accent">
-          <View style={[customerStyles.between, dir === 'rtl' && styles.rowReverse]}>
-            <View style={styles.flex}>
-              <Text style={customerStyles.section}>{t('offersWaiting')}</Text>
-              <Text style={customerStyles.bodyMuted}>
-                {t('newOffersCount', { count: receivingOffers.length })}
-              </Text>
-            </View>
-            <View style={styles.offerBadge}>
-              <Text style={styles.offerBadgeText}>{receivingOffers.length}</Text>
-            </View>
-          </View>
-          <ActionButton
-            label={t('viewPrivateComparison')}
-            onPress={() => router.push('/requests')}
-            variant="secondary"
-          />
-        </Surface>
+              <AppIcon
+                color={tokens.colors.primaryStrong}
+                name={logicalChevron(locale, 'forward')}
+                size={20}
+              />
+            </InteractivePressable>
+            {receivingOffers.length > 0 ? (
+              <View style={styles.offersSummary}>
+                <Text style={customerStyles.bodyMuted}>
+                  {t('newOffersCount', { count: receivingOffers.length })}
+                </Text>
+                <ActionButton
+                  icon="requests"
+                  label={t('viewPrivateComparison')}
+                  onPress={() => router.push('/requests')}
+                  variant="secondary"
+                />
+              </View>
+            ) : null}
+          </Surface>
+        </View>
       ) : null}
-
-      <Field
-        icon="search"
-        label={t('searchServices')}
-        onChangeText={setSearch}
-        placeholder={t('searchServicesPlaceholder')}
-        returnKeyType="search"
-        value={search}
-      />
 
       <View style={styles.section}>
         <SectionHeader title={t('serviceCategories')} />
+        <Field
+          icon="search"
+          label={t('searchServices')}
+          onChangeText={setSearch}
+          placeholder={t('searchServicesPlaceholder')}
+          returnKeyType="search"
+          value={search}
+        />
         {search.trim() ? (
           <ActionButton
             testID="home-clear-search"
@@ -291,7 +246,7 @@ export function CustomerHome() {
                   <AppIcon
                     color={tokens.colors.primaryStrong}
                     name={categoryIconName(category.icon_key, category.slug)}
-                    size={27}
+                    size={24}
                   />
                 </View>
                 <Text style={styles.categoryName}>{translation?.name ?? category.slug}</Text>
@@ -302,69 +257,71 @@ export function CustomerHome() {
         </View>
       </View>
 
-      <Surface tone="muted">
-        <View style={[customerStyles.row, dir === 'rtl' && styles.rowReverse]}>
+      <InteractivePressable
+        accessibilityLabel={t('describeProblem')}
+        accessibilityHint={t('aiRequestBody')}
+        accessibilityRole="button"
+        onPress={() => router.push('/request/new')}
+      >
+        <Surface tone="muted" style={[styles.supportRow, dir === 'rtl' && styles.rowReverse]}>
           <View style={styles.aiIcon}>
             <AppIcon color={tokens.colors.primaryStrong} name="sparkles" size={24} />
           </View>
           <View style={styles.flex}>
             <Text style={customerStyles.section}>{t('aiRequestPrompt')}</Text>
-            <Text style={customerStyles.bodyMuted}>{t('aiRequestBody')}</Text>
+            <Text style={customerStyles.caption}>{t('aiRequestBody')}</Text>
           </View>
-        </View>
-        <ActionButton
-          label={t('describeProblem')}
-          onPress={() => router.push('/request/new')}
-          variant="secondary"
-        />
-      </Surface>
+          <AppIcon
+            color={tokens.colors.primaryStrong}
+            name={logicalChevron(locale, 'forward')}
+            size={20}
+          />
+        </Surface>
+      </InteractivePressable>
 
-      {requests.isSuccess ? (
-        <View style={styles.section}>
-          <SectionHeader title={t('recentRequests')} />
-          {recentRequests.length ? (
-            recentRequests.map((request) => (
-              <Surface key={request.id}>
-                <View style={[customerStyles.between, dir === 'rtl' && styles.rowReverse]}>
-                  <Text numberOfLines={1} style={styles.requestTitle}>
-                    {request.title}
-                  </Text>
-                  <Text style={customerStyles.caption}>
-                    {formatStatusLabel(request.status, locale)}
-                  </Text>
-                </View>
-              </Surface>
-            ))
-          ) : (
-            <Text style={customerStyles.bodyMuted}>{t('noRecentRequests')}</Text>
-          )}
-        </View>
+      {requests.isPending ? <LoadingBlock label={t('loadingRequests')} /> : null}
+      {requests.isError ? (
+        <Surface>
+          <Notice live tone="danger">
+            {t('loadRequestsFailed')}
+          </Notice>
+          <ActionButton
+            testID="home-retry-requests"
+            icon="refresh"
+            label={t('retry')}
+            loading={requests.isFetching}
+            onPress={() => void requests.refetch()}
+            variant="secondary"
+          />
+        </Surface>
+      ) : null}
+      {requests.isSuccess && !activeRequest ? (
+        <Surface tone="muted" style={[styles.supportRow, dir === 'rtl' && styles.rowReverse]}>
+          <AppIcon color={tokens.colors.textMuted} name="requests" size={24} />
+          <View style={styles.flex}>
+            <Text style={styles.requestTitle}>{t('noActiveRequests')}</Text>
+            <Text style={customerStyles.caption}>{t('noActiveRequestsBody')}</Text>
+          </View>
+        </Surface>
       ) : null}
 
-      {catalog.data?.length ? (
+      {requests.isSuccess && recentRequests.length > 0 ? (
         <View style={styles.section}>
-          <SectionHeader title={t('recommendedServices')} />
-          <View style={[customerStyles.wrap, dir === 'rtl' && styles.rowReverse]}>
-            {(catalog.data ?? []).slice(0, 4).map((category) => (
-              <InteractivePressable
-                key={category.id}
-                accessibilityRole="button"
-                onPress={() =>
-                  router.push({ pathname: '/request/new', params: { category: category.slug } })
-                }
-                style={[styles.recommendation, dir === 'rtl' && styles.rowReverse]}
-              >
-                <AppIcon
-                  color={tokens.colors.primaryStrong}
-                  name={categoryIconName(category.icon_key, category.slug)}
-                  size={19}
-                />
-                <Text style={styles.recommendationText}>
-                  {category.service_category_translations[0]?.name ?? category.slug}
+          <SectionHeader
+            title={t('recentRequests')}
+            actionLabel={t('seeAll')}
+            onAction={() => router.push('/requests')}
+          />
+          {recentRequests.map((request) => (
+            <Surface key={request.id}>
+              <View style={styles.section}>
+                <Text style={styles.requestTitle}>{request.title}</Text>
+                <Text style={customerStyles.caption}>
+                  {formatStatusLabel(request.status, locale)}
                 </Text>
-              </InteractivePressable>
-            ))}
-          </View>
+              </View>
+            </Surface>
+          ))}
         </View>
       ) : null}
 
@@ -388,60 +345,30 @@ export function CustomerHome() {
 
 const styles = StyleSheet.create({
   rowReverse: { flexDirection: 'row-reverse' },
-  topbar: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm },
-  locationButton: {
-    flex: 1,
-    minHeight: tokens.touchTarget,
-    flexDirection: 'row',
-    alignItems: 'center',
+  hero: {
+    borderRadius: tokens.radius.lg,
+    backgroundColor: tokens.colors.primaryStrong,
+    padding: tokens.spacing.lg,
     gap: tokens.spacing.sm,
   },
-  locationIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: tokens.colors.primarySoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  locationCopy: { flex: 1 },
-  locationValue: { ...tokens.type.label, color: tokens.colors.ink, textAlign: 'auto' },
-  hero: {
-    borderRadius: tokens.radius.xl,
-    backgroundColor: tokens.colors.primaryStrong,
-    padding: tokens.spacing.xl,
-    gap: tokens.spacing.md,
-    overflow: 'hidden',
-  },
-  heroIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: tokens.radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-  },
-  heroEyebrow: { ...tokens.type.section, color: tokens.colors.white, textAlign: 'auto' },
-  heroTitle: { ...tokens.type.display, color: tokens.colors.white, textAlign: 'auto' },
+  heroTitle: { ...tokens.type.title, color: tokens.colors.white, textAlign: 'auto' },
   heroLead: { ...tokens.type.body, color: '#DFF2EE', textAlign: 'auto' },
-  shortcut: { flexBasis: 140, flexGrow: 1 },
   section: { gap: tokens.spacing.sm },
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
   categoryCard: {
     flexBasis: 140,
     flexGrow: 1,
-    minHeight: 150,
+    minHeight: 128,
     borderRadius: tokens.radius.lg,
     backgroundColor: tokens.colors.surface,
     borderColor: tokens.colors.border,
     borderWidth: 1,
     padding: tokens.spacing.md,
     gap: tokens.spacing.xs,
-    ...tokens.shadow.card,
   },
   categoryIcon: {
-    width: 50,
-    height: 50,
+    width: 40,
+    height: 40,
     borderRadius: tokens.radius.md,
     alignItems: 'center',
     justifyContent: 'center',
@@ -457,37 +384,27 @@ const styles = StyleSheet.create({
     backgroundColor: tokens.colors.surface,
   },
   flex: { flex: 1, gap: 3 },
-  requestTitle: { flex: 1, ...tokens.type.label, color: tokens.colors.ink, textAlign: 'auto' },
-  statusPill: {
+  requestTitle: { ...tokens.type.label, color: tokens.colors.ink, textAlign: 'auto' },
+  requestStatus: {
     ...tokens.type.caption,
     color: tokens.colors.primaryStrong,
-    backgroundColor: tokens.colors.primarySoft,
-    borderRadius: tokens.radius.pill,
-    paddingHorizontal: tokens.spacing.sm,
-    paddingVertical: tokens.spacing.xxs,
-    overflow: 'hidden',
+    textAlign: 'auto',
   },
-  offerBadge: {
-    minWidth: 42,
-    height: 42,
-    borderRadius: 21,
-    paddingHorizontal: tokens.spacing.sm,
-    backgroundColor: tokens.colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
+  offersSummary: {
+    borderTopWidth: 1,
+    borderTopColor: tokens.colors.border,
+    paddingTop: tokens.spacing.sm,
+    gap: tokens.spacing.sm,
   },
-  offerBadgeText: { color: tokens.colors.white, fontWeight: '900', fontSize: 18 },
-  recommendation: {
-    minHeight: 44,
+  requestLink: {
+    minHeight: tokens.touchTarget,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: tokens.spacing.xs,
-    borderRadius: tokens.radius.pill,
-    borderWidth: 1,
-    borderColor: tokens.colors.border,
-    backgroundColor: tokens.colors.surface,
-    paddingHorizontal: tokens.spacing.md,
+    gap: tokens.spacing.sm,
   },
-  recommendationText: { ...tokens.type.label, color: tokens.colors.ink },
-  pressed: { opacity: 0.72, transform: [{ scale: 0.99 }] },
+  supportRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: tokens.spacing.sm,
+  },
 });

@@ -109,16 +109,32 @@ export async function beginMutation(input: {
   operation: MutationOperation;
   entityKey: string;
   payload: unknown;
+  expiresInMs?: number;
 }): Promise<MutationJournalEntry> {
   return withJournalMutationLock(input.userId, async () => {
     const entries = await loadUnlocked(input.userId);
-    const payloadFingerprint = mutationFingerprint(input.payload);
     const existing = entries.find(
       (entry) =>
         entry.operation === input.operation &&
         entry.entityKey === input.entityKey &&
         (entry.state === 'pending' || entry.state === 'retryable'),
     );
+    let payload = input.payload;
+    if (input.expiresInMs !== undefined) {
+      const duration = z.number().int().positive().max(RETENTION_MS).parse(input.expiresInMs);
+      const draft = z.record(z.string(), z.unknown()).parse(input.payload);
+      if (
+        !['submit_offer', 'create_change_order'].includes(input.operation) ||
+        Object.hasOwn(draft, 'expiresAt')
+      )
+        throw new Error('INVALID_GENERATED_MUTATION_EXPIRY');
+      // Generate once under the journal lock; retries still compare every persisted field.
+      const expiresAt = existing
+        ? z.object({ expiresAt: z.iso.datetime() }).parse(existing.payload).expiresAt
+        : new Date(Date.now() + duration).toISOString();
+      payload = { ...draft, expiresAt };
+    }
+    const payloadFingerprint = mutationFingerprint(payload);
     if (existing) {
       if (existing.payloadFingerprint !== payloadFingerprint) {
         throw new Error('MUTATION_INTENT_STILL_PENDING');
@@ -132,7 +148,7 @@ export async function beginMutation(input: {
       operation: input.operation,
       entityKey: input.entityKey,
       payloadFingerprint,
-      payload: canonicalize(input.payload),
+      payload: canonicalize(payload),
       idempotencyKey: globalThis.crypto.randomUUID(),
       state: 'pending',
       lastError: null,
@@ -226,10 +242,15 @@ export function executeJournaledMutation<T>(input: {
   operation: MutationOperation;
   entityKey: string;
   payload: unknown;
+  expiresInMs?: number;
   execute: (idempotencyKey: string, persistedPayload: unknown) => Promise<T>;
 }): Promise<T> {
   const flightKey = `${input.userId}:${input.operation}:${input.entityKey}`;
-  const payloadFingerprint = mutationFingerprint(input.payload);
+  const payloadFingerprint = mutationFingerprint(
+    input.expiresInMs === undefined
+      ? input.payload
+      : { payload: input.payload, expiresInMs: input.expiresInMs },
+  );
   const existing = inFlightMutations.get(flightKey);
   if (existing) {
     if (existing.payloadFingerprint !== payloadFingerprint) {

@@ -149,17 +149,17 @@ function LocalizedStack() {
 export default function RootLayout() {
   return (
     <MobileAppErrorBoundary>
-      <AppQueryProvider>
-        <LocaleProvider>
-          <SessionProvider>
+      <LocaleProvider>
+        <SessionProvider>
+          <AppQueryProvider>
             <LegalConsentProvider>
               <CustomerLocationProvider>
                 <LocalizedStack />
               </CustomerLocationProvider>
             </LegalConsentProvider>
-          </SessionProvider>
-        </LocaleProvider>
-      </AppQueryProvider>
+          </AppQueryProvider>
+        </SessionProvider>
+      </LocaleProvider>
     </MobileAppErrorBoundary>
   );
 }

@@ -19,6 +19,7 @@ vi.mock('expo-router', () => ({ Link: 'Link' }));
 vi.mock('@/components/ui', async () => import('../src/components/ui'));
 vi.mock('@/design-system/tokens', async () => import('../src/design-system/tokens'));
 vi.mock('@/design-system/rtl', async () => import('../src/design-system/rtl'));
+vi.mock('@/design-system/icon', () => ({ AppIcon: 'AppIcon' }));
 vi.mock('@/providers/locale-provider', () => ({
   useLocale: () => ({
     locale: localeState.locale,

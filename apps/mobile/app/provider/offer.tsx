@@ -1,10 +1,24 @@
 import { Controller, useForm } from 'react-hook-form';
 import { useState } from 'react';
-import { Text, TextInput, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { StyleSheet, Text, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
 import { z } from 'zod';
-import { styles } from '@/components/ui';
-import { ActionButton, CustomerScreen, Notice, Surface } from '@/design-system/primitives';
+import {
+  ActionButton,
+  CustomerScreen,
+  Field,
+  InteractivePressable,
+  Notice,
+  Surface,
+  customerStyles,
+} from '@/design-system/primitives';
+import { AppIcon } from '@/design-system/icon';
+import { customerTokens as tokens } from '@/design-system/tokens';
+import {
+  logicalFlexDirection,
+  logicalTextAlignment,
+  logicalWritingDirection,
+} from '@/design-system/rtl';
 import { MarketplaceApi } from '@sallah/api';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/providers/locale-provider';
@@ -35,7 +49,7 @@ const offerCommandSchema = z.object({
 });
 
 export default function ProviderOffer() {
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
   const params = useLocalSearchParams<{ requestId?: string; requestVersion?: string }>();
   const [materialsIncluded, setMaterialsIncluded] = useState(false);
   const [done, setDone] = useState(false);
@@ -68,7 +82,6 @@ export default function ProviderOffer() {
         estimatedDurationMinutes: value.durationMinutes,
         warrantyDays: value.warrantyDays,
         note: value.note,
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         expectedRequestVersion: Number(params.requestVersion),
       };
       const { data: userData } = await supabase.auth.getUser();
@@ -78,6 +91,7 @@ export default function ProviderOffer() {
         operation: 'submit_offer',
         entityKey: `${params.requestId}:${params.requestVersion}`,
         payload: commandPayload,
+        expiresInMs: 24 * 60 * 60 * 1000,
         execute: async (idempotencyKey, persistedPayload) =>
           new MarketplaceApi(supabase).submitOffer({
             ...offerCommandSchema.parse(persistedPayload),
@@ -103,62 +117,112 @@ export default function ProviderOffer() {
   ];
   return (
     <CustomerScreen>
-      <Text style={styles.title}>{t('privateSealedOfferTitle')}</Text>
-      <Surface tone="accent">
-        <Text style={styles.lead}>{t('privateSealedOfferNotice')}</Text>
+      <Text accessibilityRole="header" style={customerStyles.title}>
+        {t('privateSealedOfferTitle')}
+      </Text>
+      <Notice>{t('privateSealedOfferNotice')}</Notice>
+      <Surface>
+        {fields.map((item) => (
+          <Controller
+            key={item.name}
+            control={control}
+            name={item.name}
+            render={({ field }) => (
+              <Field
+                label={item.label}
+                placeholder={item.label}
+                keyboardType={
+                  item.name === 'amount' || item.name === 'visitFee' ? 'decimal-pad' : 'number-pad'
+                }
+                value={String(field.value)}
+                onBlur={field.onBlur}
+                onChangeText={field.onChange}
+              />
+            )}
+          />
+        ))}
       </Surface>
-      {fields.map((item) => (
+      <Surface>
+        <InteractivePressable
+          accessibilityLabel={t('materialsIncluded')}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: materialsIncluded }}
+          onPress={() => setMaterialsIncluded((value) => !value)}
+          style={[styles.materialsChoice, { flexDirection: logicalFlexDirection(locale) }]}
+        >
+          <View style={[styles.checkbox, materialsIncluded && styles.checkboxSelected]}>
+            {materialsIncluded ? (
+              <AppIcon color={tokens.colors.white} name="check" size={18} />
+            ) : null}
+          </View>
+          <Text
+            style={[
+              styles.materialsLabel,
+              {
+                textAlign: logicalTextAlignment(locale),
+                writingDirection: logicalWritingDirection(locale),
+              },
+            ]}
+          >
+            {t('materialsIncluded')}
+          </Text>
+        </InteractivePressable>
         <Controller
-          key={item.name}
           control={control}
-          name={item.name}
+          name="note"
           render={({ field }) => (
-            <TextInput
-              style={styles.input}
-              accessibilityLabel={item.label}
-              placeholder={item.label}
-              keyboardType="decimal-pad"
-              value={String(field.value)}
+            <Field
+              label={t('offerScopePlaceholder')}
+              style={{ minHeight: 110, textAlignVertical: 'top' }}
+              multiline
+              maxLength={2000}
+              accessibilityLabel={t('offerNoteA11y')}
+              placeholder={t('offerScopePlaceholder')}
+              value={field.value}
               onBlur={field.onBlur}
               onChangeText={field.onChange}
             />
           )}
         />
-      ))}
-      <View style={styles.row}>
-        <ActionButton
-          label={materialsIncluded ? t('materialsIncluded') : t('materialsNotIncluded')}
-          variant={materialsIncluded ? 'primary' : 'secondary'}
-          onPress={() => setMaterialsIncluded((value) => !value)}
-        />
-      </View>
-      <Controller
-        control={control}
-        name="note"
-        render={({ field }) => (
-          <TextInput
-            style={[styles.input, { minHeight: 110, textAlignVertical: 'top' }]}
-            multiline
-            accessibilityLabel={t('offerNoteA11y')}
-            placeholder={t('offerScopePlaceholder')}
-            value={field.value}
-            onBlur={field.onBlur}
-            onChangeText={field.onChange}
-          />
-        )}
-      />
+      </Surface>
       {formState.errors.root?.message && (
         <Notice tone="danger" live>
           {formState.errors.root.message}
         </Notice>
       )}
-      {done && <Text accessibilityLiveRegion="polite">{t('offerSubmitted')}</Text>}
+      {done && (
+        <Notice tone="success" live>
+          {t('offerSubmitted')}
+        </Notice>
+      )}
       <ActionButton
         disabled={formState.isSubmitting || done}
         label={formState.isSubmitting ? t('loading') : t('submitOfferAction')}
         loading={formState.isSubmitting}
         onPress={() => void handleSubmit(submit)()}
       />
+      {done ? (
+        <ActionButton
+          label={t('eligibleRequests')}
+          onPress={() => router.replace('/provider-feed')}
+          variant="secondary"
+        />
+      ) : null}
     </CustomerScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  materialsChoice: { minHeight: tokens.touchTarget, alignItems: 'center', gap: tokens.spacing.sm },
+  materialsLabel: { ...tokens.type.label, color: tokens.colors.ink, flexGrow: 1, flexShrink: 1 },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: tokens.colors.textMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxSelected: { backgroundColor: tokens.colors.primary, borderColor: tokens.colors.primary },
+});

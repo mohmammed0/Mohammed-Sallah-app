@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { z } from 'zod';
 import { formatStatusLabel } from '@sallah/i18n';
 import {
   ActionButton,
   CustomerScreen,
   EmptyState,
+  InteractivePressable,
   LoadingBlock,
   Notice,
   Pill,
@@ -15,6 +16,7 @@ import {
   customerStyles,
 } from '@/design-system/primitives';
 import { AppIcon } from '@/design-system/icon';
+import { logicalChevron, logicalFlexDirection } from '@/design-system/rtl';
 import { customerTokens as tokens } from '@/design-system/tokens';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/providers/locale-provider';
@@ -105,28 +107,37 @@ export default function Requests() {
         </Surface>
       ) : null}
       {visible.map((request) => (
-        <Pressable
+        <InteractivePressable
           key={request.id}
           accessibilityRole="button"
           onPress={() => {
-            if (request.status === 'receiving_offers') {
+            if (['published', 'matching', 'receiving_offers'].includes(request.status)) {
               router.push({ pathname: '/offers', params: { requestId: request.id } });
+            } else {
+              router.push({ pathname: '/jobs', params: { requestId: request.id } });
             }
           }}
-          style={({ pressed }) => pressed && styles.pressed}
         >
           <Surface>
-            <View style={customerStyles.between}>
+            <View style={[customerStyles.between, { flexDirection: logicalFlexDirection(locale) }]}>
               <View style={styles.icon}>
                 <AppIcon color={tokens.colors.primaryStrong} name="requests" size={22} />
               </View>
               <View style={styles.flex}>
                 <Text style={customerStyles.section}>{request.title}</Text>
                 <Text style={customerStyles.caption}>
-                  {new Date(request.created_at).toLocaleString(locale === 'ar' ? 'ar-SA' : locale)}
+                  {new Date(request.created_at).toLocaleString(locale === 'ar' ? 'ar-SA' : locale, {
+                    timeZone: 'Asia/Riyadh',
+                    dateStyle: 'medium',
+                    timeStyle: 'short',
+                  })}
                 </Text>
               </View>
-              <AppIcon color={tokens.colors.textMuted} name="chevron-forward" size={19} />
+              <AppIcon
+                color={tokens.colors.textMuted}
+                name={logicalChevron(locale, 'forward')}
+                size={19}
+              />
             </View>
             <View style={customerStyles.wrap}>
               <Text style={styles.status}>{formatStatusLabel(request.status, locale)}</Text>
@@ -137,18 +148,12 @@ export default function Requests() {
                     ? t('schedule')
                     : t('timingAsap')}
               </Text>
-              <Text style={styles.meta}>{t('versionSummary', { version: request.version })}</Text>
             </View>
             {request.status === 'receiving_offers' ? (
-              <ActionButton
-                label={t('viewPrivateComparison')}
-                onPress={() =>
-                  router.push({ pathname: '/offers', params: { requestId: request.id } })
-                }
-              />
+              <Text style={styles.linkLabel}>{t('viewPrivateComparison')}</Text>
             ) : null}
           </Surface>
-        </Pressable>
+        </InteractivePressable>
       ))}
       {!query.isPending && !query.isError && visible.length === 0 ? (
         <EmptyState
@@ -192,5 +197,5 @@ const styles = StyleSheet.create({
     paddingVertical: tokens.spacing.xxs,
     overflow: 'hidden',
   },
-  pressed: { opacity: 0.72 },
+  linkLabel: { ...tokens.type.label, color: tokens.colors.primaryStrong, textAlign: 'auto' },
 });

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'expo-router';
+import { Link, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Alert, Image, Linking, Platform, ScrollView, Text, TextInput, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
@@ -125,6 +125,10 @@ const jobTimelineStatuses = [
 
 export default function Jobs() {
   const { locale, t } = useLocale();
+  const params = useLocalSearchParams<{ jobId?: string; requestId?: string }>();
+  const scope = z
+    .object({ jobId: z.uuid().optional(), requestId: z.uuid().optional() })
+    .safeParse(params);
   const [reason, setReason] = useState('');
   const [rating, setRating] = useState('5');
   const [review, setReview] = useState('');
@@ -166,17 +170,20 @@ export default function Jobs() {
     >
   >({});
   const query = useQuery({
-    queryKey: ['jobs'],
+    queryKey: ['jobs', params.jobId ?? null, params.requestId ?? null],
+    enabled: scope.success,
     queryFn: async () => {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error('AUTH_REQUIRED');
-      const { data, error } = await supabase
+      if (!scope.success) throw new Error('INVALID_JOB_ROUTE');
+      let jobQuery = supabase
         .from('jobs')
         .select(
           'id,customer_id,provider_id,status,approved_total_minor,version,created_at,payments(amount_minor,refunded_minor,status),conversations(id),job_location_updates(captured_at,expires_at),change_orders(id,reason,description,revised_total_minor,status,expires_at),cancellation_requests(id,status,reason,created_at),disputes(id,status,reason,created_at,resolved_at),ratings(id,customer_id,provider_id,score,review,moderation_status)',
-        )
-        .order('created_at', { ascending: false })
-        .limit(50);
+        );
+      if (scope.data.jobId) jobQuery = jobQuery.eq('id', scope.data.jobId);
+      if (scope.data.requestId) jobQuery = jobQuery.eq('request_id', scope.data.requestId);
+      const { data, error } = await jobQuery.order('created_at', { ascending: false }).limit(50);
       if (error) throw error;
       return { userId: userData.user.id, jobs: z.array(jobSchema).parse(data ?? []) };
     },
@@ -193,6 +200,7 @@ export default function Jobs() {
     entityKey: string,
     payload: unknown,
     execute: (idempotencyKey: string, persistedPayload: unknown) => Promise<T>,
+    expiresInMs?: number,
   ): Promise<T> {
     const { data } = await supabase.auth.getUser();
     if (!data.user) throw new Error('AUTH_REQUIRED');
@@ -202,6 +210,7 @@ export default function Jobs() {
       entityKey,
       payload,
       execute,
+      ...(expiresInMs === undefined ? {} : { expiresInMs }),
     });
   }
   function submitTrustReport(intent: MarketplaceReportIntent) {
@@ -555,7 +564,6 @@ export default function Jobs() {
       reason: t('scopeChangedReason'),
       description: changeDescription.trim(),
       lineItems: [{ description: changeDescription.trim(), quantity: 1, amountMinor }],
-      expiresAt: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
     };
     await journaled(
       'create_change_order',
@@ -568,6 +576,7 @@ export default function Jobs() {
         });
         if (error) throw error;
       },
+      12 * 60 * 60 * 1000,
     );
   }
   async function decideChangeOrder(orderId: string, approve: boolean) {
@@ -666,7 +675,12 @@ export default function Jobs() {
           onChangeText={setReason}
           placeholder={t('actionReasonPlaceholder')}
         />
-        {query.isPending && <LoadingSkeleton label={t('loadingJobs')} />}
+        {scope.success && query.isPending && <LoadingSkeleton label={t('loadingJobs')} />}
+        {!scope.success && (
+          <Text accessibilityRole="alert" style={styles.error}>
+            {t('noJobs')}
+          </Text>
+        )}
         {query.isError && (
           <Card>
             <Text accessibilityRole="alert" style={styles.error}>
