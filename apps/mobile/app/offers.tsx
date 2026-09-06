@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { z } from 'zod';
 import {
   ActionButton,
@@ -19,6 +19,24 @@ import { supabase } from '@/lib/supabase';
 import { formatSar } from '@sallah/i18n';
 import { useLocale } from '@/providers/locale-provider';
 import { executeJournaledMutation } from '@/lib/mutation-journal';
+import { StatusMotion } from '@/design-system/motion';
+import { useActiveScreen } from '@/features/connectivity/use-active-screen';
+import { useNetworkState } from 'expo-network';
+import { isNetworkOnline } from '@/features/connectivity/network-state';
+
+const waitingStatuses = new Set(['published', 'matching', 'receiving_offers']);
+const selectedStatuses = new Set([
+  'provider_selected',
+  'scheduled',
+  'en_route',
+  'arrived',
+  'diagnosing',
+  'awaiting_change_order_approval',
+  'in_progress',
+  'completion_submitted',
+  'disputed',
+]);
+const requestContextSchema = z.object({ id: z.uuid(), status: z.string() }).nullable();
 
 const offerSchema = z.object({
   id: z.uuid(),
@@ -46,20 +64,61 @@ export default function Offers() {
   const rowDirection = logicalRowStyle(locale);
   const textDirection = logicalTextStyle(locale);
   const { requestId } = useLocalSearchParams<{ requestId?: string }>();
+  const scope = z.uuid().safeParse(requestId);
+  const active = useActiveScreen();
+  const online = isNetworkOnline(useNetworkState());
   const [error, setError] = useState('');
   const queryClient = useQueryClient();
   const query = useQuery({
     queryKey: ['customer-offers', requestId],
-    enabled: Boolean(requestId),
+    enabled: scope.success && active && online,
+    staleTime: 0,
+    refetchOnReconnect: 'always',
+    refetchInterval: active && online ? 8_000 : false,
+    refetchIntervalInBackground: false,
     queryFn: async () => {
-      if (!requestId) return [];
+      if (!scope.success) throw new Error('INVALID_REQUEST_ROUTE');
       const { data, error: rpcError } = await supabase.rpc('get_customer_offers', {
-        p_request_id: requestId,
+        p_request_id: scope.data,
       });
       if (rpcError) throw rpcError;
       return z.array(offerSchema).parse(data);
     },
   });
+  const requestContext = useQuery({
+    queryKey: ['customer-offer-request', requestId],
+    enabled: scope.success && active && online,
+    staleTime: 0,
+    refetchOnReconnect: 'always',
+    refetchInterval: active && online ? 8_000 : false,
+    refetchIntervalInBackground: false,
+    queryFn: async () => {
+      if (!scope.success) throw new Error('INVALID_REQUEST_ROUTE');
+      const { data, error: contextError } = await supabase
+        .from('service_requests')
+        .select('id,status')
+        .eq('id', scope.data)
+        .maybeSingle();
+      if (contextError) throw contextError;
+      return requestContextSchema.parse(data);
+    },
+  });
+  const refreshingAvailable =
+    online && query.fetchStatus !== 'paused' && requestContext.fetchStatus !== 'paused';
+  const waiting = Boolean(
+    refreshingAvailable &&
+    requestContext.isSuccess &&
+    !requestContext.isError &&
+    requestContext.data &&
+    waitingStatuses.has(requestContext.data.status),
+  );
+  const refresh = () => {
+    void query.refetch();
+    void requestContext.refetch();
+  };
+  const selected = selectedStatuses.has(requestContext.data?.status ?? '');
+  const closed = ['cancelled', 'completed'].includes(requestContext.data?.status ?? '');
+  const availableOfferCount = query.data?.filter((offer) => offer.selectable).length ?? 0;
   const selectOffer = useMutation({
     mutationFn: async (offerId: string) => {
       const { data: userData } = await supabase.auth.getUser();
@@ -86,7 +145,6 @@ export default function Offers() {
         queryClient.invalidateQueries({ queryKey: ['customer-home-requests'] }),
         queryClient.invalidateQueries({ queryKey: ['jobs'] }),
       ]);
-      Alert.alert(t('offerSelectedTitle'), t('offerSelectedBody'));
       router.replace({ pathname: '/jobs', params: { jobId } });
     },
     onError: () => setError(t('offerSelectFailed')),
@@ -99,24 +157,76 @@ export default function Offers() {
         </Text>
         <Text style={customerStyles.bodyMuted}>{t('privateOffersLead')}</Text>
       </View>
-      {!requestId ? (
+      {!scope.success ? (
         <Notice live tone="danger">
           {t('missingRequestId')}
         </Notice>
       ) : null}
-      {requestId && query.isPending ? <LoadingBlock label={t('loadingOffers')} rows={4} /> : null}
+      {scope.success && refreshingAvailable && (query.isPending || requestContext.isPending) ? (
+        <LoadingBlock label={t('loadingOffers')} rows={4} />
+      ) : null}
       {query.isError ? (
         <Surface tone="danger">
           <Notice live tone="danger">
             {t('loadOffersFailed')}
           </Notice>
-          <ActionButton
-            icon="refresh"
-            label={t('retry')}
-            onPress={() => void query.refetch()}
-            variant="secondary"
+          <ActionButton icon="refresh" label={t('retry')} onPress={refresh} variant="secondary" />
+        </Surface>
+      ) : null}
+      {scope.success && (requestContext.isError || !refreshingAvailable) ? (
+        <Notice live tone="warning">
+          {t('waitingStatusUnavailable')}
+        </Notice>
+      ) : null}
+      {scope.success &&
+      !query.isPending &&
+      !query.isError &&
+      waiting &&
+      availableOfferCount === 0 ? (
+        <Surface tone="accent">
+          <StatusMotion
+            active={active}
+            description={t('requestWaitingBody')}
+            label={t('requestWaitingTitle')}
+            testID="request-waiting-motion"
+            variant="waiting"
+          />
+          <View style={[styles.detail, rowDirection]}>
+            <AppIcon color={tokens.colors.primaryStrong} name="shield" size={20} />
+            <Text style={[styles.detailText, textDirection]}>{t('privateOffersLead')}</Text>
+          </View>
+          <Text style={[customerStyles.caption, textDirection]}>{t('waitingRefreshHint')}</Text>
+        </Surface>
+      ) : null}
+      {scope.success && waiting && availableOfferCount > 0 && !query.isError ? (
+        <Surface tone="success">
+          <StatusMotion
+            active={active}
+            description={t('offersReadyBody', { count: availableOfferCount })}
+            label={t('offersReadyTitle')}
+            layout="inline"
+            variant="success"
           />
         </Surface>
+      ) : null}
+      {selectOffer.isPending ? (
+        <StatusMotion
+          active={active}
+          description={t('offerSelectingBody')}
+          label={t('offerSelectingTitle')}
+          layout="inline"
+          variant="sending"
+        />
+      ) : null}
+      {scope.success ? (
+        <ActionButton
+          icon="refresh"
+          label={t('refreshOffers')}
+          disabled={!refreshingAvailable}
+          loading={query.isFetching || requestContext.isFetching}
+          onPress={refresh}
+          variant="secondary"
+        />
       ) : null}
       {query.data?.map((offer) => (
         <Surface key={offer.id} accessibilityLabel={offer.providerName}>
@@ -196,7 +306,14 @@ export default function Offers() {
             </Notice>
           ) : null}
           <ActionButton
-            disabled={selectOffer.isPending || !offer.selectable}
+            disabled={
+              selectOffer.isPending ||
+              !offer.selectable ||
+              !waiting ||
+              query.isError ||
+              query.isFetching ||
+              requestContext.isFetching
+            }
             label={t('selectThisOffer')}
             loading={selectOffer.isPending && selectOffer.variables === offer.id}
             onPress={() => {
@@ -206,8 +323,34 @@ export default function Offers() {
           />
         </Surface>
       ))}
-      {!query.isPending && !query.isError && query.data?.length === 0 ? (
-        <EmptyState body={t('privateOffersLead')} icon="requests" title={t('noActiveOffers')} />
+      {scope.success &&
+      refreshingAvailable &&
+      !requestContext.isPending &&
+      !requestContext.isError &&
+      !waiting ? (
+        <EmptyState
+          actionLabel={t(selected ? 'serviceTrackingTitle' : 'viewAllRequests')}
+          body={t(
+            selected
+              ? 'serviceBookedBody'
+              : closed
+                ? 'requestClosedBody'
+                : 'requestStatusUnknownBody',
+          )}
+          icon="requests"
+          onAction={() =>
+            selected && scope.success
+              ? router.replace({ pathname: '/jobs', params: { requestId: scope.data } })
+              : router.replace('/customer-requests')
+          }
+          title={t(
+            selected
+              ? 'serviceTrackingTitle'
+              : closed
+                ? 'requestClosedTitle'
+                : 'requestStatusUnknownTitle',
+          )}
+        />
       ) : null}
       {error.length > 0 ? (
         <Notice live tone="danger">

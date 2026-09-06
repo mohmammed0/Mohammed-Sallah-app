@@ -1,6 +1,7 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createAiDataConsentGate } from '../src/features/request/ai-data-consent';
+import type { ActiveServiceLocation } from '../src/features/location/location-state';
 
 const fixture = vi.hoisted(() => ({
   invoke: vi.fn(),
@@ -13,9 +14,11 @@ const fixture = vi.hoisted(() => ({
   permission: vi.fn(),
   catalog: { data: { categories: [], subcategories: [] }, isPending: false, isError: false },
   location: {
-    activeLocation: null,
+    activeLocation: null as ActiveServiceLocation | null,
     addresses: [],
     loading: false,
+    loaded: true,
+    saveAddress: vi.fn(),
     selectSavedAddress: vi.fn(),
     selectTransientLocation: vi.fn(),
   },
@@ -77,9 +80,10 @@ vi.mock(
 vi.mock('@/features/location/location-provider', () => ({
   useCustomerLocation: () => fixture.location,
 }));
-vi.mock('@/features/location/location-editor-state', () => ({
-  shouldOfferTransientSave: () => false,
-}));
+vi.mock(
+  '@/features/location/location-editor-state',
+  async () => import('../src/features/location/location-editor-state'),
+);
 vi.mock('@/features/location/location-service', () => ({ resolveServiceLocation: vi.fn() }));
 vi.mock('@/providers/locale-provider', () => ({
   useLocale: () => ({ locale: 'en', dir: 'ltr', t: (key: string) => key }),
@@ -96,6 +100,11 @@ vi.mock('@/design-system/primitives', () => ({
   customerStyles: {},
 }));
 vi.mock('@/design-system/icon', () => ({ AppIcon: 'AppIcon', categoryIconName: () => 'tools' }));
+vi.mock('@/design-system/motion', () => ({
+  MotionReveal: 'MotionReveal',
+  StatusMotion: 'StatusMotion',
+}));
+vi.mock('@/features/connectivity/use-active-screen', () => ({ useActiveScreen: () => true }));
 vi.mock('@/design-system/tokens', async () => import('../src/design-system/tokens'));
 vi.mock('@/design-system/rtl', async () => import('../src/design-system/rtl'));
 vi.mock('@/design-system/customer-components', () => ({
@@ -155,13 +164,13 @@ const draft = {
   diagnostic: null,
 };
 let renderer: ReactTestRenderer;
-async function open(pendingTurns: unknown[] = [turn]) {
+async function open(pendingTurns: unknown[] = [turn], draftOverride: Partial<typeof draft> = {}) {
   fixture.load.mockResolvedValue({
     version: 2,
     sessionId: null,
     conversation: [],
     pendingTurns,
-    draft,
+    draft: { ...draft, ...draftOverride },
   });
   await act(async () => {
     renderer = create(<RequestComposer />);
@@ -182,6 +191,8 @@ beforeEach(() => {
   fixture.upload.mockReset().mockResolvedValue(cleanUpload);
   fixture.push.mockReset();
   fixture.media = [];
+  fixture.location.activeLocation = null;
+  fixture.location.saveAddress.mockReset();
   vi.stubGlobal(
     'fetch',
     vi.fn().mockResolvedValue({ ok: true, arrayBuffer: async () => new ArrayBuffer(20) }),
@@ -290,5 +301,46 @@ describe('AI transfer permission', () => {
     await act(async () => button('aiDataConsentWithdraw').props.onPress());
     await act(async () => resolvePermission({ granted: true }));
     expect(fixture.recorder.record).not.toHaveBeenCalled();
+  });
+});
+
+describe('publication feedback', () => {
+  it('does not report sending a request while an address save is pending on review', async () => {
+    fixture.location.activeLocation = {
+      savedAddressId: null,
+      label: 'Synthetic location',
+      formattedAddress: 'Synthetic service location',
+      building: null,
+      unit: null,
+      accessNotes: null,
+      cityCode: 'riyadh',
+      cityNameAr: 'Riyadh',
+      cityNameEn: 'Riyadh',
+      coordinates: { latitude: 24.7, longitude: 46.7 },
+    };
+    let finishSave!: (id: string) => void;
+    fixture.location.saveAddress.mockImplementation(
+      () =>
+        new Promise<string>((resolve) => {
+          finishSave = resolve;
+        }),
+    );
+    await open([], {
+      title: 'Synthetic tap repair',
+      summary: 'Synthetic leaking tap needs repair.',
+      journeyStep: 'location',
+    });
+    await act(async () => button('saveThisLocation').props.onPress());
+    expect(fixture.location.saveAddress).toHaveBeenCalledTimes(1);
+    expect(button('confirmLocation').props.disabled).toBe(false);
+    await act(async () => button('confirmLocation').props.onPress());
+    expect(button('continueToReview').props.disabled).toBe(false);
+    await act(async () => button('continueToReview').props.onPress());
+    try {
+      expect(renderer.root.findByType('StepHeader').props.title).toBe('reviewStepTitle');
+      expect(renderer.root.findAllByProps({ label: 'requestSendingTitle' })).toHaveLength(0);
+    } finally {
+      await act(async () => finishSave('33333333-3333-4333-8333-333333333333'));
+    }
   });
 });

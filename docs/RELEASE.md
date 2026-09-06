@@ -1,5 +1,9 @@
 # Release process
 
+The [first 1.0.0 release preparation](release/FIRST_RELEASE.md) covers the current
+customer motion and ordering-to-receipt candidate. It remains a draft until the
+final brand, operational inputs and environment-specific acceptance gates pass.
+
 Start with the [code and GitHub prelaunch gate](release/PRELAUNCH.md) and PR #36 to `main`.
 Its six CI jobs produce a verifiable source/migration/artifact packet. Actual rollout follows only
 after that engineering gate and the environment-specific checks below.

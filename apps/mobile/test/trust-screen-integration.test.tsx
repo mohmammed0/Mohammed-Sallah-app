@@ -1,4 +1,6 @@
 import { act, create } from 'react-test-renderer';
+vi.mock('@/features/jobs/customer-job-status', () => ({ CustomerJobStatus: 'CustomerJobStatus' }));
+vi.mock('@/features/connectivity/use-active-screen', () => ({ useActiveScreen: () => true }));
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const ids = {
@@ -185,9 +187,10 @@ vi.mock('../src/providers/locale-provider', () => ({
 vi.mock('@/lib/secure-upload', () => ({ secureUpload: uploadAttachment }));
 vi.mock('@/features/jobs/location-sharing', () => ({ reduceLocationSharing: vi.fn() }));
 vi.mock('@/features/jobs/job-tracking-map', () => ({ JobTrackingMap: 'JobTrackingMap' }));
-vi.mock('@/features/jobs/completion-evidence', () => ({
-  allCompletionEvidenceViewed: () => true,
-}));
+vi.mock(
+  '@/features/jobs/completion-evidence',
+  async () => import('../src/features/jobs/completion-evidence'),
+);
 vi.mock('@/lib/mutation-journal', () => ({ executeJournaledMutation: vi.fn() }));
 vi.mock('../src/lib/secure-storage', () => ({
   chunkedSecureStorage: {

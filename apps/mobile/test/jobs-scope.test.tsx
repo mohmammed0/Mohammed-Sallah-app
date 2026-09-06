@@ -44,7 +44,12 @@ vi.mock('@/providers/locale-provider', () => ({
 }));
 vi.mock('@/features/jobs/location-sharing', () => ({ reduceLocationSharing: vi.fn() }));
 vi.mock('@/features/jobs/job-tracking-map', () => ({ JobTrackingMap: 'JobTrackingMap' }));
-vi.mock('@/features/jobs/completion-evidence', () => ({ allCompletionEvidenceViewed: vi.fn() }));
+vi.mock(
+  '@/features/jobs/completion-evidence',
+  async () => import('../src/features/jobs/completion-evidence'),
+);
+vi.mock('@/features/jobs/customer-job-status', () => ({ CustomerJobStatus: 'CustomerJobStatus' }));
+vi.mock('@/features/connectivity/use-active-screen', () => ({ useActiveScreen: () => true }));
 vi.mock('../src/features/trust/trust-controls', () => ({ TrustControls: 'TrustControls' }));
 vi.mock('../src/features/trust/trust-client', () => ({
   createTrustRpcClient: () => ({}),

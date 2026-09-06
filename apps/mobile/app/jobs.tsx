@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Alert, Image, Linking, Platform, ScrollView, Text, TextInput, View } from 'react-native';
@@ -14,7 +14,14 @@ import { secureUpload } from '@/lib/secure-upload';
 import { useLocale } from '@/providers/locale-provider';
 import { reduceLocationSharing, type LocationSharingState } from '@/features/jobs/location-sharing';
 import { JobTrackingMap } from '@/features/jobs/job-tracking-map';
-import { allCompletionEvidenceViewed } from '@/features/jobs/completion-evidence';
+import {
+  canAcceptCompletionEvidence,
+  completionEvidenceManifestSchema,
+  isCurrentCompletionEvidence,
+  type CompletionEvidenceBatch,
+} from '@/features/jobs/completion-evidence';
+import { CustomerJobStatus } from '@/features/jobs/customer-job-status';
+import { useActiveScreen } from '@/features/connectivity/use-active-screen';
 import { executeJournaledMutation, type MutationOperation } from '@/lib/mutation-journal';
 import type { MarketplaceReportIntent } from '@sallah/domain/trust';
 import { TrustControls } from '../src/features/trust/trust-controls';
@@ -124,6 +131,7 @@ const jobTimelineStatuses = [
 ] as const;
 
 export default function Jobs() {
+  const activeScreen = useActiveScreen();
   const { locale, t } = useLocale();
   const params = useLocalSearchParams<{ jobId?: string; requestId?: string }>();
   const scope = z
@@ -146,19 +154,13 @@ export default function Jobs() {
       }
     >
   >({});
-  const [proofs, setProofs] = useState<
-    Record<
-      string,
-      Array<{
-        id: string;
-        uploadId: string;
-        mimeType: string;
-        description: string | null;
-      }>
-    >
-  >({});
-  const [proofUrls, setProofUrls] = useState<Record<string, string>>({});
-  const [proofViewed, setProofViewed] = useState<Record<string, boolean>>({});
+  const [evidenceBatches, setEvidenceBatches] = useState<Record<string, CompletionEvidenceBatch>>(
+    {},
+  );
+  const evidenceBatchesRef = useRef(evidenceBatches);
+  const evidenceLoads = useRef<Record<string, number>>({});
+  const currentJobs = useRef<readonly Job[]>([]);
+  const mounted = useRef(false);
   const activeLocationShares = useRef<
     Record<
       string,
@@ -171,7 +173,9 @@ export default function Jobs() {
   >({});
   const query = useQuery({
     queryKey: ['jobs', params.jobId ?? null, params.requestId ?? null],
-    enabled: scope.success,
+    enabled: scope.success && activeScreen,
+    refetchInterval: activeScreen ? 8_000 : false,
+    refetchIntervalInBackground: false,
     queryFn: async () => {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) throw new Error('AUTH_REQUIRED');
@@ -188,6 +192,18 @@ export default function Jobs() {
       return { userId: userData.user.id, jobs: z.array(jobSchema).parse(data ?? []) };
     },
   });
+  useLayoutEffect(() => {
+    currentJobs.current = query.data?.jobs ?? [];
+  }, [query.data?.jobs]);
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      currentJobs.current = [];
+      evidenceLoads.current = {};
+      evidenceBatchesRef.current = {};
+    };
+  }, []);
   const command = useMutation({
     mutationFn: async (run: () => Promise<unknown>) => run(),
     onSuccess: async () => {
@@ -478,43 +494,113 @@ export default function Jobs() {
     setLocations((current) => ({ ...current, [job.id]: result }));
     return result;
   }
+  function currentEvidenceJob(job: Job): Job | undefined {
+    if (!mounted.current) return undefined;
+    return currentJobs.current.find(
+      (current) =>
+        current.id === job.id &&
+        current.version === job.version &&
+        current.status === 'completion_submitted',
+    );
+  }
+  function currentEvidenceBatch(
+    job: Job,
+    batch: CompletionEvidenceBatch,
+  ): CompletionEvidenceBatch | undefined {
+    const current = evidenceBatchesRef.current[job.id];
+    return isCurrentCompletionEvidence(current, currentEvidenceJob(job)) &&
+      current.loadId === batch.loadId &&
+      current.completionAttemptId === batch.completionAttemptId &&
+      current.attemptNumber === batch.attemptNumber
+      ? current
+      : undefined;
+  }
+  function updateEvidenceBatch(
+    job: Job,
+    batch: CompletionEvidenceBatch,
+    update: (current: CompletionEvidenceBatch) => CompletionEvidenceBatch,
+  ) {
+    const current = currentEvidenceBatch(job, batch);
+    if (!current) return;
+    evidenceBatchesRef.current = { ...evidenceBatchesRef.current, [job.id]: update(current) };
+    setEvidenceBatches(evidenceBatchesRef.current);
+  }
+  function markProofViewed(job: Job, batch: CompletionEvidenceBatch, proofId: string) {
+    updateEvidenceBatch(job, batch, (current) =>
+      current.urls[proofId] && current.proofs.some((proof) => proof.id === proofId)
+        ? { ...current, viewed: { ...current.viewed, [proofId]: true } }
+        : current,
+    );
+  }
+  function requireReviewedEvidence(
+    job: Job,
+    expected?: CompletionEvidenceBatch,
+  ): CompletionEvidenceBatch {
+    const batch = expected ?? evidenceBatchesRef.current[job.id];
+    const current = batch ? currentEvidenceBatch(job, batch) : undefined;
+    if (!current || !canAcceptCompletionEvidence(current, currentEvidenceJob(job))) {
+      throw new Error('CURRENT_COMPLETION_EVIDENCE_REQUIRED');
+    }
+    return current;
+  }
   async function loadProofs(job: Job) {
+    if (!currentEvidenceJob(job)) throw new Error('COMPLETION_EVIDENCE_STALE');
+    const loadId = (evidenceLoads.current[job.id] ?? 0) + 1;
+    evidenceLoads.current[job.id] = loadId;
+    const canLoad = () =>
+      Boolean(currentEvidenceJob(job)) && evidenceLoads.current[job.id] === loadId;
+    const nextBatches = { ...evidenceBatchesRef.current };
+    delete nextBatches[job.id];
+    evidenceBatchesRef.current = nextBatches;
+    setEvidenceBatches(nextBatches);
     const response = await (
       supabase.rpc as unknown as (
         name: string,
         args: Record<string, unknown>,
       ) => Promise<{ data: unknown; error: unknown }>
     )('get_completion_proof_manifest', { p_job_id: job.id });
-    const parsed = z
-      .object({
-        proofs: z.array(
-          z.object({
-            id: z.uuid(),
-            uploadId: z.uuid(),
-            mimeType: z.string(),
-            description: z.string().nullable(),
-          }),
-        ),
-      })
-      .safeParse(response.data);
+    if (!canLoad()) return;
+    const parsed = completionEvidenceManifestSchema.safeParse(response.data);
     if (response.error || !parsed.success) throw new Error('PROOF_MANIFEST_FAILED');
-    setProofs((current) => ({ ...current, [job.id]: parsed.data.proofs }));
-    for (const proof of parsed.data.proofs) {
+    const batch: CompletionEvidenceBatch = {
+      ...parsed.data,
+      jobId: job.id,
+      jobVersion: job.version,
+      loadId,
+      urls: {},
+      viewed: {},
+    };
+    evidenceBatchesRef.current = { ...evidenceBatchesRef.current, [job.id]: batch };
+    setEvidenceBatches(evidenceBatchesRef.current);
+    for (const proof of batch.proofs) {
+      if (!canLoad()) return;
       const signed = await supabase.functions.invoke('media-access', {
         body: { uploadId: proof.uploadId, expiresInSeconds: 300 },
       });
+      if (!canLoad()) return;
       const url = z.object({ signedUrl: z.string().url() }).safeParse(signed.data);
       if (!signed.error && url.success) {
-        setProofUrls((current) => ({ ...current, [proof.id]: url.data.signedUrl }));
+        updateEvidenceBatch(job, batch, (current) => ({
+          ...current,
+          urls: { ...current.urls, [proof.id]: url.data.signedUrl },
+        }));
       }
     }
   }
-  async function viewVideoProof(proofId: string, url: string) {
+  async function viewVideoProof(
+    job: Job,
+    batch: CompletionEvidenceBatch,
+    proofId: string,
+    url: string,
+  ) {
+    if (!currentEvidenceBatch(job, batch)) return;
     if (!(await Linking.canOpenURL(url))) throw new Error('PROOF_VIEWER_UNAVAILABLE');
+    if (!currentEvidenceBatch(job, batch)) return;
     await Linking.openURL(url);
-    setProofViewed((current) => ({ ...current, [proofId]: true }));
+    markProofViewed(job, batch, proofId);
   }
   async function accept(job: Job, accepted: boolean) {
+    const reviewedBatch = accepted ? requireReviewedEvidence(job) : undefined;
     const score = Number(rating);
     const decisionReason = accepted
       ? t('customerAcceptedCompletionReason')
@@ -542,6 +628,7 @@ export default function Jobs() {
             evidenceUploadIds: z.array(z.uuid()),
           })
           .parse(persistedPayload);
+        if (authoritative.accepted) requireReviewedEvidence(job, reviewedBatch);
         const { error } = await supabase.rpc('accept_completion', {
           p_job_id: authoritative.jobId,
           p_accept: authoritative.accepted,
@@ -669,6 +756,14 @@ export default function Jobs() {
     <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
       <Screen>
         <Text style={styles.title}>{t('jobs')}</Text>
+        {scope.success ? (
+          <Button
+            disabled={query.isFetching || command.isPending}
+            kind="secondary"
+            label={t('refreshStatus')}
+            onPress={() => void query.refetch()}
+          />
+        ) : null}
         <TextInput
           style={styles.input}
           value={reason}
@@ -699,12 +794,13 @@ export default function Jobs() {
             (item) => !['resolved', 'closed'].includes(item.status),
           );
           const latestDispute = openDisputeCase ?? job.disputes[0];
-          const jobProofs = proofs[job.id] ?? [];
+          const loadedEvidence = evidenceBatches[job.id];
+          const batch = isCurrentCompletionEvidence(loadedEvidence, job)
+            ? loadedEvidence
+            : undefined;
+          const jobProofs = batch?.proofs ?? [];
           const timelineIndex = resolveTimelineIndex(jobTimelineStatuses, job.status);
-          const allProofsViewed = allCompletionEvidenceViewed(
-            jobProofs.map((proof) => proof.id),
-            proofViewed,
-          );
+          const allProofsViewed = canAcceptCompletionEvidence(batch, job);
           const next =
             customer && job.status === 'provider_selected'
               ? 'scheduled'
@@ -720,8 +816,15 @@ export default function Jobs() {
               : [];
           return (
             <Card key={job.id}>
-              <Text style={styles.badge}>{formatStatusLabel(job.status, locale)}</Text>
-              {timelineIndex !== null ? (
+              {customer ? (
+                <CustomerJobStatus
+                  active={activeScreen && Boolean(params.jobId || params.requestId)}
+                  status={job.status}
+                />
+              ) : (
+                <Text style={styles.badge}>{formatStatusLabel(job.status, locale)}</Text>
+              )}
+              {!customer && timelineIndex !== null ? (
                 <ProgressTimeline
                   currentIndex={timelineIndex}
                   steps={jobTimelineStatuses.map((status) => ({
@@ -798,6 +901,7 @@ export default function Jobs() {
               {!customer && job.status === 'diagnosing' && (
                 <>
                   <TextInput
+                    accessibilityLabel={t('changeScopeDescription')}
                     style={styles.input}
                     value={changeDescription}
                     onChangeText={setChangeDescription}
@@ -856,17 +960,12 @@ export default function Jobs() {
                   />
                   {jobProofs.map((proof) => (
                     <Card key={proof.id}>
-                      {proofUrls[proof.id] ? (
+                      {batch?.urls[proof.id] ? (
                         proof.mimeType.startsWith('image/') ? (
                           <Image
-                            source={{ uri: proofUrls[proof.id] }}
+                            source={{ uri: batch.urls[proof.id] }}
                             accessibilityLabel={t('completionProofA11y')}
-                            onLoad={() =>
-                              setProofViewed((current) => ({
-                                ...current,
-                                [proof.id]: true,
-                              }))
-                            }
+                            onLoad={() => markProofViewed(job, batch, proof.id)}
                             style={{ width: '100%', height: 220, borderRadius: 12 }}
                           />
                         ) : (
@@ -875,7 +974,7 @@ export default function Jobs() {
                             label={t('openVideoEvidence')}
                             onPress={() =>
                               command.mutate(() =>
-                                viewVideoProof(proof.id, proofUrls[proof.id] ?? ''),
+                                viewVideoProof(job, batch, proof.id, batch.urls[proof.id] ?? ''),
                               )
                             }
                           />
@@ -891,6 +990,7 @@ export default function Jobs() {
                     </Card>
                   ))}
                   <TextInput
+                    accessibilityLabel={t('ratingPlaceholder')}
                     style={styles.input}
                     value={rating}
                     onChangeText={setRating}
@@ -898,6 +998,7 @@ export default function Jobs() {
                     placeholder={t('ratingPlaceholder')}
                   />
                   <TextInput
+                    accessibilityLabel={t('optionalReview')}
                     style={styles.input}
                     value={review}
                     onChangeText={setReview}
@@ -905,11 +1006,12 @@ export default function Jobs() {
                   />
                   <View style={styles.row}>
                     <Button
-                      disabled={!allProofsViewed}
+                      disabled={!allProofsViewed || command.isPending}
                       label={t('acceptCompletion')}
                       onPress={() => command.mutate(() => accept(job, true))}
                     />
                     <Button
+                      disabled={command.isPending}
                       kind="danger"
                       label={t('rejectAndOpenDispute')}
                       onPress={() => command.mutate(() => accept(job, false))}

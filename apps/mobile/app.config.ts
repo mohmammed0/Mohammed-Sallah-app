@@ -89,7 +89,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     name: branding.displayName.ar,
     slug: branding.slug,
     owner: defaultEasOwner,
-    version: '0.1.0',
+    version: '1.0.0',
     icon: './assets/images/icon.png',
     platforms: ['ios', 'android'],
     orientation: 'portrait',

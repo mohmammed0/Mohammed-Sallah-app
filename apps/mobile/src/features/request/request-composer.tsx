@@ -34,6 +34,9 @@ import {
   logicalWritingDirection,
 } from '@/design-system/rtl';
 import { supabase } from '@/lib/supabase';
+import { MotionReveal, StatusMotion } from '@/design-system/motion';
+import { useActiveScreen } from '@/features/connectivity/use-active-screen';
+import { RequestPublished } from './request-published';
 import { secureUpload, type CleanUpload } from '@/lib/secure-upload';
 import { useLocale } from '@/providers/locale-provider';
 import {
@@ -137,6 +140,7 @@ const restoredSessionSchema = z.object({
 });
 
 export function RequestComposer() {
+  const activeScreen = useActiveScreen();
   const { category: initialCategory } = useLocalSearchParams<{ category?: string }>();
   const { locale, t } = useLocale();
   const textDirection = logicalTextStyle(locale);
@@ -178,6 +182,7 @@ export function RequestComposer() {
   const [requestedEnd, setRequestedEnd] = useState<string | null>(null);
   const [publishedRequestId, setPublishedRequestId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState('');
   const [userId, setUserId] = useState<string | null>(null);
   const [pendingTurns, setPendingTurns] = useState<PendingCustomerTurn[]>([]);
@@ -1255,7 +1260,8 @@ export function RequestComposer() {
     }
   }
   async function publish() {
-    if (!canPublish || !userId || !categorySelectionSource) return;
+    if (!canPublish || busy || !userId || !categorySelectionSource) return;
+    setPublishing(true);
     setBusy(true);
     setError('');
     try {
@@ -1348,6 +1354,7 @@ export function RequestComposer() {
     } catch {
       setError(t('publishOrUploadFailed'));
     } finally {
+      setPublishing(false);
       setBusy(false);
     }
   }
@@ -1490,35 +1497,11 @@ export function RequestComposer() {
 
   if (journeyStep === 'success') {
     return (
-      <CustomerScreen testID="request-publish-success">
-        <View style={journeyStyles.success}>
-          <View style={journeyStyles.successIcon}>
-            <AppIcon color={tokens.colors.success} name="check" size={36} strokeWidth={3} />
-          </View>
-          <Text
-            accessibilityLiveRegion="polite"
-            accessibilityRole="header"
-            style={[customerStyles.display, textDirection]}
-          >
-            {t('publishSuccessTitle')}
-          </Text>
-          <Text style={[customerStyles.bodyMuted, textDirection]}>{t('publishSuccessBody')}</Text>
-          {publishedRequestId ? (
-            <Text selectable style={[customerStyles.caption, textDirection]}>
-              {t('requestNumber', { id: publishedRequestId })}
-            </Text>
-          ) : null}
-        </View>
-        <ActionButton
-          label={t('viewMyRequests')}
-          onPress={() => router.replace('/customer-requests')}
-        />
-        <ActionButton
-          label={t('startAnotherRequest')}
-          onPress={startAnotherDraft}
-          variant="secondary"
-        />
-      </CustomerScreen>
+      <RequestPublished
+        active={activeScreen}
+        onStartAnother={startAnotherDraft}
+        requestId={publishedRequestId}
+      />
     );
   }
 
@@ -1542,36 +1525,38 @@ export function RequestComposer() {
           variant="ghost"
         />
       ) : null}
-      <StepHeader
-        body={
-          journeyStep === 'category'
-            ? t('categoryStepBody')
-            : journeyStep === 'chat'
-              ? t('chatStepBody')
-              : journeyStep === 'location'
-                ? t('locationStepBody')
-                : journeyStep === 'timing'
-                  ? t('timingStepBody')
-                  : t('reviewStepBody')
-        }
-        current={requestJourneyStepNumber(journeyStep)}
-        eyebrow={t('stepProgress', {
-          current: requestJourneyStepNumber(journeyStep),
-          total: 5,
-        })}
-        title={
-          journeyStep === 'category'
-            ? t('categoryStepTitle')
-            : journeyStep === 'chat'
-              ? t('chatStepTitle')
-              : journeyStep === 'location'
-                ? t('locationStepTitle')
-                : journeyStep === 'timing'
-                  ? t('timingStepTitle')
-                  : t('reviewStepTitle')
-        }
-        total={5}
-      />
+      <MotionReveal active={activeScreen} transitionKey={journeyStep}>
+        <StepHeader
+          body={
+            journeyStep === 'category'
+              ? t('categoryStepBody')
+              : journeyStep === 'chat'
+                ? t('chatStepBody')
+                : journeyStep === 'location'
+                  ? t('locationStepBody')
+                  : journeyStep === 'timing'
+                    ? t('timingStepBody')
+                    : t('reviewStepBody')
+          }
+          current={requestJourneyStepNumber(journeyStep)}
+          eyebrow={t('stepProgress', {
+            current: requestJourneyStepNumber(journeyStep),
+            total: 5,
+          })}
+          title={
+            journeyStep === 'category'
+              ? t('categoryStepTitle')
+              : journeyStep === 'chat'
+                ? t('chatStepTitle')
+                : journeyStep === 'location'
+                  ? t('locationStepTitle')
+                  : journeyStep === 'timing'
+                    ? t('timingStepTitle')
+                    : t('reviewStepTitle')
+          }
+          total={5}
+        />
+      </MotionReveal>
 
       {journeyStep === 'category' ? (
         <>
@@ -2270,10 +2255,19 @@ export function RequestComposer() {
           ) : null}
           <ActionButton
             disabled={!canPublish || busy}
-            label={busy ? t('publishingRequest') : t('publishRequest')}
-            loading={busy}
+            label={publishing ? t('publishingRequest') : t('publishRequest')}
+            loading={publishing}
             onPress={() => void publish()}
           />
+          {publishing ? (
+            <StatusMotion
+              active={activeScreen}
+              description={t('requestSendingBody')}
+              label={t('requestSendingTitle')}
+              layout="inline"
+              variant="sending"
+            />
+          ) : null}
         </>
       ) : null}
     </CustomerScreen>
@@ -2395,18 +2389,4 @@ const journeyStyles = StyleSheet.create({
     justifyContent: 'center',
   },
   approvalText: { flex: 1, ...tokens.type.body, color: tokens.colors.ink, textAlign: 'auto' },
-  success: {
-    minHeight: 360,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: tokens.spacing.md,
-  },
-  successIcon: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: tokens.colors.successSoft,
-  },
 });

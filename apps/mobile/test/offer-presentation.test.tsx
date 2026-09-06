@@ -24,7 +24,21 @@ vi.mock('expo-router', () => ({
   useLocalSearchParams: () => fixture.params,
   router: { replace: vi.fn(), push: vi.fn() },
 }));
-vi.mock('@/lib/supabase', () => ({ supabase: { rpc: fixture.rpc } }));
+vi.mock('@/lib/supabase', () => ({
+  supabase: {
+    rpc: fixture.rpc,
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () => ({
+            data: { id: fixture.params.requestId, status: 'receiving_offers' },
+            error: null,
+          }),
+        }),
+      }),
+    }),
+  },
+}));
 vi.mock('@/lib/mutation-journal', () => ({ executeJournaledMutation: vi.fn() }));
 vi.mock('@/components/ui', () => ({ styles: {} }));
 vi.mock('@/providers/locale-provider', () => ({
@@ -38,6 +52,15 @@ vi.mock('../src/design-system/icon', () => ({ AppIcon: 'AppIcon' }));
 vi.mock('@/design-system/primitives', async () => import('../src/design-system/primitives'));
 vi.mock('@/design-system/tokens', async () => import('../src/design-system/tokens'));
 vi.mock('@/design-system/rtl', async () => import('../src/design-system/rtl'));
+vi.mock('@/design-system/motion', () => ({ StatusMotion: 'StatusMotion' }));
+vi.mock('@/features/connectivity/use-active-screen', () => ({ useActiveScreen: () => true }));
+vi.mock('expo-network', () => ({
+  useNetworkState: () => ({ isConnected: true, isInternetReachable: true }),
+}));
+vi.mock(
+  '@/features/connectivity/network-state',
+  async () => import('../src/features/connectivity/network-state'),
+);
 
 import ProviderOffer from '../app/provider/offer';
 import Offers from '../app/offers';
