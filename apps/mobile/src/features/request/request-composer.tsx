@@ -1,3 +1,4 @@
+import { createRandomId } from '../../lib/random-id';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -682,7 +683,7 @@ export function RequestComposer() {
         userId,
         kind: 'image',
         sourceUri: asset.uri,
-        filename: asset.fileName ?? `${globalThis.crypto.randomUUID()}.${extension}`,
+        filename: asset.fileName ?? `${createRandomId()}.${extension}`,
         mimeType: asset.mimeType ?? 'image/jpeg',
         sizeBytes: asset.fileSize,
       });
@@ -767,7 +768,7 @@ export function RequestComposer() {
         userId,
         kind: 'voice',
         sourceUri: recorder.uri,
-        filename: `${globalThis.crypto.randomUUID()}.m4a`,
+        filename: `${createRandomId()}.m4a`,
         mimeType: 'audio/mp4',
       });
       const superseded = activeMediaIdsAfterReplacement({
@@ -1117,7 +1118,7 @@ export function RequestComposer() {
         binding.upload ? [binding.upload.uploadId] : [],
       );
       turn = {
-        clientMessageId: globalThis.crypto.randomUUID(),
+        clientMessageId: createRandomId(),
         text: userText,
         inputKind: hasVoice ? 'voice' : hasImage ? 'image' : 'text',
         mediaUploadIds,
@@ -1230,7 +1231,7 @@ export function RequestComposer() {
         summaryRequested,
       });
       const fallbackTurn = turn ?? {
-        clientMessageId: globalThis.crypto.randomUUID(),
+        clientMessageId: createRandomId(),
         text: userText,
         inputKind: hasVoice
           ? ('voice' as const)
@@ -1995,9 +1996,7 @@ export function RequestComposer() {
                         ? t('schedule')
                         : t('timingFlexible')}
                   </Text>
-                  <Text style={[customerStyles.caption, textDirection]}>
-                    {value === 'flexible' ? t('providerPrivacyNotice') : t('timingStepBody')}
-                  </Text>
+                  <Text style={[customerStyles.caption, textDirection]}>{t('timingStepBody')}</Text>
                 </View>
                 {schedule === value ? (
                   <AppIcon color={tokens.colors.primaryStrong} name="check" size={22} />

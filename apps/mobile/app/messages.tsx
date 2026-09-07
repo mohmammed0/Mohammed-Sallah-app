@@ -1,3 +1,4 @@
+import { createRandomId } from '../src/lib/random-id';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FlatList, Image, ScrollView, Text, TextInput, View } from 'react-native';
 import { Link, useLocalSearchParams } from 'expo-router';
@@ -570,7 +571,7 @@ export default function Messages() {
       if (!isCurrentOperation()) return;
       const uploaded = await secureUpload({
         bytes,
-        filename: asset.fileName ?? `${globalThis.crypto.randomUUID()}.jpg`,
+        filename: asset.fileName ?? `${createRandomId()}.jpg`,
         mimeType: asset.mimeType ?? 'image/jpeg',
         purpose: 'message_attachment',
         resourceId: activeConversationId,
@@ -631,7 +632,7 @@ export default function Messages() {
       p_conversation_id: activeConversationId,
       p_body: body.trim(),
       p_upload_ids: attachment ? [attachment.uploadId] : [],
-      p_client_message_id: globalThis.crypto.randomUUID(),
+      p_client_message_id: createRandomId(),
     });
     if (!isCurrentOperation()) return;
     const insertError = response.error;

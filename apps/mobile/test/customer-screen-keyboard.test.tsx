@@ -157,3 +157,7 @@ describe('customer screen keyboard and long-form layout', () => {
     },
   );
 });
+
+vi.mock('expo-router/react-navigation', async () => ({
+  HeaderShownContext: (await import('react')).createContext(false),
+}));

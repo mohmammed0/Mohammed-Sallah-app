@@ -1,3 +1,4 @@
+import { createRandomId } from '../src/lib/random-id';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -282,7 +283,7 @@ export default function Jobs() {
             : 'jpg';
     const upload = await secureUpload({
       bytes,
-      filename: `${globalThis.crypto.randomUUID()}.${extension}`,
+      filename: `${createRandomId()}.${extension}`,
       mimeType,
       purpose: 'completion_proof',
       resourceId: job.id,

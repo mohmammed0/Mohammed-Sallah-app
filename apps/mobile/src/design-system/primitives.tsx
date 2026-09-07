@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useContext, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -16,6 +16,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { HeaderShownContext } from 'expo-router/react-navigation';
 import { AppIcon, type AppIconName } from './icon';
 import { customerTokens as tokens } from './tokens';
 import { isRtlLocale, logicalRowStyle, logicalTextStyle } from './rtl';
@@ -74,6 +75,7 @@ export function CustomerScreen({
   testID?: string;
 }) {
   const { locale } = useLocale();
+  const headerShown = useContext(HeaderShownContext);
   const keyboardFocusScroll = useKeyboardFocusScroll(keyboardAware);
   const screenRef = useRef<React.ElementRef<typeof SafeAreaView>>(null);
   const [keyboardVerticalOffset, setKeyboardVerticalOffset] = useState(0);
@@ -114,7 +116,7 @@ export function CustomerScreen({
   return (
     <SafeAreaView
       ref={screenRef}
-      edges={['left', 'right', 'bottom']}
+      edges={headerShown ? ['left', 'right', 'bottom'] : ['top', 'left', 'right', 'bottom']}
       onLayout={measureScreenOrigin}
       style={styles.safe}
       testID={testID}

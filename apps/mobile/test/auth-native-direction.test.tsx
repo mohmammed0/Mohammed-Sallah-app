@@ -139,3 +139,7 @@ describe('auth native direction boundaries', () => {
     }
   });
 });
+
+vi.mock('expo-router/react-navigation', async () => ({
+  HeaderShownContext: (await import('react')).createContext(false),
+}));

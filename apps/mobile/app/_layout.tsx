@@ -24,8 +24,16 @@ function LocalizedStack() {
     useSessionContext();
   const segments = useSegments();
   const legal = useLegalConsent();
+  const waitingForLegalContext = Boolean(
+    session &&
+    context?.allowed &&
+    legal.loading &&
+    !legal.context &&
+    !legal.error &&
+    !['legal', 'account', 'support', 'auth-callback', 'auth-recovery'].includes(segments[0] ?? ''),
+  );
   useEffect(() => {
-    if (loading || startupError) return;
+    if (loading || startupError || waitingForLegalContext) return;
     const first = segments[0];
     const publicRoute =
       first === undefined ||
@@ -60,8 +68,8 @@ function LocalizedStack() {
     ) {
       router.replace('/legal');
     }
-  }, [loading, session, context, startupError, segments, legal.canEnter]);
-  if (loading) {
+  }, [loading, session, context, startupError, segments, legal.canEnter, waitingForLegalContext]);
+  if (loading || waitingForLegalContext) {
     return (
       <Screen>
         <Text

@@ -1,3 +1,4 @@
+import { createRandomId } from '../src/lib/random-id';
 import { useEffect, useRef, useState } from 'react';
 import { router } from 'expo-router';
 import { Text } from 'react-native';
@@ -46,7 +47,7 @@ export default function LegalScreen() {
     setPending(true);
     setFailed(false);
     if (attempt.current?.fingerprint !== fingerprint) {
-      attempt.current = { fingerprint, key: crypto.randomUUID() };
+      attempt.current = { fingerprint, key: createRandomId() };
     }
     try {
       await legal.accept(

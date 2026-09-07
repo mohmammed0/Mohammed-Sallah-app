@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-05",
+  "generatedAt": "2026-09-06",
   "policy": "Exact versions from pnpm lock; ship permissive dependencies. Package-scoped build/data exceptions are documented.",
   "ciActions": [
     {
@@ -138,6 +138,7 @@
       "relatedPackageVersions": {
         "expo-asset": "57.0.16",
         "expo-constants": "57.0.17",
+        "expo-crypto": "57.0.2",
         "expo-image-picker": "57.0.16",
         "expo-linking": "57.0.9",
         "expo-location": "57.0.16",

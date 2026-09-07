@@ -241,3 +241,7 @@ describe('provider brief presentation', () => {
     expect(textOf(screen)).toContain('cachedTranslation');
   });
 });
+
+vi.mock('expo-router/react-navigation', async () => ({
+  HeaderShownContext: (await import('react')).createContext(false),
+}));

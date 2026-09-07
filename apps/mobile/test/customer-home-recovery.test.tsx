@@ -246,3 +246,7 @@ describe('customer home recovery', () => {
     expect(textOf(screen)).toContain('Sep 6, 2026');
   });
 });
+
+vi.mock('expo-router/react-navigation', async () => ({
+  HeaderShownContext: (await import('react')).createContext(false),
+}));

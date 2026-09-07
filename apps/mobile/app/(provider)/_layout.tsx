@@ -2,10 +2,12 @@ import { Tabs } from 'expo-router';
 import type { ColorValue } from 'react-native';
 import { AppIcon, type AppIconName } from '@/design-system/icon';
 import { customerTokens as tokens } from '@/design-system/tokens';
+import { useTabBarMetrics } from '@/design-system/tab-bar-metrics';
 import { useLocale } from '@/providers/locale-provider';
 
 export default function ProviderTabs() {
   const { dir, t } = useLocale();
+  const tabBarMetrics = useTabBarMetrics();
   const options = {
     headerTitleAlign: 'center' as const,
     tabBarHideOnKeyboard: true,
@@ -13,6 +15,7 @@ export default function ProviderTabs() {
     tabBarInactiveTintColor: tokens.colors.textMuted,
     tabBarLabelStyle: {
       fontSize: 12,
+      lineHeight: tokens.type.caption.lineHeight,
       fontWeight: '800' as const,
       paddingBottom: 4,
       direction: 'ltr' as const,
@@ -20,7 +23,7 @@ export default function ProviderTabs() {
       textAlign: dir === 'rtl' ? ('right' as const) : ('left' as const),
     },
     tabBarStyle: {
-      height: 72,
+      ...tabBarMetrics,
       paddingTop: 8,
       backgroundColor: tokens.colors.surface,
       borderTopColor: tokens.colors.border,

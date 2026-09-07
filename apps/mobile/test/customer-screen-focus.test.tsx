@@ -169,3 +169,7 @@ describe('focused input visibility after native keyboard layout', () => {
     },
   );
 });
+
+vi.mock('expo-router/react-navigation', async () => ({
+  HeaderShownContext: (await import('react')).createContext(false),
+}));

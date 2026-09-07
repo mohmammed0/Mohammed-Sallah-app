@@ -20,12 +20,19 @@ integrated into canonical `main` through the repository's required checks.
   acceptance. Viewing the required completion evidence remains a prerequisite;
   rejection and dispute controls remain available.
 - Protected proof and message links use the validated public Supabase gateway.
-  Local CLI projects retain their actual configured port, and message proxy links
+  Local CLI projects retain custom ports when `SALLAH_SUPABASE_PUBLIC_URL` is
+  explicitly configured, and message proxy links
   use the public function route. Production rejects insecure public origins;
   authentication, authorization and capability lifetimes remain unchanged.
 - Arabic and Urdu remain RTL; English and Hindi remain LTR. New customer copy
   is explicit in all four languages. System reduced motion preserves static
   status meaning. Animations stop when the app or screen becomes inactive.
+- Headerless native screens respect the status-bar inset. Customer/provider tabs
+  reserve the system navigation inset and grow with the text size. Initial sign-in
+  waits for the session's legal context without briefly requiring an already accepted
+  consent step; legal failure still prevents product entry.
+- Android/iOS journal, upload and message identifiers use Expo's native secure
+  UUID generator. Browser identifiers continue to require secure-context Web Crypto.
 
 ## Design research and asset provenance
 
@@ -85,8 +92,10 @@ must never be promoted into production to make a release appear complete.
 
 ## Rollback
 
-This customer experience change introduces no database migrations, authorization
-policy changes or new dependencies. Deploy the reviewed `media-access` Edge
+This customer experience change introduces no database migrations or authorization
+policy changes. It adds the MIT-licensed `expo-crypto` 57.0.2 native module, so an
+updated native build is required; a JavaScript-only update to an older binary is
+insufficient. Deploy the reviewed `media-access` Edge
 Function with the client candidate and verify protected-media readback against
 the configured public gateway. Revert the reviewed UI/version/broker commits or
 restore the prior validated client and Edge Function artifacts through a normal reviewed change.

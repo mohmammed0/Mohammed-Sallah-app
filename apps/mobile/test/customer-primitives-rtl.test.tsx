@@ -66,3 +66,7 @@ describe('customer form direction', () => {
     expect(JSON.stringify(ltrInput?.props.style)).toContain('"writingDirection":"ltr"');
   });
 });
+
+vi.mock('expo-router/react-navigation', async () => ({
+  HeaderShownContext: (await import('react')).createContext(false),
+}));

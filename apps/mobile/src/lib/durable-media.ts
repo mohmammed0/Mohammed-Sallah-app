@@ -1,3 +1,4 @@
+import { createRandomId } from './random-id';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 import { z } from 'zod';
@@ -74,7 +75,7 @@ export async function retainPrivateMedia(input: {
   if (items.reduce((sum, item) => sum + item.sizeBytes, 0) + sizeBytes > MAX_TOTAL_BYTES) {
     throw new Error('LOCAL_MEDIA_TOTAL_LIMIT');
   }
-  const id = globalThis.crypto.randomUUID();
+  const id = createRandomId();
   const extension =
     input.filename
       .split('.')

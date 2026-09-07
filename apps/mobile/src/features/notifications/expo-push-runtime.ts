@@ -1,3 +1,4 @@
+import { createRandomId } from '../../lib/random-id';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
@@ -35,7 +36,7 @@ async function installationId(): Promise<string> {
   const current = await SecureStore.getItemAsync(installationKey);
   const parsed = uuidSchema.safeParse(current);
   if (parsed.success) return parsed.data;
-  const created = globalThis.crypto.randomUUID();
+  const created = createRandomId();
   await SecureStore.setItemAsync(installationKey, created, {
     keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
   });

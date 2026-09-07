@@ -1,3 +1,4 @@
+import { createRandomId } from './random-id';
 import { z } from 'zod';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
@@ -514,7 +515,7 @@ export async function secureUpload(
     const parsedTicket = ticketSchema.parse(ticketResponse.data);
     const record = pendingUploadSchema.parse({
       uploadId: parsedTicket.uploadId,
-      operationId: crypto.randomUUID(),
+      operationId: createRandomId(),
       ownerId,
       recoveryKey,
       purpose,

@@ -1,3 +1,4 @@
+import { createRandomId } from './random-id';
 import { z } from 'zod';
 import { chunkedSecureStorage } from './secure-storage';
 
@@ -143,13 +144,13 @@ export async function beginMutation(input: {
     }
     const now = new Date();
     const entry = journalEntrySchema.parse({
-      id: globalThis.crypto.randomUUID(),
+      id: createRandomId(),
       userId: input.userId,
       operation: input.operation,
       entityKey: input.entityKey,
       payloadFingerprint,
       payload: canonicalize(payload),
-      idempotencyKey: globalThis.crypto.randomUUID(),
+      idempotencyKey: createRandomId(),
       state: 'pending',
       lastError: null,
       updatedAt: now.toISOString(),

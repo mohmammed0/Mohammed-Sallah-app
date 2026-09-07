@@ -1,3 +1,4 @@
+import { createRandomId } from '../../src/lib/random-id';
 import { useEffect, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -253,7 +254,7 @@ export default function ProviderOnboarding() {
           await assertCurrentOwner();
           return await secureUpload({
             bytes,
-            filename: `${globalThis.crypto.randomUUID()}.${extension}`,
+            filename: `${createRandomId()}.${extension}`,
             mimeType: document.mimeType ?? 'image/jpeg',
             purpose: 'provider_document',
             recoveryKey: `provider-document:${documentType}:${index + 1}`,

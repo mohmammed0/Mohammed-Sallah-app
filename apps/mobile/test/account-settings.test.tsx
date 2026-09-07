@@ -358,3 +358,7 @@ describe('account preferences and privacy controls', () => {
     expect(JSON.stringify(renderer.toJSON())).toContain(translate('ar', 'notificationSaveFailed'));
   });
 });
+
+vi.mock('expo-router/react-navigation', async () => ({
+  HeaderShownContext: (await import('react')).createContext(false),
+}));
