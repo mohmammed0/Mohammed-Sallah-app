@@ -1,4 +1,5 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { QueryClient } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fixture = vi.hoisted(() => ({
@@ -8,6 +9,7 @@ const fixture = vi.hoisted(() => ({
   media: vi.fn(),
   tasks: [] as Promise<unknown>[],
   errors: [] as unknown[],
+  client: undefined as QueryClient | undefined,
 }));
 vi.mock('expo-router', () => ({
   Link: 'Link',
@@ -23,7 +25,9 @@ vi.mock('react-native', () => ({
   TextInput: 'TextInput',
   View: 'View',
 }));
-vi.mock('@tanstack/react-query', () => ({
+vi.mock('@tanstack/react-query', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-query')>()),
+  useQueryClient: () => fixture.client,
   useQuery: () => ({
     data: { userId: '11111111-1111-4111-8111-111111111111', jobs: fixture.jobs },
     isPending: false,
@@ -161,6 +165,7 @@ async function settleTasks() {
   });
 }
 beforeEach(() => {
+  fixture.client = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity } } });
   fixture.jobs = [{ ...job }];
   fixture.tasks = [];
   fixture.errors = [];
@@ -176,9 +181,46 @@ beforeEach(() => {
 afterEach(async () => {
   if (renderer) await act(async () => renderer!.unmount());
   renderer = undefined;
+  fixture.client?.clear();
 });
 
 describe('completion evidence follows the polled attempt', () => {
+  it('refreshes only the current customer request lists after successful completion', async () => {
+    await render();
+    await press('viewCompletionProof');
+    await settleTasks();
+    await act(async () => renderer!.root.findByType('Image').props.onLoad());
+    const ownKeys = [
+      ['customer-home-requests', job.customer_id],
+      ['customer-requests', job.customer_id],
+    ];
+    const otherKeys = [
+      ['customer-home-requests', job.provider_id],
+      ['customer-requests', job.provider_id],
+    ];
+    for (const key of [...ownKeys, ...otherKeys]) {
+      fixture.client!.setQueryData(key, [{ status: 'completion_submitted' }]);
+    }
+    const completion = deferred<{ data: null; error: null }>();
+    fixture.rpc.mockReturnValueOnce(completion.promise);
+    await press('acceptCompletion');
+    expect(fixture.rpc).toHaveBeenLastCalledWith(
+      'accept_completion',
+      expect.objectContaining({ p_job_id: job.id, p_accept: true }),
+    );
+    for (const key of ownKeys) {
+      expect(fixture.client!.getQueryState(key)?.isInvalidated).toBe(false);
+    }
+    await act(async () => completion.resolve({ data: null, error: null }));
+    await settleTasks();
+    for (const key of ownKeys) {
+      expect(fixture.client!.getQueryState(key)?.isInvalidated).toBe(true);
+    }
+    for (const key of otherKeys) {
+      expect(fixture.client!.getQueryState(key)?.isInvalidated).toBe(false);
+    }
+  });
+
   it('requires new evidence after resumption and rejects an old acceptance handler', async () => {
     await render();
     await press('viewCompletionProof');

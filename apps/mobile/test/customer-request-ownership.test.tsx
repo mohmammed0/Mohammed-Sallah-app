@@ -1,8 +1,10 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fixture = vi.hoisted(() => ({
+  ownStatus: 'receiving_offers',
+  job: null as unknown,
   customerId: '11111111-1111-4111-8111-111111111111',
   requests: [
     {
@@ -32,6 +34,7 @@ vi.mock('react-native', () => ({
   StyleSheet: { create: (value: unknown) => value },
 }));
 vi.mock('expo-router', () => ({ router: { push: vi.fn() } }));
+vi.mock('@/features/connectivity/use-active-screen', () => ({ useActiveScreen: () => true }));
 vi.mock('@/providers/session-provider', () => ({
   useSessionContext: () => ({
     session: { user: { id: fixture.customerId } },
@@ -72,7 +75,18 @@ vi.mock('@/lib/supabase', () => ({
       let rows: Record<string, unknown>[] =
         table === 'service_requests' ? [...fixture.requests] : [];
       const query = {
-        select: () => query,
+        select: (columns: string) => {
+          if (table === 'service_requests') {
+            rows = rows.map((row) => ({
+              ...row,
+              status: row.customer_id === fixture.customerId ? fixture.ownStatus : row.status,
+              ...(columns.includes('jobs(status)')
+                ? { jobs: row.customer_id === fixture.customerId ? fixture.job : null }
+                : {}),
+            }));
+          }
+          return query;
+        },
         eq: (column: string, value: unknown) => {
           rows = rows.filter((row) => row[column] === value);
           return query;
@@ -99,11 +113,39 @@ vi.mock('@/lib/supabase', () => ({
 
 import { CustomerHome } from '../src/features/customer/customer-home';
 import Requests from '../app/requests';
+import { listCustomerRequests } from '../src/features/customer/customer-request-service';
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
 let screen: ReactTestRenderer | undefined;
 let client: QueryClient | undefined;
+
+beforeEach(() => {
+  fixture.ownStatus = 'receiving_offers';
+  fixture.job = null;
+});
+
+async function render(Screen: typeof CustomerHome | typeof Requests) {
+  client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  await act(() => {
+    screen = create(
+      <QueryClientProvider client={client!}>
+        <Screen />
+      </QueryClientProvider>,
+    );
+  });
+  await vi.waitFor(async () => {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(
+      screen!.root
+        .findAllByType('Text')
+        .flatMap((node) => node.props.children)
+        .join(' '),
+    ).toContain('My leaking tap');
+  });
+}
 
 afterEach(async () => {
   await act(() => screen?.unmount());
@@ -111,6 +153,68 @@ afterEach(async () => {
 });
 
 describe('customer request ownership for dual-role accounts', () => {
+  it('moves a finished job from active requests into completed history', async () => {
+    fixture.ownStatus = 'provider_selected';
+    fixture.job = { status: 'completed' };
+    await render(Requests);
+    await act(() =>
+      screen!.root
+        .findAllByType('Pill')
+        .find((node) => node.props.label === 'Completed')!
+        .props.onPress(),
+    );
+    expect(
+      screen!.root
+        .findAllByType('Text')
+        .flatMap((node) => node.props.children)
+        .join(' '),
+    ).toContain('My leaking tap');
+    await act(() =>
+      screen!.root
+        .findAllByType('Pill')
+        .find((node) => node.props.label === 'activeRequest')!
+        .props.onPress(),
+    );
+    expect(
+      screen!.root
+        .findAllByType('Text')
+        .flatMap((node) => node.props.children)
+        .join(' '),
+    ).not.toContain('My leaking tap');
+  });
+
+  it('removes a completed job from the home active request section', async () => {
+    fixture.ownStatus = 'provider_selected';
+    fixture.job = { status: 'completed' };
+    await render(CustomerHome);
+    expect(
+      screen!.root.findAllByType('SectionHeader').map((node) => node.props.title),
+    ).not.toContain('activeRequest');
+    expect(
+      screen!.root
+        .findAllByType('Text')
+        .flatMap((node) => node.props.children)
+        .join(' '),
+    ).toContain('Completed');
+  });
+
+  it.each(['scheduled', 'in_progress', 'completion_submitted', 'completed', 'cancelled'])(
+    'reads the authoritative %s job state after provider selection',
+    async (status) => {
+      fixture.ownStatus = 'provider_selected';
+      fixture.job = { status };
+      expect((await listCustomerRequests(fixture.customerId, 50))[0]?.status).toBe(status);
+    },
+  );
+
+  it.each([[{ status: 'completed' }], { status: 'unrecognized_state' }, undefined])(
+    'rejects a malformed to-one job relation: %j',
+    async (job) => {
+      fixture.job = job;
+      await expect(listCustomerRequests(fixture.customerId, 50)).rejects.toThrow();
+    },
+  );
+
   it.each([
     ['home', CustomerHome],
     ['request list', Requests],

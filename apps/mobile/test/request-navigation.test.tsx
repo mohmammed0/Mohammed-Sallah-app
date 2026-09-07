@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({ status: 'scheduled', push: vi.fn() }));
 vi.mock('expo-router', () => ({ router: { push: state.push } }));
+vi.mock('@/features/connectivity/use-active-screen', () => ({ useActiveScreen: () => true }));
 vi.mock('@/providers/session-provider', () => ({
   useSessionContext: () => ({
     session: { user: { id: '11111111-1111-4111-8111-111111111111' } },

@@ -29,6 +29,7 @@ import { useCustomerLocation } from '@/features/location/location-provider';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/providers/locale-provider';
 import { useSessionContext } from '@/providers/session-provider';
+import { useActiveScreen } from '@/features/connectivity/use-active-screen';
 import { listCustomerRequests } from './customer-request-service';
 
 const categorySchema = z.object({
@@ -53,6 +54,7 @@ const activeStatuses = new Set([
 ]);
 
 export function CustomerHome() {
+  const active = useActiveScreen();
   const { locale, t } = useLocale();
   const { session } = useSessionContext();
   const customerId = session?.user.id ?? null;
@@ -75,7 +77,9 @@ export function CustomerHome() {
   const requests = useQuery({
     queryKey: ['customer-home-requests', customerId],
     queryFn: () => listCustomerRequests(customerId, 12),
-    enabled: Boolean(customerId),
+    enabled: active && Boolean(customerId),
+    refetchInterval: active ? 8_000 : false,
+    refetchIntervalInBackground: false,
   });
   const notifications = useQuery({
     queryKey: ['customer-notification-count'],

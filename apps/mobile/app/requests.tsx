@@ -20,6 +20,7 @@ import { customerTokens as tokens } from '@/design-system/tokens';
 import { listCustomerRequests } from '@/features/customer/customer-request-service';
 import { useLocale } from '@/providers/locale-provider';
 import { useSessionContext } from '@/providers/session-provider';
+import { useActiveScreen } from '@/features/connectivity/use-active-screen';
 
 type Filter = 'all' | 'active' | 'completed';
 const activeStatuses = new Set([
@@ -38,6 +39,7 @@ const activeStatuses = new Set([
 ]);
 
 export default function Requests() {
+  const active = useActiveScreen();
   const { locale, t } = useLocale();
   const { session } = useSessionContext();
   const customerId = session?.user.id ?? null;
@@ -45,7 +47,9 @@ export default function Requests() {
   const query = useQuery({
     queryKey: ['customer-requests', customerId],
     queryFn: () => listCustomerRequests(customerId, 50),
-    enabled: Boolean(customerId),
+    enabled: active && Boolean(customerId),
+    refetchInterval: active ? 8_000 : false,
+    refetchIntervalInBackground: false,
   });
   const visible = useMemo(
     () =>

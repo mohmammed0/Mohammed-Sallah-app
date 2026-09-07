@@ -8,6 +8,7 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock('expo-router', () => ({ Link: 'Link', useLocalSearchParams: () => state.params }));
 vi.mock('@tanstack/react-query', () => ({
+  useQueryClient: () => ({ invalidateQueries: vi.fn(async () => undefined) }),
   useQuery: (options: typeof state.options) => {
     state.options = options;
     return { data: { jobs: [] }, isPending: false };

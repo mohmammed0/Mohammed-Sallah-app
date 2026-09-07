@@ -1,7 +1,7 @@
 import { createRandomId } from '../src/lib/random-id';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocalSearchParams } from 'expo-router';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, Image, Linking, Platform, ScrollView, Text, TextInput, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
@@ -71,6 +71,7 @@ const jobTimelineStatuses = [
 ] as const;
 
 export default function Jobs() {
+  const queryClient = useQueryClient();
   const activeScreen = useActiveScreen();
   const { locale, t } = useLocale();
   const params = useLocalSearchParams<{ jobId?: string; requestId?: string }>();
@@ -147,7 +148,22 @@ export default function Jobs() {
   const command = useMutation({
     mutationFn: async (run: () => Promise<unknown>) => run(),
     onSuccess: async () => {
-      await query.refetch();
+      const userId = query.data?.userId;
+      await Promise.all([
+        query.refetch(),
+        ...(userId
+          ? [
+              queryClient.invalidateQueries({
+                queryKey: ['customer-home-requests', userId],
+                exact: true,
+              }),
+              queryClient.invalidateQueries({
+                queryKey: ['customer-requests', userId],
+                exact: true,
+              }),
+            ]
+          : []),
+      ]);
     },
     onError: () => Alert.alert(t('commandFailedTitle'), t('commandFailedBody')),
   });
@@ -792,12 +808,6 @@ export default function Jobs() {
                   })}
                 </Text>
               )}
-              <Text style={styles.lead}>
-                {t('jobRoleSummary', {
-                  version: job.version,
-                  role: customer ? t('customer') : t('provider'),
-                })}
-              </Text>
               <Text style={styles.lead} accessibilityLiveRegion="polite">
                 {t('cancellationStatus')}:{' '}
                 {latestCancellation

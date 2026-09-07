@@ -123,6 +123,7 @@ vi.mock('expo-location', () => ({
   watchPositionAsync: vi.fn(),
 }));
 vi.mock('@tanstack/react-query', () => ({
+  useQueryClient: () => ({ invalidateQueries: vi.fn(async () => undefined) }),
   useMutation: () => ({ mutate: vi.fn(), isPending: false }),
   useQuery: () => ({
     data: {
