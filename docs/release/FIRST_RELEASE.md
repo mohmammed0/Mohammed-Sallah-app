@@ -33,6 +33,11 @@ integrated into canonical `main` through the repository's required checks.
   consent step; legal failure still prevents product entry.
 - Android/iOS journal, upload and message identifiers use Expo's native secure
   UUID generator. Browser identifiers continue to require secure-context Web Crypto.
+- Customer home and request history select only requests owned by the current
+  account. A provider's eligible matches remain in the provider workspace.
+- Job reads validate the actual to-one PostgREST conversation and rating shapes.
+  An unrated job remains available for tracking. Job data and validation failures
+  show a loading error with retry rather than a sign-in error.
 
 ## Design research and asset provenance
 

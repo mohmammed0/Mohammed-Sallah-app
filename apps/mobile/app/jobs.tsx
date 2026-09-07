@@ -22,6 +22,7 @@ import {
   type CompletionEvidenceBatch,
 } from '@/features/jobs/completion-evidence';
 import { CustomerJobStatus } from '@/features/jobs/customer-job-status';
+import { jobSchema, type Job } from '../src/features/jobs/job-read-contract';
 import { useActiveScreen } from '@/features/connectivity/use-active-screen';
 import { executeJournaledMutation, type MutationOperation } from '@/lib/mutation-journal';
 import type { MarketplaceReportIntent } from '@sallah/domain/trust';
@@ -30,68 +31,6 @@ import { createTrustRpcClient, submitMarketplaceReport } from '../src/features/t
 
 const trustClient = createTrustRpcClient(supabase);
 
-const changeOrderSchema = z.object({
-  id: z.uuid(),
-  reason: z.string(),
-  description: z.string(),
-  revised_total_minor: z.number().int(),
-  status: z.string(),
-  expires_at: z.string(),
-});
-const ratingSchema = z.object({
-  id: z.uuid(),
-  customer_id: z.uuid(),
-  provider_id: z.uuid(),
-  score: z.number().int().min(1).max(5),
-  review: z.string().nullable(),
-  moderation_status: z.string(),
-});
-const jobSchema = z.object({
-  id: z.uuid(),
-  customer_id: z.uuid(),
-  provider_id: z.uuid(),
-  status: z.string(),
-  approved_total_minor: z.number().int(),
-  version: z.number().int(),
-  created_at: z.string(),
-  payments: z
-    .array(
-      z.object({
-        amount_minor: z.number().int(),
-        refunded_minor: z.number().int().default(0),
-        status: z.string(),
-      }),
-    )
-    .default([]),
-  conversations: z.array(z.object({ id: z.uuid() })),
-  job_location_updates: z
-    .array(z.object({ captured_at: z.string(), expires_at: z.string() }))
-    .default([]),
-  change_orders: z.array(changeOrderSchema),
-  cancellation_requests: z
-    .array(
-      z.object({
-        id: z.uuid(),
-        status: z.string(),
-        reason: z.string(),
-        created_at: z.string(),
-      }),
-    )
-    .default([]),
-  disputes: z
-    .array(
-      z.object({
-        id: z.uuid(),
-        status: z.string(),
-        reason: z.string(),
-        created_at: z.string(),
-        resolved_at: z.string().nullable(),
-      }),
-    )
-    .default([]),
-  ratings: z.array(ratingSchema).default([]),
-});
-type Job = z.infer<typeof jobSchema>;
 const providerNext: Record<string, string | undefined> = {
   scheduled: 'en_route',
   en_route: 'arrived',
@@ -780,7 +719,11 @@ export default function Jobs() {
         {query.isError && (
           <Card>
             <Text accessibilityRole="alert" style={styles.error}>
-              {t('signInToLoadJobs')}
+              {t(
+                query.error instanceof Error && query.error.message === 'AUTH_REQUIRED'
+                  ? 'signInToLoadJobs'
+                  : 'jobLoadFailed',
+              )}
             </Text>
             <Button kind="secondary" label={t('retry')} onPress={() => void query.refetch()} />
           </Card>

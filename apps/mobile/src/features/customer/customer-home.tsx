@@ -28,19 +28,14 @@ import {
 import { useCustomerLocation } from '@/features/location/location-provider';
 import { supabase } from '@/lib/supabase';
 import { useLocale } from '@/providers/locale-provider';
+import { useSessionContext } from '@/providers/session-provider';
+import { listCustomerRequests } from './customer-request-service';
 
 const categorySchema = z.object({
   id: z.uuid(),
   slug: z.string(),
   icon_key: z.string(),
   service_category_translations: z.array(z.object({ name: z.string(), description: z.string() })),
-});
-const requestSchema = z.object({
-  id: z.uuid(),
-  title: z.string(),
-  status: z.string(),
-  created_at: z.string(),
-  timing_mode: z.enum(['asap', 'scheduled', 'flexible']),
 });
 const activeStatuses = new Set([
   'published',
@@ -59,6 +54,8 @@ const activeStatuses = new Set([
 
 export function CustomerHome() {
   const { locale, t } = useLocale();
+  const { session } = useSessionContext();
+  const customerId = session?.user.id ?? null;
   const textDirection = logicalTextStyle(locale);
   const { activeLocation: defaultAddress } = useCustomerLocation();
   const [search, setSearch] = useState('');
@@ -76,16 +73,9 @@ export function CustomerHome() {
     },
   });
   const requests = useQuery({
-    queryKey: ['customer-home-requests'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('service_requests')
-        .select('id,title,status,created_at,timing_mode')
-        .order('created_at', { ascending: false })
-        .limit(12);
-      if (error) throw error;
-      return z.array(requestSchema).parse(data ?? []);
-    },
+    queryKey: ['customer-home-requests', customerId],
+    queryFn: () => listCustomerRequests(customerId, 12),
+    enabled: Boolean(customerId),
   });
   const notifications = useQuery({
     queryKey: ['customer-notification-count'],

@@ -721,6 +721,7 @@ const ar = {
   jobCancellationReason: 'طلب إلغاء العمل',
   actionReasonPlaceholder: 'سبب الإجراء أو النزاع',
   loadingJobs: 'جارٍ تحميل الأعمال…',
+  jobLoadFailed: 'تعذر تحميل تفاصيل العمل. تحقق من الاتصال ثم أعد المحاولة.',
   signInToLoadJobs: 'سجّل الدخول لتحميل أعمالك.',
   approvedTotal: 'الإجمالي المعتمد {{amount}}',
   jobRoleSummary: 'نسخة {{version}} · {{role}}',
@@ -1656,6 +1657,7 @@ const en: TranslationShape = {
   jobCancellationReason: 'Job cancellation request',
   actionReasonPlaceholder: 'Reason for the action or dispute',
   loadingJobs: 'Loading jobs…',
+  jobLoadFailed: 'Could not load the job details. Check your connection and try again.',
   signInToLoadJobs: 'Sign in to load your jobs.',
   approvedTotal: 'Approved total {{amount}}',
   jobRoleSummary: 'Version {{version}} · {{role}}',
@@ -1851,6 +1853,7 @@ const en: TranslationShape = {
 };
 const ur: TranslationShape = {
   ...en,
+  jobLoadFailed: 'کام کی تفصیلات لوڈ نہیں ہو سکیں۔ اپنا کنکشن چیک کریں اور دوبارہ کوشش کریں۔',
   requestSendingTitle: 'آپ کی درخواست بھیجی جا رہی ہے',
   requestSendingBody: 'آپ کی درخواست بھیجی جا رہی ہے۔ تصدیق دیکھنے کے لیے یہ اسکرین کھلی رکھیں۔',
   requestWaitingTitle: 'آفرز کا انتظار ہے',
@@ -2481,6 +2484,7 @@ const ur: TranslationShape = {
 };
 const hi: TranslationShape = {
   ...en,
+  jobLoadFailed: 'काम का विवरण लोड नहीं हो सका। अपना कनेक्शन जाँचें और फिर कोशिश करें।',
   requestSendingTitle: 'आपका अनुरोध भेजा जा रहा है',
   requestSendingBody: 'आपका अनुरोध भेजा जा रहा है। पुष्टि देखने के लिए यह स्क्रीन खुली रखें।',
   requestWaitingTitle: 'ऑफ़र का इंतज़ार है',

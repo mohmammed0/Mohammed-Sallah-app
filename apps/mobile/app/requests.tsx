@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { StyleSheet, Text, View } from 'react-native';
-import { z } from 'zod';
 import { formatStatusLabel } from '@sallah/i18n';
 import {
   ActionButton,
@@ -18,17 +17,10 @@ import {
 import { AppIcon } from '@/design-system/icon';
 import { logicalChevron, logicalRowStyle, logicalTextStyle } from '@/design-system/rtl';
 import { customerTokens as tokens } from '@/design-system/tokens';
-import { supabase } from '@/lib/supabase';
+import { listCustomerRequests } from '@/features/customer/customer-request-service';
 import { useLocale } from '@/providers/locale-provider';
+import { useSessionContext } from '@/providers/session-provider';
 
-const requestSchema = z.object({
-  id: z.uuid(),
-  title: z.string(),
-  status: z.string(),
-  version: z.number().int(),
-  created_at: z.string(),
-  timing_mode: z.enum(['asap', 'scheduled', 'flexible']),
-});
 type Filter = 'all' | 'active' | 'completed';
 const activeStatuses = new Set([
   'published',
@@ -47,18 +39,13 @@ const activeStatuses = new Set([
 
 export default function Requests() {
   const { locale, t } = useLocale();
+  const { session } = useSessionContext();
+  const customerId = session?.user.id ?? null;
   const [filter, setFilter] = useState<Filter>('all');
   const query = useQuery({
-    queryKey: ['customer-requests'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('service_requests')
-        .select('id,title,status,version,created_at,timing_mode')
-        .order('created_at', { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return z.array(requestSchema).parse(data ?? []);
-    },
+    queryKey: ['customer-requests', customerId],
+    queryFn: () => listCustomerRequests(customerId, 50),
+    enabled: Boolean(customerId),
   });
   const visible = useMemo(
     () =>

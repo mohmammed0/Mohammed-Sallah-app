@@ -3,6 +3,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({ status: 'scheduled', push: vi.fn() }));
 vi.mock('expo-router', () => ({ router: { push: state.push } }));
+vi.mock('@/providers/session-provider', () => ({
+  useSessionContext: () => ({
+    session: { user: { id: '11111111-1111-4111-8111-111111111111' } },
+  }),
+}));
 vi.mock('react-native', () => ({
   Pressable: 'Pressable',
   Text: 'Text',
@@ -26,6 +31,10 @@ vi.mock('@tanstack/react-query', () => ({
   }),
 }));
 vi.mock('@/lib/supabase', () => ({ supabase: {} }));
+vi.mock(
+  '@/features/customer/customer-request-service',
+  async () => import('../src/features/customer/customer-request-service'),
+);
 vi.mock('@/providers/locale-provider', () => ({
   useLocale: () => ({ locale: 'ar', t: (key: string) => key }),
 }));

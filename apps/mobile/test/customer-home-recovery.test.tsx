@@ -20,6 +20,11 @@ vi.mock('react-native', () => ({
 }));
 vi.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' }));
 vi.mock('expo-router', () => ({ router: { push: fixture.push } }));
+vi.mock('@/providers/session-provider', () => ({
+  useSessionContext: () => ({
+    session: { user: { id: '11111111-1111-4111-8111-111111111111' } },
+  }),
+}));
 vi.mock('@/lib/supabase', () => ({
   supabase: {
     from: (table: string) => {
@@ -234,6 +239,7 @@ describe('customer home recovery', () => {
                 id: '22222222-2222-4222-8222-222222222222',
                 title: 'Leaking tap',
                 status: 'published',
+                version: 1,
                 created_at: '2026-09-05T23:30:00.000Z',
                 timing_mode: 'flexible',
               },
