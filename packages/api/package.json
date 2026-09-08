@@ -20,6 +20,6 @@
   "devDependencies": {
     "@sallah/typescript-config": "workspace:*",
     "typescript": "6.0.3",
-    "vitest": "4.1.10"
+    "vitest": "5.0.0"
   }
 }
